@@ -1,0 +1,18 @@
+name = "pitutos-panel"
+compatibility_date = "2026-01-01"
+pages_build_output_dir = "public"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "pitutos-db"
+database_id = "fe4bd976-7bb5-44ae-ac2e-beb525bb7e19"
+
+[[r2_buckets]]
+binding = "FOTOS"
+bucket_name = "pitutos-fotos"
+
+[vars]
+NOMBRE_NEGOCIO = "Mis Pitutos Informáticos"
+# Correo donde quieres recibir el aviso cuando un cliente marca un avance
+# como revisado. Cámbialo aquí si quieres que llegue a otra casilla.
+EMAIL_NOTIFICACIONES = "sergiovasquezv@gmail.com"

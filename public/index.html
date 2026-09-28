@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title id="doc-title">Pitutos Panel</title>
+  <link rel="stylesheet" href="/css/style.css?v=20260918c">
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <div class="logo">PI</div>
+        <div>
+          <div class="name" id="brand-name">Mis Pitutos Informáticos</div>
+          <div class="tag">Panel de gestión</div>
+        </div>
+      </div>
+      <nav class="sidebar-nav" id="sidebar-nav">
+        <a href="#/" data-nav="">&#9679; Inicio</a>
+        <a href="#/clientes" data-nav="clientes">&#128100; Clientes</a>
+        <a href="#/equipos" data-nav="equipos">&#128187; Equipos y garantías</a>
+        <a href="#/trabajos" data-nav="trabajos">&#128295; Trabajos y soporte</a>
+        <a href="#/mensualidades" data-nav="mensualidades">&#128179; Mensualidades</a>
+        <a href="#/finanzas" data-nav="finanzas">&#128176; Finanzas</a>
+      </nav>
+      <div class="sidebar-footer">
+        Conectado como <strong id="username-label">...</strong><br>
+        <a href="#/cuenta">Mi cuenta</a> · <a href="#" id="logout-link">Cerrar sesión</a>
+      </div>
+    </aside>
+
+    <div class="main">
+      <div class="topbar">
+        <div>
+          <h1 id="page-title">Inicio</h1>
+          <div class="subtitle" id="page-subtitle"></div>
+        </div>
+        <div id="top-actions"></div>
+      </div>
+
+      <div class="flashes" id="flash-area"></div>
+
+      <div class="content" id="content">
+        <div class="empty-state">Cargando…</div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/js/app.js?v=20260918c"></script>
+</body>
+</html>

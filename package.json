@@ -1,0 +1,14 @@
+{
+  "name": "pitutos-panel",
+  "version": "1.0.0",
+  "description": "Panel de gestión para servicios informáticos - Cloudflare Pages + D1",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler pages dev",
+    "deploy": "wrangler pages deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^3"
+  }
+}

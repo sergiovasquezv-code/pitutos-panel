@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Garantía de tu equipo</title>
+  <meta property="og:title" content="Garantía de tu equipo">
+  <meta property="og:description" content="Revisa el estado de la garantía del equipo que compraste.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://panel.mispitutosinformaticos.cl/garantia">
+  <meta name="twitter:card" content="summary">
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    /* Tema claro y profesional para esta página pública — a propósito
+       independiente del tema Matrix del panel interno, para que lo que
+       ve el cliente se vea sobrio y confiable. */
+    :root {
+      --bg: #f4f6fa;
+      --card: #ffffff;
+      --border: #e3e7ef;
+      --text: #1c2536;
+      --text-muted: #6b7690;
+      --navy-950: #10203a;
+      --navy-900: #eef1f6;
+      --navy-800: #e6eaf1;
+      --accent: #0f9d70;
+      --accent-dark: #0b7d59;
+      --accent-soft: #e6f7ef;
+      --warn: #b45309;
+      --warn-soft: #fff2d9;
+      --danger: #b3261e;
+      --danger-soft: #fdeceb;
+      --ok: #197a4f;
+      --ok-soft: #e7f6ee;
+      --radius: 12px;
+      --shadow: 0 8px 30px rgba(20, 30, 50, .08), 0 1px 2px rgba(20, 30, 50, .04);
+    }
+    body { background: var(--bg); }
+    .public-wrap {
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 32px 18px 60px;
+    }
+    .public-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 22px;
+    }
+    .public-header .logo {
+      width: 42px;
+      height: 42px;
+      border-radius: 10px;
+      background: var(--navy-950);
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 15px;
+      flex-shrink: 0;
+    }
+    .public-header .negocio {
+      font-weight: 650;
+      font-size: 15.5px;
+    }
+    .public-header .subt {
+      color: var(--text-muted);
+      font-size: 12.5px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 22px;
+      margin-bottom: 18px;
+    }
+    .card h1 {
+      font-size: 19px;
+      margin: 0 0 4px;
+    }
+    .card .cliente {
+      color: var(--text-muted);
+      font-size: 13.5px;
+      margin-bottom: 14px;
+    }
+    .detalle-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px 18px;
+      margin-top: 4px;
+    }
+    .detalle-grid .item .label {
+      font-size: 11.5px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: .03em;
+      font-weight: 600;
+    }
+    .detalle-grid .item .valor {
+      font-size: 14.5px;
+      margin-top: 2px;
+    }
+    .banner-garantia {
+      border-radius: 12px;
+      border-left: 4px solid currentColor;
+      padding: 18px;
+      margin-top: 4px;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+    .banner-garantia .ic {
+      font-size: 22px;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+    .banner-garantia .titulo {
+      font-weight: 700;
+      font-size: 16px;
+      margin: 0 0 4px;
+    }
+    .banner-garantia .detalle {
+      font-size: 13.5px;
+      margin: 0;
+    }
+    .banner-garantia.ok { background: var(--ok-soft); color: var(--ok); }
+    .banner-garantia.warn { background: var(--warn-soft); color: var(--warn); }
+    .banner-garantia.danger { background: var(--danger-soft); color: var(--danger); }
+
+    .monto-grande { font-size: 30px; font-weight: 700; margin: 6px 0 2px; }
+    .monto-label { color: var(--text-muted); font-size: 12.5px; text-transform: uppercase; letter-spacing: .03em; font-weight: 600; }
+    .banner-saldo {
+      border-radius: 12px; border-left: 4px solid currentColor; padding: 18px; margin-top: 4px; display: flex; align-items: flex-start; gap: 12px;
+    }
+    .banner-saldo .ic { font-size: 22px; line-height: 1; flex-shrink: 0; }
+    .banner-saldo .titulo { font-weight: 700; font-size: 16px; margin: 0 0 4px; }
+    .banner-saldo .detalle { font-size: 13.5px; margin: 0; }
+    .banner-saldo.ok { background: var(--ok-soft); color: var(--ok); }
+    .banner-saldo.warn { background: var(--warn-soft); color: var(--warn); }
+    .historial-item {
+      display: flex; justify-content: space-between; align-items: baseline;
+      padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 13.5px;
+    }
+    .historial-item:last-child { border-bottom: none; }
+    .historial-item .fecha { color: var(--text-muted); }
+    .historial-item .nota { display: block; color: var(--text-muted); font-size: 12px; margin-top: 2px; }
+
+    .fotos-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 10px;
+      margin-top: 4px;
+    }
+    .fotos-grid figure { margin: 0; }
+    .fotos-grid img {
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      object-fit: cover;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      display: block;
+      cursor: zoom-in;
+    }
+    .fotos-grid figcaption {
+      font-size: 11.5px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .footer-note {
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 12px;
+      margin-top: 24px;
+    }
+
+    .condiciones-card {
+      background: var(--navy-900);
+      border: 1px solid var(--border);
+    }
+    .condiciones-card h1 {
+      font-size: 14.5px;
+      margin: 0 0 10px;
+    }
+    .condiciones-list {
+      margin: 0;
+      padding-left: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .condiciones-list li {
+      font-size: 12.5px;
+      color: var(--text-muted);
+      line-height: 1.45;
+    }
+  </style>
+</head>
+<body>
+  <div class="public-wrap">
+    <div class="public-header">
+      <div class="logo" id="logo-ini">PI</div>
+      <div>
+        <div class="negocio" id="negocio-nombre">Cargando…</div>
+        <div class="subt">Garantía de tu equipo</div>
+      </div>
+    </div>
+
+    <div id="content">
+      <div class="card">
+        <div class="empty-state">Cargando información…</div>
+      </div>
+    </div>
+
+    <div class="footer-note" id="footer-note" style="display:none;">
+      Este es un link privado — no lo compartas si no quieres que otras personas vean los datos de tu equipo.
+      <br><a href="https://mispitutosinformaticos.cl/" target="_blank" rel="noopener">Conoce más de nuestros servicios</a>
+    </div>
+  </div>
+
+  <script type="module">
+    function escapeHtml(str) {
+      return String(str ?? "").replace(/[&<>"']/g, (c) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+      }[c]));
+    }
+
+    function fechaLarga(iso) {
+      if (!iso) return "";
+      try {
+        return new Date(iso).toLocaleDateString("es-CL", { dateStyle: "long" });
+      } catch {
+        return iso;
+      }
+    }
+
+    function clp(value) {
+      const n = Math.round(Number(value) || 0);
+      return "$" + n.toLocaleString("es-CL");
+    }
+
+    function bannerSaldo(data) {
+      if (!data.monto_total) return "";
+      if (data.pagado_completo) {
+        return `
+          <div class="banner-saldo ok">
+            <div class="ic">&#10003;</div>
+            <div>
+              <p class="titulo">Pagado por completo</p>
+              <p class="detalle">Ya pagaste el total de ${clp(data.monto_total)}. ¡Gracias!</p>
+            </div>
+          </div>`;
+      }
+      return `
+        <div class="banner-saldo warn">
+          <div class="ic">&#8987;</div>
+          <div>
+            <p class="titulo">Pago pendiente</p>
+            <p class="detalle">Llevas abonado ${clp(data.abonado)} de ${clp(data.monto_total)} · saldo pendiente: <strong>${clp(data.saldo)}</strong>.</p>
+          </div>
+        </div>`;
+    }
+
+    function bannerGarantia(equipo) {
+      const dias = equipo.dias_restantes;
+      if (equipo.estado_garantia === "vencida") {
+        return `
+          <div class="banner-garantia danger">
+            <div class="ic">&#10007;</div>
+            <div>
+              <p class="titulo">Garantía vencida</p>
+              <p class="detalle">Venció el ${fechaLarga(equipo.vence)} · hace ${-dias} día${-dias === 1 ? "" : "s"}.</p>
+            </div>
+          </div>`;
+      }
+      if (equipo.estado_garantia === "por_vencer") {
+        return `
+          <div class="banner-garantia warn">
+            <div class="ic">&#9888;</div>
+            <div>
+              <p class="titulo">Tu garantía está por vencer</p>
+              <p class="detalle">Vence el ${fechaLarga(equipo.vence)} · quedan ${dias} día${dias === 1 ? "" : "s"}.</p>
+            </div>
+          </div>`;
+      }
+      return `
+        <div class="banner-garantia ok">
+          <div class="ic">&#10003;</div>
+          <div>
+            <p class="titulo">Garantía vigente</p>
+            <p class="detalle">Vence el ${fechaLarga(equipo.vence)} · quedan ${dias} día${dias === 1 ? "" : "s"}.</p>
+          </div>
+        </div>`;
+    }
+
+    // Se muestra siempre que la garantía siga activa (vigente o por vencer),
+    // para dejar clara la letra chica antes de que el cliente reclame por
+    // algo que no corresponde. Cuando ya venció, no tiene sentido mostrarla.
+    function bloqueCondicionesGarantia(equipo) {
+      if (equipo.estado_garantia === "vencida") return "";
+      return `
+        <div class="card condiciones-card">
+          <h1>Condiciones de la garantía</h1>
+          <ul class="condiciones-list">
+            <li>Cubre fallas de fabricación del equipo y sus componentes originales.</li>
+            <li>No aplica en caso de golpes, caídas, líquidos, humedad u otro daño físico inducido.</li>
+            <li>No aplica si el sello de garantía fue roto, retirado o alterado.</li>
+            <li>No aplica por intervención de terceros no autorizados o apertura del equipo.</li>
+            <li>No aplica por mal uso, sobrecarga eléctrica o cortes de energía.</li>
+            <li>No cubre desgaste normal por uso ni pérdida de datos.</li>
+          </ul>
+        </div>`;
+    }
+
+    async function cargar() {
+      const params = new URLSearchParams(window.location.search);
+      const token = params.get("t");
+      const content = document.getElementById("content");
+
+      if (!token) {
+        content.innerHTML = `<div class="card"><div class="empty-state">Este link no es válido.</div></div>`;
+        return;
+      }
+
+      let data;
+      try {
+        const res = await fetch(`/api/public/equipo/${encodeURIComponent(token)}`);
+        if (!res.ok) {
+          content.innerHTML = `<div class="card"><div class="empty-state">Este link no es válido o ya no está disponible.</div></div>`;
+          return;
+        }
+        data = await res.json();
+      } catch {
+        content.innerHTML = `<div class="card"><div class="empty-state">No se pudo cargar la información. Intenta de nuevo más tarde.</div></div>`;
+        return;
+      }
+
+      const { negocio, equipo } = data;
+      document.title = `Garantía — ${negocio}`;
+      const mostrarPago = !!data.monto_total;
+      const historialHtml = (data.historial || [])
+        .map(
+          (a) => `
+          <div class="historial-item">
+            <div>
+              <div class="fecha">${fechaLarga(a.fecha_pago)}</div>
+              ${a.nota ? `<span class="nota">${escapeHtml(a.nota)}</span>` : ""}
+            </div>
+            <div><strong>${clp(a.monto)}</strong></div>
+          </div>`
+        )
+        .join("");
+      const fotosHtml = (data.fotos || [])
+        .map(
+          (f) => `
+          <figure>
+            <a href="/api/public/fotos/${escapeHtml(f.r2_key)}" target="_blank" rel="noopener">
+              <img src="/api/public/fotos/${escapeHtml(f.r2_key)}" alt="${escapeHtml(f.descripcion || "Foto del equipo")}" loading="lazy">
+            </a>
+            ${f.descripcion ? `<figcaption>${escapeHtml(f.descripcion)}</figcaption>` : ""}
+          </figure>`
+        )
+        .join("");
+      document.getElementById("negocio-nombre").textContent = negocio;
+      document.getElementById("logo-ini").textContent = negocio
+        .split(" ")
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((w) => w[0].toUpperCase())
+        .join("") || "PI";
+      document.getElementById("footer-note").style.display = "block";
+
+      content.innerHTML = `
+        <div class="card">
+          <h1>${escapeHtml(equipo.tipo_equipo || "Equipo")}</h1>
+          <div class="cliente">Para ${escapeHtml(equipo.cliente_nombre)}</div>
+          <div class="detalle-grid">
+            ${
+              equipo.marca_modelo
+                ? `<div class="item"><div class="label">Marca / modelo</div><div class="valor">${escapeHtml(equipo.marca_modelo)}</div></div>`
+                : ""
+            }
+            ${
+              equipo.numero_serie
+                ? `<div class="item"><div class="label">N° de serie</div><div class="valor">${escapeHtml(equipo.numero_serie)}</div></div>`
+                : ""
+            }
+            <div class="item"><div class="label">Fecha de compra</div><div class="valor">${fechaLarga(equipo.fecha_venta)}</div></div>
+            <div class="item"><div class="label">Garantía</div><div class="valor">${equipo.meses_garantia} meses</div></div>
+          </div>
+        </div>
+        <div class="card">
+          ${bannerGarantia(equipo)}
+        </div>
+        ${bloqueCondicionesGarantia(equipo)}
+        ${
+          mostrarPago
+            ? `
+        <div class="card">
+          <div class="monto-label">Valor del equipo</div>
+          <div class="monto-grande">${clp(data.monto_total)}</div>
+          ${bannerSaldo(data)}
+        </div>`
+            : ""
+        }
+        ${
+          mostrarPago && data.historial && data.historial.length > 0
+            ? `<div class="card"><h1 style="font-size:15.5px;">Historial de pagos</h1>${historialHtml}</div>`
+            : ""
+        }
+        ${
+          data.fotos && data.fotos.length > 0
+            ? `<div class="card"><h1 style="font-size:15.5px;">Fotos del estado del equipo</h1><div class="fotos-grid">${fotosHtml}</div></div>`
+            : ""
+        }
+      `;
+    }
+
+    cargar();
+  </script>
+</body>
+</html>

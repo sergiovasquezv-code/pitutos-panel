@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Seguimiento de tu trabajo</title>
+  <meta property="og:title" content="Seguimiento de tu trabajo">
+  <meta property="og:description" content="Revisa el avance de tu trabajo: estado, fotos, enlaces y notas.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://panel.mispitutosinformaticos.cl/seguimiento">
+  <meta name="twitter:card" content="summary">
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    /* Tema claro y profesional para esta página pública — a propósito
+       independiente del tema Matrix del panel interno, para que lo que
+       ve el cliente se vea sobrio y confiable. */
+    :root {
+      --bg: #f4f6fa;
+      --card: #ffffff;
+      --border: #e3e7ef;
+      --text: #1c2536;
+      --text-muted: #6b7690;
+      --navy-950: #10203a;
+      --navy-900: #eef1f6;
+      --navy-800: #e6eaf1;
+      --accent: #0f9d70;
+      --accent-dark: #0b7d59;
+      --accent-soft: #e6f7ef;
+      --warn: #b45309;
+      --warn-soft: #fff2d9;
+      --danger: #b3261e;
+      --danger-soft: #fdeceb;
+      --ok: #197a4f;
+      --ok-soft: #e7f6ee;
+      --radius: 12px;
+      --shadow: 0 8px 30px rgba(20, 30, 50, .08), 0 1px 2px rgba(20, 30, 50, .04);
+    }
+    body { background: var(--bg); }
+    .public-wrap {
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 32px 18px 60px;
+    }
+    .public-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 22px;
+    }
+    .public-header .logo {
+      width: 42px;
+      height: 42px;
+      border-radius: 10px;
+      background: var(--navy-950);
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 15px;
+      flex-shrink: 0;
+    }
+    .public-header .negocio {
+      font-weight: 650;
+      font-size: 15.5px;
+    }
+    .public-header .subt {
+      color: var(--text-muted);
+      font-size: 12.5px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 22px;
+      margin-bottom: 18px;
+    }
+    .card h1 {
+      font-size: 19px;
+      margin: 0 0 4px;
+    }
+    .card .cliente {
+      color: var(--text-muted);
+      font-size: 13.5px;
+      margin-bottom: 14px;
+    }
+    .estado-steps {
+      display: flex;
+      align-items: center;
+      margin: 18px 0 6px;
+    }
+    .estado-steps .step {
+      flex: 1;
+      text-align: center;
+      position: relative;
+      font-size: 12.5px;
+      color: var(--text-muted);
+    }
+    .estado-steps .step .dot {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--navy-800);
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 6px;
+      font-size: 12px;
+      font-weight: 700;
+      border: 2px solid var(--border);
+    }
+    .estado-steps .step.done .dot {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #04241f;
+    }
+    .estado-steps .step.current .dot {
+      background: var(--navy-900);
+      border-color: var(--accent);
+      color: var(--accent-dark);
+    }
+    .estado-steps .step.done { color: var(--text); }
+    .estado-steps .step.current { color: var(--accent-dark); font-weight: 650; }
+    .estado-steps .step.current.waiting .dot {
+      background: var(--warn-soft);
+      border-color: var(--warn);
+      color: var(--warn);
+    }
+    .estado-steps .step.current.waiting { color: var(--warn); }
+    .estado-steps .line {
+      position: absolute;
+      top: 11px;
+      left: -50%;
+      width: 100%;
+      height: 2px;
+      background: var(--navy-800);
+      z-index: -1;
+    }
+    .estado-steps .step.done .line,
+    .estado-steps .step.current .line { background: var(--accent); }
+    .estado-steps .step:first-child .line { display: none; }
+
+    .banner-espera {
+      background: var(--warn-soft);
+      color: var(--warn);
+      border-radius: 10px;
+      border-left: 4px solid currentColor;
+      padding: 16px 18px;
+      margin-top: 14px;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+    .banner-espera .ic { font-size: 22px; line-height: 1; flex-shrink: 0; }
+    .banner-espera .titulo { font-weight: 700; font-size: 15px; margin: 0 0 3px; }
+    .banner-espera .detalle { font-size: 13.5px; margin: 0; }
+
+    .btn-marcar-revisado {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--accent);
+      color: #ffffff;
+      border: none;
+      border-radius: 8px;
+      padding: 9px 15px;
+      font-size: 13px;
+      font-weight: 650;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .btn-marcar-revisado:hover { background: var(--accent-dark); }
+
+    .timeline { margin-top: 6px; }
+    .timeline-item {
+      display: flex;
+      gap: 14px;
+      padding: 16px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .timeline-item:last-child { border-bottom: none; }
+    .timeline-item .ic {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background: var(--accent-soft);
+      color: var(--accent-dark);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+      flex-shrink: 0;
+    }
+    .timeline-item .fecha {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 3px;
+    }
+    .timeline-item p { margin: 2px 0 0; }
+    .timeline-item img {
+      max-width: 100%;
+      border-radius: 8px;
+      margin-top: 8px;
+      display: block;
+      border: 1px solid var(--border);
+    }
+    .timeline-item a { color: var(--accent-dark); font-weight: 600; word-break: break-word; }
+
+    .footer-note {
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 12px;
+      margin-top: 24px;
+    }
+
+    .banner-saldo {
+      border-radius: 12px; border-left: 4px solid currentColor; padding: 18px; margin-top: 4px; display: flex; align-items: flex-start; gap: 12px;
+    }
+    .banner-saldo .ic { font-size: 22px; line-height: 1; flex-shrink: 0; }
+    .banner-saldo .titulo { font-weight: 700; font-size: 16px; margin: 0 0 4px; }
+    .banner-saldo .detalle { font-size: 13.5px; margin: 0; }
+    .banner-saldo.ok { background: var(--ok-soft); color: var(--ok); }
+    .banner-saldo.warn { background: var(--warn-soft); color: var(--warn); }
+
+    .item-row {
+      display: flex; justify-content: space-between; align-items: baseline;
+      padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 13.5px;
+    }
+    .item-row:last-child { border-bottom: none; }
+    .item-row .tipo { color: var(--text-muted); font-size: 12px; display: block; }
+    .item-row .total { font-weight: 700; }
+
+    .banner-garantia {
+      border-radius: 12px; border-left: 4px solid currentColor; padding: 18px; margin-top: 12px; display: flex; align-items: flex-start; gap: 12px;
+    }
+    .banner-garantia .ic { font-size: 22px; line-height: 1; flex-shrink: 0; }
+    .banner-garantia .titulo { font-weight: 700; font-size: 16px; margin: 0 0 4px; }
+    .banner-garantia .detalle { font-size: 13.5px; margin: 0; }
+    .banner-garantia.ok { background: var(--ok-soft); color: var(--ok); }
+    .banner-garantia.warn { background: var(--warn-soft); color: var(--warn); }
+    .banner-garantia.danger { background: var(--danger-soft); color: var(--danger); }
+
+    .monto-grande { font-size: 26px; font-weight: 700; margin: 6px 0 2px; }
+    .monto-label { color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: .03em; font-weight: 600; }
+
+    .historial-item {
+      display: flex; justify-content: space-between; align-items: baseline;
+      padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 13.5px;
+    }
+    .historial-item:last-child { border-bottom: none; }
+    .historial-item .fecha { color: var(--text-muted); }
+    .historial-item .nota { display: block; color: var(--text-muted); font-size: 12px; margin-top: 2px; }
+
+    .fotos-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 10px;
+      margin-top: 4px;
+    }
+    .fotos-grid figure { margin: 0; }
+    .fotos-grid img {
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      object-fit: cover;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      display: block;
+      cursor: zoom-in;
+    }
+    .fotos-grid figcaption {
+      font-size: 11.5px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .condiciones-card {
+      background: var(--navy-900);
+      border: 1px solid var(--border);
+    }
+    .condiciones-card h1 {
+      font-size: 14.5px;
+      margin: 0 0 10px;
+    }
+    .condiciones-list {
+      margin: 0;
+      padding-left: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .condiciones-list li {
+      font-size: 12.5px;
+      color: var(--text-muted);
+      line-height: 1.45;
+    }
+  </style>
+</head>
+<body>
+  <div class="public-wrap">
+    <div class="public-header">
+      <div class="logo" id="logo-ini">PI</div>
+      <div>
+        <div class="negocio" id="negocio-nombre">Cargando…</div>
+        <div class="subt">Seguimiento de tu trabajo</div>
+      </div>
+    </div>
+
+    <div id="content">
+      <div class="card">
+        <div class="empty-state">Cargando información…</div>
+      </div>
+    </div>
+
+    <div class="footer-note" id="footer-note" style="display:none;">
+      Este es un link privado de seguimiento — no lo compartas si no quieres que otras personas vean el avance de tu trabajo.
+      <br><a href="https://mispitutosinformaticos.cl/" target="_blank" rel="noopener">Conoce más de nuestros servicios</a>
+    </div>
+  </div>
+
+  <script type="module">
+    function escapeHtml(str) {
+      return String(str ?? "").replace(/[&<>"']/g, (c) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+      }[c]));
+    }
+
+    // Igual que escapeHtml, pero además respeta los saltos de línea del
+    // texto original (una nota escrita con varios puntos o una lista
+    // numerada, cada uno en su línea, se veía toda amontonada en un solo
+    // párrafo porque el HTML por defecto ignora los saltos de línea).
+    function nl2br(str) {
+      return escapeHtml(str).replace(/\n/g, "<br>");
+    }
+
+    function clp(value) {
+      const n = Math.round(Number(value) || 0);
+      return "$" + n.toLocaleString("es-CL");
+    }
+
+    function fechaLarga(iso) {
+      if (!iso) return "";
+      // Trabajos antiguos guardaron la fecha de inicio/cierre solo como
+      // "YYYY-MM-DD" (sin hora). Si le pedimos la hora a eso, JS la toma
+      // como medianoche UTC y en Chile se corre al día anterior en la
+      // noche — para esos casos mostramos solo la fecha.
+      if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) return fechaCorta(iso);
+      try {
+        return new Date(iso).toLocaleString("es-CL", { dateStyle: "medium", timeStyle: "short" });
+      } catch {
+        return iso;
+      }
+    }
+
+    function fechaCorta(iso) {
+      if (!iso) return "";
+      try {
+        return new Date(iso).toLocaleDateString("es-CL", { dateStyle: "medium" });
+      } catch {
+        return iso;
+      }
+    }
+
+    const ETIQUETAS_ITEM = { repuesto: "Repuesto", servicio: "Servicio", otro: "Otro" };
+
+    function renderItem(item) {
+      return `
+        <div class="item-row">
+          <div><span class="tipo">${ETIQUETAS_ITEM[item.tipo] || "Otro"}</span>${escapeHtml(item.descripcion)}</div>
+          <div>${clp(item.valor)}</div>
+        </div>`;
+    }
+
+    function bannerPago(trabajo) {
+      if (!trabajo.monto) return "";
+      if (trabajo.pagado_completo) {
+        return `
+          <div class="banner-saldo ok">
+            <div class="ic">&#10003;</div>
+            <div>
+              <p class="titulo">Pagado por completo</p>
+              <p class="detalle">Ya pagaste el total de ${clp(trabajo.monto)}. ¡Gracias!</p>
+            </div>
+          </div>`;
+      }
+      if (trabajo.abonado > 0) {
+        return `
+          <div class="banner-saldo warn">
+            <div class="ic">&#8987;</div>
+            <div>
+              <p class="titulo">Pago pendiente</p>
+              <p class="detalle">Llevas abonado ${clp(trabajo.abonado)} de ${clp(trabajo.monto)} · saldo pendiente: <strong>${clp(trabajo.saldo)}</strong>.</p>
+            </div>
+          </div>`;
+      }
+      return `
+        <div class="banner-saldo warn">
+          <div class="ic">&#8987;</div>
+          <div>
+            <p class="titulo">Pago pendiente</p>
+            <p class="detalle">Total: ${clp(trabajo.monto)}, todavía sin abonos registrados.</p>
+          </div>
+        </div>`;
+    }
+
+    // Todo el detalle de la garantía (fotos, historial de pagos, condiciones)
+    // se muestra siempre aquí mismo, sin botones ni pasos extra — el cliente
+    // entra al link y lo ve todo de una vez, ordenado.
+    function renderGarantiaEquipo(equipo) {
+      const dias = equipo.dias_restantes;
+      const nombre = equipo.marca_modelo
+        ? `${escapeHtml(equipo.tipo_equipo)} (${escapeHtml(equipo.marca_modelo)})`
+        : escapeHtml(equipo.tipo_equipo);
+
+      const bannerHtml =
+        equipo.estado_garantia === "vencida"
+          ? `
+        <div class="banner-garantia danger">
+          <div class="ic">&#10007;</div>
+          <div>
+            <p class="titulo">${nombre} · garantía vencida</p>
+            <p class="detalle">Venció el ${fechaLarga(equipo.vence)} · hace ${-dias} día${-dias === 1 ? "" : "s"}.</p>
+          </div>
+        </div>`
+          : `
+        <div class="banner-garantia ${equipo.estado_garantia === "por_vencer" ? "warn" : "ok"}">
+          <div class="ic">&#128737;</div>
+          <div>
+            <p class="titulo">${nombre} · garantía vigente</p>
+            <p class="detalle">Vence el ${fechaLarga(equipo.vence)} · quedan ${dias} día${dias === 1 ? "" : "s"}.</p>
+          </div>
+        </div>`;
+
+      const mostrarPago = !!equipo.monto_total;
+      const historialHtml = (equipo.historial || [])
+        .map(
+          (a) => `
+          <div class="historial-item">
+            <div>
+              <div class="fecha">${fechaLarga(a.fecha_pago)}</div>
+              ${a.nota ? `<span class="nota">${escapeHtml(a.nota)}</span>` : ""}
+            </div>
+            <div><strong>${clp(a.monto)}</strong></div>
+          </div>`
+        )
+        .join("");
+
+      const fotosHtml = (equipo.fotos || [])
+        .map(
+          (f) => `
+          <figure>
+            <a href="/api/public/fotos/${escapeHtml(f.r2_key)}" target="_blank" rel="noopener">
+              <img src="/api/public/fotos/${escapeHtml(f.r2_key)}" alt="${escapeHtml(f.descripcion || "Foto del equipo")}" loading="lazy">
+            </a>
+            ${f.descripcion ? `<figcaption>${escapeHtml(f.descripcion)}</figcaption>` : ""}
+          </figure>`
+        )
+        .join("");
+
+      const condicionesHtml =
+        equipo.estado_garantia === "vencida"
+          ? ""
+          : `
+        <div class="card condiciones-card">
+          <h1>Condiciones de la garantía</h1>
+          <ul class="condiciones-list">
+            <li>Cubre fallas de fabricación del equipo y sus componentes originales.</li>
+            <li>No aplica en caso de golpes, caídas, líquidos, humedad u otro daño físico inducido.</li>
+            <li>No aplica si el sello de garantía fue roto, retirado o alterado.</li>
+            <li>No aplica por intervención de terceros no autorizados o apertura del equipo.</li>
+            <li>No aplica por mal uso, sobrecarga eléctrica o cortes de energía.</li>
+            <li>No cubre desgaste normal por uso ni pérdida de datos.</li>
+          </ul>
+        </div>`;
+
+      return `
+        ${bannerHtml}
+        ${
+          mostrarPago
+            ? `<div class="card" style="margin-top:10px;">
+                 <div class="monto-label">Valor del equipo</div>
+                 <div class="monto-grande">${clp(equipo.monto_total)}</div>
+                 <p class="text-muted" style="font-size:12.5px;margin-top:6px;">${
+                   equipo.pagado_completo
+                     ? "Pagado por completo."
+                     : `Abonado ${clp(equipo.abonado)} · saldo pendiente: ${clp(equipo.saldo)}.`
+                 }</p>
+               </div>`
+            : ""
+        }
+        ${
+          mostrarPago && equipo.historial && equipo.historial.length
+            ? `<div class="card" style="margin-top:10px;"><h1 style="font-size:14.5px;margin:0 0 8px;">Historial de pagos</h1>${historialHtml}</div>`
+            : ""
+        }
+        ${
+          equipo.fotos && equipo.fotos.length
+            ? `<div class="card" style="margin-top:10px;"><h1 style="font-size:14.5px;margin:0 0 8px;">Fotos del estado del equipo</h1><div class="fotos-grid">${fotosHtml}</div></div>`
+            : ""
+        }
+        ${condicionesHtml}
+      `;
+    }
+
+    const ESTADOS = ["Pendiente", "En curso", "Esperando cliente", "Terminado"];
+
+    function renderEstadoSteps(estadoActual) {
+      const idxActual = ESTADOS.indexOf(estadoActual);
+      return ESTADOS.map((estado, i) => {
+        let cls = "";
+        if (i < idxActual) cls = "done";
+        else if (i === idxActual) cls = "current";
+        if (i === idxActual && estado === "Esperando cliente") cls += " waiting";
+        const icono = i < idxActual ? "&#10003;" : String(i + 1);
+        return `
+          <div class="step ${cls}">
+            <div class="line"></div>
+            <div class="dot">${icono}</div>
+            ${estado}
+          </div>`;
+      }).join("");
+    }
+
+    function iconoAvance(tipo) {
+      if (tipo === "foto") return "&#128247;";
+      if (tipo === "url") return "&#128279;";
+      if (tipo === "estado") return "&#127937;";
+      return "&#128221;";
+    }
+
+    function renderAvance(a) {
+      const editadoTag = a.editado_en
+        ? `<span class="text-muted"> · editado el ${fechaCorta(a.editado_en)}</span>`
+        : "";
+
+      if (a.tipo === "estado") {
+        return `
+          <div class="timeline-item" style="background:var(--accent-soft);border-radius:10px;padding:12px 14px;border-bottom:none;">
+            <div class="ic">${iconoAvance(a.tipo)}</div>
+            <div style="flex:1;min-width:0;">
+              <div class="fecha">${fechaLarga(a.creado_en)}</div>
+              <p style="font-weight:650;">${escapeHtml(a.texto || "")}</p>
+            </div>
+          </div>`;
+      }
+
+      let body = "";
+      if (a.tipo === "nota") {
+        body = `<p>${nl2br(a.texto || "")}</p>`;
+      } else if (a.tipo === "url") {
+        body = `<p><a href="${escapeHtml(a.valor)}" target="_blank" rel="noopener">${escapeHtml(a.texto || a.valor)}</a></p>`;
+      } else if (a.tipo === "foto") {
+        body = `
+          <img src="/api/public/fotos/${escapeHtml(a.valor)}" alt="${escapeHtml(a.texto || "Foto del trabajo")}" loading="lazy">
+          ${a.texto ? `<p>${nl2br(a.texto)}</p>` : ""}`;
+      }
+
+      const revisadoHtml = a.revisado_en
+        ? `<div class="text-muted" style="font-size:12.5px;margin-top:8px;">&#10003; Marcaste esto como revisado el ${fechaCorta(a.revisado_en)}</div>`
+        : `<button type="button" class="btn-marcar-revisado" data-revisar="${a.id}" style="margin-top:8px;">&#10003; Marcar como revisado</button>`;
+
+      return `
+        <div class="timeline-item">
+          <div class="ic">${iconoAvance(a.tipo)}</div>
+          <div style="flex:1;min-width:0;">
+            <div class="fecha">${fechaLarga(a.creado_en)}${editadoTag}</div>
+            ${body}
+            ${revisadoHtml}
+          </div>
+        </div>`;
+    }
+
+    async function cargar() {
+      const params = new URLSearchParams(window.location.search);
+      const token = params.get("t");
+      const content = document.getElementById("content");
+
+      if (!token) {
+        content.innerHTML = `<div class="card"><div class="empty-state">Este link no es válido.</div></div>`;
+        return;
+      }
+
+      let data;
+      try {
+        const res = await fetch(`/api/public/trabajo/${encodeURIComponent(token)}`);
+        if (!res.ok) {
+          content.innerHTML = `<div class="card"><div class="empty-state">Este link no es válido o ya no está disponible.</div></div>`;
+          return;
+        }
+        data = await res.json();
+      } catch {
+        content.innerHTML = `<div class="card"><div class="empty-state">No se pudo cargar la información. Intenta de nuevo más tarde.</div></div>`;
+        return;
+      }
+
+      const { negocio, trabajo, items, equipos, avances, ultima_actualizacion } = data;
+      document.title = `Seguimiento — ${negocio}`;
+      document.getElementById("negocio-nombre").textContent = negocio;
+      document.getElementById("logo-ini").textContent = negocio
+        .split(" ")
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((w) => w[0].toUpperCase())
+        .join("") || "PI";
+      document.getElementById("footer-note").style.display = "block";
+
+      const timelineHtml = avances.length
+        ? `<div class="timeline">${avances.map(renderAvance).join("")}</div>`
+        : `<div class="panel-empty">Todavía no hay novedades para mostrar. Vuelve a revisar más adelante.</div>`;
+
+      // El card de "Detalle y pago" solo aparece si hay algo que mostrar
+      // (ítems del desglose, garantía de algún equipo, y/o un monto puesto
+      // en el trabajo) — si no, no tiene sentido mostrar un card vacío.
+      const detalleHtml =
+        items.length || equipos.length || trabajo.monto
+          ? `<div class="card">
+              <h2 style="font-size:15.5px;margin:0 0 4px;">Detalle y pago</h2>
+              ${items.length ? items.map(renderItem).join("") : ""}
+              ${bannerPago(trabajo)}
+              ${equipos.length ? equipos.map(renderGarantiaEquipo).join("") : ""}
+            </div>`
+          : "";
+
+      content.innerHTML = `
+        <div class="card">
+          <h1>${escapeHtml(trabajo.tipo || "Trabajo")}</h1>
+          <div class="cliente">Para ${escapeHtml(trabajo.cliente_nombre)} · Iniciado el ${fechaLarga(trabajo.fecha_creacion)}</div>
+          ${trabajo.descripcion ? `<p style="margin:0 0 14px;">${escapeHtml(trabajo.descripcion)}</p>` : ""}
+          <div class="estado-steps">${renderEstadoSteps(trabajo.estado)}</div>
+          ${trabajo.estado === "Terminado" && trabajo.fecha_cierre ? `<div class="text-muted" style="font-size:12.5px;text-align:center;margin-top:4px;">Terminado el ${fechaLarga(trabajo.fecha_cierre)}</div>` : ""}
+          ${
+            trabajo.estado === "Esperando cliente"
+              ? `<div class="banner-espera"><div class="ic">&#9203;</div><div><p class="titulo">Necesitamos tu respuesta</p><p class="detalle">Este trabajo está esperando algo de tu parte para poder seguir avanzando.</p></div></div>`
+              : ""
+          }
+        </div>
+        <div class="card">
+          <h2 style="font-size:15.5px;margin:0 0 4px;">Avance del trabajo</h2>
+          ${ultima_actualizacion ? `<div class="text-muted" style="font-size:12.5px;margin-bottom:12px;">Última actualización: ${fechaLarga(ultima_actualizacion)}</div>` : ""}
+          ${timelineHtml}
+        </div>
+        ${detalleHtml}
+      `;
+
+      content.querySelectorAll("[data-revisar]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          btn.disabled = true;
+          btn.textContent = "Guardando…";
+          try {
+            const res = await fetch(
+              `/api/public/trabajo/${encodeURIComponent(token)}/avances/${btn.dataset.revisar}/revisar`,
+              { method: "POST" }
+            );
+            if (!res.ok) throw new Error();
+            await cargar();
+          } catch {
+            btn.disabled = false;
+            btn.textContent = "Marcar como revisado";
+          }
+        });
+      });
+
+    }
+
+    cargar();
+  </script>
+</body>
+</html>

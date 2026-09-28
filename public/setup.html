@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Configuración inicial · Pitutos Panel</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="auth-wrap">
+    <div class="auth-card">
+      <div class="logo">PI</div>
+      <h1>Bienvenido</h1>
+      <p class="sub">Es la primera vez que abres tu panel. Crea tu cuenta de administrador para empezar.</p>
+
+      <div id="flash-area"></div>
+
+      <form id="setup-form">
+        <div class="field">
+          <label for="username">Usuario</label>
+          <input type="text" id="username" name="username" required autofocus placeholder="ej: sergio">
+        </div>
+        <div class="field">
+          <label for="password">Contraseña</label>
+          <input type="password" id="password" name="password" required>
+          <span class="hint">Mínimo 6 caracteres.</span>
+        </div>
+        <div class="field">
+          <label for="password2">Repite la contraseña</label>
+          <input type="password" id="password2" name="password2" required>
+        </div>
+        <button type="submit" class="btn btn-accent" style="width:100%; justify-content:center; margin-top:6px;">Crear cuenta</button>
+      </form>
+    </div>
+  </div>
+
+  <script type="module">
+    import { apiPost, apiGet } from "/js/api.js";
+
+    const flashArea = document.getElementById("flash-area");
+    function flash(msg, type = "error") {
+      flashArea.innerHTML = `<div class="flash ${type}">${msg}</div>`;
+    }
+
+    // Si ya existe una cuenta, no dejamos volver a configurar.
+    apiGet("/api/me").then((data) => {
+      if (!data.needsSetup) {
+        window.location.href = data.authenticated ? "/index.html" : "/login.html";
+      }
+    }).catch(() => {});
+
+    document.getElementById("setup-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const username = document.getElementById("username").value.trim();
+      const password = document.getElementById("password").value;
+      const password2 = document.getElementById("password2").value;
+      try {
+        await apiPost("/api/auth/setup", { username, password, password2 });
+        window.location.href = "/index.html";
+      } catch (err) {
+        flash(err.message || "No se pudo crear la cuenta.");
+      }
+    });
+  </script>
+</body>
+</html>
