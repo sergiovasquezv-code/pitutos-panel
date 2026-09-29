@@ -12,8 +12,10 @@ export async function onRequestGet({ env }) {
   const equiposRaw = (
     await db
       .prepare(
-        `SELECT equipos.*, clientes.nombre AS cliente_nombre
-         FROM equipos JOIN clientes ON clientes.id = equipos.cliente_id`
+        `SELECT equipos.*, clientes.nombre AS cliente_nombre, grupos_equipos.nombre AS grupo_nombre
+         FROM equipos
+         JOIN clientes ON clientes.id = equipos.cliente_id
+         LEFT JOIN grupos_equipos ON grupos_equipos.id = equipos.grupo_id`
       )
       .all()
   ).results;
@@ -94,14 +96,40 @@ export async function onRequestGet({ env }) {
 
   // Ventas de equipo con saldo pendiente (sin abonos o con abono parcial),
   // para que se vean en Inicio igual que los trabajos y las mensualidades
-  // — antes esto no aparecía en ningún lado del dashboard.
+  // — antes esto no aparecía en ningún lado del dashboard. Los equipos que
+  // pertenecen a un mismo grupo ("sistema" con varios componentes) se
+  // combinan en una sola fila con el nombre del grupo y los montos
+  // sumados, en vez de salir un componente por línea.
+  const gruposPendientes = new Map(); // grupo_id -> fila combinada
   const equiposPendientes = [];
   let pendienteEquipos = 0;
   for (const e of equipos) {
     const info = await infoAbono(db, "equipo", e.id, e.precio);
-    if (info.saldo > 0) {
+    if (info.saldo <= 0) continue;
+    pendienteEquipos += info.saldo;
+
+    if (e.grupo_id) {
+      let fila = gruposPendientes.get(e.grupo_id);
+      if (!fila) {
+        fila = {
+          id: e.id, // representante del grupo, para el link "?equipo="
+          grupo_id: e.grupo_id,
+          cliente_id: e.cliente_id,
+          cliente_nombre: e.cliente_nombre,
+          tipo_equipo: e.grupo_nombre || "Sistema (varios componentes)",
+          marca_modelo: "",
+          precio: 0,
+          abonado: 0,
+          saldo: 0,
+        };
+        gruposPendientes.set(e.grupo_id, fila);
+        equiposPendientes.push(fila);
+      }
+      fila.precio += e.precio;
+      fila.abonado += info.abonado;
+      fila.saldo += info.saldo;
+    } else {
       equiposPendientes.push({ ...e, ...info });
-      pendienteEquipos += info.saldo;
     }
   }
   equiposPendientes.sort((a, b) => b.saldo - a.saldo);
