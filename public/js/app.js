@@ -162,6 +162,48 @@ function wireSinGarantiaCheckbox(scope) {
   });
 }
 
+// Carga los productos del catálogo (pitutos-catalogo) en el selector de
+// "Registrar equipo o producto en garantía", y autocompleta tipo/marca/precio
+// cuando se elige uno (además de mostrar el campo de cantidad, para poder
+// descontar el stock correcto al guardar).
+async function wireCatalogoProductoPicker() {
+  const select = document.getElementById("catalogo_producto_id");
+  if (!select) return;
+  let productos = [];
+  try {
+    const data = await apiGet("/api/catalogo/productos");
+    productos = data.productos || [];
+  } catch {
+    productos = [];
+  }
+  if (productos.length === 0) return;
+
+  for (const p of productos) {
+    const opt = document.createElement("option");
+    opt.value = p.id;
+    opt.textContent = `${p.nombre} — stock: ${p.stock} — ${clp(p.precio)}`;
+    opt.dataset.nombre = p.nombre;
+    opt.dataset.precio = p.precio;
+    opt.dataset.stock = p.stock;
+    select.appendChild(opt);
+  }
+
+  const cantidadRow = document.getElementById("catalogo-cantidad-row");
+  const cantidadInput = document.getElementById("catalogo_cantidad");
+  select.addEventListener("change", () => {
+    const opt = select.selectedOptions[0];
+    if (!select.value || !opt.dataset.nombre) {
+      cantidadRow.style.display = "none";
+      return;
+    }
+    document.getElementById("tipo_equipo").value = opt.dataset.nombre;
+    document.getElementById("precio").value = opt.dataset.precio;
+    cantidadRow.style.display = "";
+    cantidadInput.max = opt.dataset.stock;
+    cantidadInput.value = 1;
+  });
+}
+
 function badgeTrabajo(estado) {
   let cls = "neutral";
   if (estado === "Terminado") cls = "ok";
@@ -1310,6 +1352,15 @@ async function viewEquipoForm(id, presetClienteId, presetTrabajoId) {
       ${!equipo && presetTrabajoId ? `<p class="hint" style="margin:-6px 0 14px;">Este equipo quedará vinculado al trabajo, y su garantía va a aparecer también en la página de seguimiento que ve el cliente.</p>` : ""}
       <form id="equipo-form">
         ${clienteBlock}
+        ${!equipo ? `<div class="field" id="catalogo-producto-field">
+          <label for="catalogo_producto_id">Producto del catálogo (opcional)</label>
+          <select id="catalogo_producto_id"><option value="">-- Elegir para autocompletar y descontar stock --</option></select>
+          <span class="hint">Si vendiste algo que tenías en el catálogo, elígelo aquí: se completan los datos solos y se descuenta el stock automáticamente.</span>
+        </div>
+        <div class="form-grid" id="catalogo-cantidad-row" style="display:none;">
+          <div class="field"><label for="catalogo_cantidad">Cantidad vendida</label>
+            <input type="number" id="catalogo_cantidad" min="1" step="1" value="1"></div>
+        </div>` : ""}
         <div class="form-grid">
           <div class="field"><label for="tipo_equipo">Tipo de equipo o producto *</label>
             <input type="text" id="tipo_equipo" required placeholder="Notebook, PC, impresora, disco duro, fuente de poder..." value="${escapeHtml(equipo?.tipo_equipo || "")}"></div>
@@ -1346,6 +1397,7 @@ async function viewEquipoForm(id, presetClienteId, presetTrabajoId) {
   `);
   attachNav();
   wireSinGarantiaCheckbox(document);
+  if (!equipo) wireCatalogoProductoPicker();
   if (equipo) renderGarantiaPublica(equipo);
   if (equipo) renderFotosEquipoPanel(equipo);
   if (equipo) {
@@ -1377,6 +1429,11 @@ async function viewEquipoForm(id, presetClienteId, presetTrabajoId) {
       } else {
         payload.cliente_id = document.getElementById("cliente_id").value;
         if (presetTrabajoId) payload.trabajo_id = presetTrabajoId;
+        const catalogoProductoId = document.getElementById("catalogo_producto_id")?.value;
+        if (catalogoProductoId) {
+          payload.catalogo_producto_id = catalogoProductoId;
+          payload.catalogo_cantidad = document.getElementById("catalogo_cantidad").value || 1;
+        }
         const res = await apiPost("/api/equipos", payload);
         flash("Equipo/venta registrado.");
         window.location.hash = presetTrabajoId

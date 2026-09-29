@@ -68,5 +68,23 @@ export async function onRequestPost({ request, env }) {
     )
     .run();
 
+  // Si la venta viene de un producto del catálogo, se descuenta su stock en
+  // pitutos-catalogo (misma base de datos, distinto proyecto). Es
+  // "best-effort": si falla por lo que sea, la venta ya quedó registrada
+  // igual y no se bloquea al usuario por un problema del catálogo.
+  const catalogoProductoId = Number(body.catalogo_producto_id) || null;
+  if (catalogoProductoId && env.CATALOGO_DB) {
+    const cantidad = Math.max(1, Number(body.catalogo_cantidad) || 1);
+    try {
+      await env.CATALOGO_DB.prepare(
+        `UPDATE productos SET stock = MAX(0, stock - ?), actualizado_en = ? WHERE id = ?`
+      )
+        .bind(cantidad, nowIso(), catalogoProductoId)
+        .run();
+    } catch {
+      // Se ignora: la venta ya se guardó, el stock se puede ajustar a mano.
+    }
+  }
+
   return json({ ok: true, id: result.meta.last_row_id, cliente_id: clienteId });
 }

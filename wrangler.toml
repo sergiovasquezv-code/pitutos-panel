@@ -7,6 +7,15 @@ binding = "DB"
 database_name = "pitutos-db"
 database_id = "fe4bd976-7bb5-44ae-ac2e-beb525bb7e19"
 
+# Misma base de datos que usa pitutos-catalogo (solo lectura del stock desde
+# el panel, y descuento automático de stock al registrar una venta de un
+# producto del catálogo). Es la MISMA base, dos proyectos distintos pueden
+# apuntar al mismo database_id sin problema.
+[[d1_databases]]
+binding = "CATALOGO_DB"
+database_name = "pitutos-catalogo-db"
+database_id = "13889caa-fd00-4600-865a-9146c85bad44"
+
 [[r2_buckets]]
 binding = "FOTOS"
 bucket_name = "pitutos-fotos"
@@ -16,3 +25,7 @@ NOMBRE_NEGOCIO = "Mis Pitutos Informáticos"
 # Correo donde quieres recibir el aviso cuando un cliente marca un avance
 # como revisado. Cámbialo aquí si quieres que llegue a otra casilla.
 EMAIL_NOTIFICACIONES = "sergiovasquezv@gmail.com"
+# Tu WhatsApp, con código de país y sin "+" ni espacios (ej: 56912345678).
+# Se usa para el botón "¿Tienes alguna consulta?" que ve el cliente en el
+# link combinado — reemplaza este número por el tuyo real.
+NEGOCIO_TELEFONO = "56912345678"
