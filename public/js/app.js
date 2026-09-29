@@ -1106,6 +1106,16 @@ async function cargarTrabajoInline(trabajoId, clienteId, containerId = "trabajo-
     montoTotal: trabajo.monto,
     clienteNombre: trabajo.cliente_nombre,
     clienteTelefono: trabajo.cliente_telefono,
+    onCambio: async () => {
+      try {
+        const data = await apiGet(`/api/trabajos/${trabajoId}`);
+        trabajo = data.trabajo;
+        renderSeguimiento(trabajo, `seguimiento-${trabajo.id}`);
+      } catch {
+        // igual que en equipos: si falla, el mensaje de WhatsApp de
+        // seguimiento queda con el saldo anterior hasta recargar.
+      }
+    },
   });
 
   wrapper.querySelector(`#trabajo-form-${trabajo.id}`).addEventListener("submit", async (e) => {
@@ -1237,6 +1247,16 @@ async function cargarEquipoInline(equipoId, containerId = "equipo-detalle-inline
     montoTotal: equipo.precio,
     clienteNombre: equipo.cliente_nombre,
     clienteTelefono: equipo.cliente_telefono,
+    onCambio: async () => {
+      try {
+        const data = await apiGet(`/api/equipos/${equipo.id}`);
+        equipo = data.equipo;
+        renderGarantiaPublica(equipo, `garantia-${equipo.id}`);
+      } catch {
+        // si falla, el botón de WhatsApp simplemente queda con el saldo
+        // anterior hasta la próxima recarga — no bloquea nada más.
+      }
+    },
   });
 
   wrapper.querySelector(`#equipo-form-${equipo.id}`).addEventListener("submit", async (e) => {
@@ -1407,6 +1427,16 @@ async function viewEquipoForm(id, presetClienteId, presetTrabajoId) {
       montoTotal: equipo.precio,
       clienteNombre: equipo.cliente_nombre,
       clienteTelefono: equipo.cliente_telefono,
+      onCambio: async () => {
+        try {
+          const data = await apiGet(`/api/equipos/${equipo.id}`);
+          equipo = data.equipo;
+          renderGarantiaPublica(equipo);
+        } catch {
+          // si falla, el botón de WhatsApp queda con el saldo anterior
+          // hasta la próxima recarga — no bloquea nada más.
+        }
+      },
     });
   }
 
@@ -1744,6 +1774,12 @@ async function renderAbonosPanel(containerId, cfg) {
         flash("Abono registrado.");
         mostrarLinkAbono(container, res, cfg, Number(monto));
         renderAbonosPanel(containerId, cfg);
+        // El link/mensaje de WhatsApp de garantía o seguimiento se arma con
+        // el saldo que tenía el equipo/trabajo al momento de cargarse la
+        // página, así que sin este aviso quedaría con el saldo viejo (ej:
+        // diciendo "saldo pendiente" después de marcarlo pagado). cfg.onCambio
+        // lo vuelve a cargar con los datos frescos.
+        if (cfg.onCambio) cfg.onCambio();
       } catch (err) {
         if (await handleAuthError(err)) return;
         flash(err.message, "error");
@@ -1758,6 +1794,7 @@ async function renderAbonosPanel(containerId, cfg) {
         await apiDelete(`/api/abonos/${btn.dataset.borrarAbono}`);
         flash("Abono eliminado.");
         renderAbonosPanel(containerId, cfg);
+        if (cfg.onCambio) cfg.onCambio();
       } catch (err) {
         if (await handleAuthError(err)) return;
         flash(err.message, "error");
