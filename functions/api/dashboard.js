@@ -30,7 +30,7 @@ export async function onRequestGet({ env }) {
       .prepare(
         `SELECT trabajos.*, clientes.nombre AS cliente_nombre
          FROM trabajos JOIN clientes ON clientes.id = trabajos.cliente_id
-         WHERE trabajos.estado != 'Terminado'
+         WHERE trabajos.estado NOT IN ('Terminado', 'Demostración')
          ORDER BY trabajos.fecha_creacion`
       )
       .all()

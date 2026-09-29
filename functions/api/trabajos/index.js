@@ -11,7 +11,7 @@ export async function onRequestGet({ request, env }) {
                 FROM trabajos JOIN clientes ON clientes.id = trabajos.cliente_id`;
   let stmt;
   if (estado === "abiertos") {
-    stmt = db.prepare(base + " WHERE trabajos.estado != 'Terminado' ORDER BY fecha_creacion DESC");
+    stmt = db.prepare(base + " WHERE trabajos.estado NOT IN ('Terminado', 'Demostración') ORDER BY fecha_creacion DESC");
   } else if (estado) {
     stmt = db.prepare(base + " WHERE trabajos.estado = ? ORDER BY fecha_creacion DESC").bind(estado);
   } else {
