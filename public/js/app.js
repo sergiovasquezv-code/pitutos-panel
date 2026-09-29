@@ -815,6 +815,10 @@ async function cargarGrupoInline(grupo, containerId, clienteId) {
             )
             .join("")}
         </div>
+        <div class="field" style="margin-bottom:12px;"><label for="nota-link-${grupo.id}">Mensaje para el cliente (opcional)</label>
+          <textarea id="nota-link-${grupo.id}" placeholder="Ej: Se completó el ensamblaje y configuración del sistema POS."></textarea>
+          <span class="hint">Aparece destacado arriba de la lista de equipos en el link, para que el cliente vea de entrada qué incluye o qué se hizo.</span>
+        </div>
         <label style="display:flex;align-items:center;gap:8px;font-weight:400;margin-bottom:12px;">
           <input type="checkbox" id="chk-mostrar-precio-${grupo.id}" checked>
           Mostrar precio, abonos y saldo al cliente
@@ -882,11 +886,13 @@ async function cargarGrupoInline(grupo, containerId, clienteId) {
       return;
     }
     const mostrarPrecio = wrapper.querySelector(`#chk-mostrar-precio-${grupo.id}`).checked;
+    const nota = wrapper.querySelector(`#nota-link-${grupo.id}`).value.trim();
     try {
       const res = await apiPost("/api/equipos/link-combinado", {
         cliente_id: clienteId,
         equipo_ids: ids,
         mostrar_precio: mostrarPrecio,
+        nota,
       });
       mostrarLinkCombinado(wrapper, `link-combinado-resultado-${grupo.id}`, res.token, miembros, ids);
     } catch (err) {

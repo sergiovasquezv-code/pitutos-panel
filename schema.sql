@@ -79,7 +79,10 @@ CREATE TABLE IF NOT EXISTS links_combinados (
     creado_en TEXT NOT NULL,
     -- Si es 0, el link público no muestra precio, abonos ni saldo de
     -- ningún equipo incluido (útil para demostraciones).
-    mostrar_precio INTEGER NOT NULL DEFAULT 1
+    mostrar_precio INTEGER NOT NULL DEFAULT 1,
+    -- Mensaje opcional que se muestra destacado en el link (ej: "Se
+    -- completó el ensamblaje y configuración del sistema POS").
+    nota TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_links_combinados_token ON links_combinados(public_token);
 

@@ -11,7 +11,7 @@ export async function onRequestGet({ env, params }) {
 
   const link = await db
     .prepare(
-      `SELECT links_combinados.equipo_ids, links_combinados.mostrar_precio, clientes.nombre AS cliente_nombre
+      `SELECT links_combinados.equipo_ids, links_combinados.mostrar_precio, links_combinados.nota, clientes.nombre AS cliente_nombre
        FROM links_combinados JOIN clientes ON clientes.id = links_combinados.cliente_id
        WHERE links_combinados.public_token = ?`
     )
@@ -81,6 +81,7 @@ export async function onRequestGet({ env, params }) {
   return json({
     negocio: env.NOMBRE_NEGOCIO || "Pitutos Informáticos",
     cliente_nombre: link.cliente_nombre,
+    nota: link.nota || null,
     equipos,
   });
 }

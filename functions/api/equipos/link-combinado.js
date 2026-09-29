@@ -28,13 +28,14 @@ export async function onRequestPost({ request, env }) {
   // Por defecto se muestra el precio/pago (igual que siempre); se puede
   // generar un link sin esa información, por ejemplo para una demostración.
   const mostrarPrecio = body.mostrar_precio === false ? 0 : 1;
+  const nota = (body.nota || "").trim() || null;
 
   const token = randomToken();
   await db
     .prepare(
-      "INSERT INTO links_combinados (cliente_id, equipo_ids, public_token, creado_en, mostrar_precio) VALUES (?,?,?,?,?)"
+      "INSERT INTO links_combinados (cliente_id, equipo_ids, public_token, creado_en, mostrar_precio, nota) VALUES (?,?,?,?,?,?)"
     )
-    .bind(clienteId, JSON.stringify(equipoIds), token, nowIso(), mostrarPrecio)
+    .bind(clienteId, JSON.stringify(equipoIds), token, nowIso(), mostrarPrecio, nota)
     .run();
 
   return json({ ok: true, token });

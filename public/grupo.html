@@ -46,12 +46,16 @@
     .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 22px; margin-bottom: 18px; }
     .card h1 { font-size: 19px; margin: 0 0 4px; }
     .card .cliente { color: var(--text-muted); font-size: 13.5px; margin-bottom: 4px; }
-    .equipo-item + .equipo-item { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border); }
-    .equipo-item h2 { font-size: 16px; margin: 0 0 4px; }
-    .equipo-item .subt { color: var(--text-muted); font-size: 12.5px; margin-bottom: 12px; }
+    .nota-card { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-dark); font-size: 14px; line-height: 1.5; }
     .detalle-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 18px; margin-top: 4px; }
     .detalle-grid .item .label { font-size: 11.5px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .03em; font-weight: 600; }
     .detalle-grid .item .valor { font-size: 14.5px; margin-top: 2px; }
+    .componente-row { padding: 10px 0; border-bottom: 1px solid var(--border); }
+    .componente-row:last-child { border-bottom: none; }
+    .componente-nombre { font-weight: 650; font-size: 14px; }
+    .componente-sub { color: var(--text-muted); font-size: 12.5px; margin-top: 2px; }
+    .fotos-grid-mini { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; margin-top: 8px; max-width: 340px; }
+    .fotos-grid-mini img { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); display: block; cursor: zoom-in; }
     .banner-garantia, .banner-saldo { border-radius: 12px; border-left: 4px solid currentColor; padding: 16px; margin-top: 12px; display: flex; align-items: flex-start; gap: 12px; }
     .banner-garantia .ic, .banner-saldo .ic { font-size: 20px; line-height: 1; flex-shrink: 0; }
     .banner-garantia .titulo, .banner-saldo .titulo { font-weight: 700; font-size: 15px; margin: 0 0 4px; }
@@ -108,29 +112,50 @@
       return "$" + n.toLocaleString("es-CL");
     }
 
-    function bannerGarantia(equipo) {
-      const dias = equipo.dias_restantes;
-      if (equipo.estado_garantia === "sin_garantia") {
+    // Un solo banner de garantía para TODO el sistema (no uno repetido por
+    // componente) — muestra el peor caso, igual que en el panel interno.
+    function bannerGarantiaGrupo(equipos) {
+      const conGarantia = equipos.filter((it) => it.equipo.estado_garantia !== "sin_garantia");
+      const sinGarantiaCount = equipos.length - conGarantia.length;
+      const nota =
+        conGarantia.length && sinGarantiaCount
+          ? `<p class="detalle" style="margin-top:4px;">${sinGarantiaCount} de ${equipos.length} equipos no incluyen garantía.</p>`
+          : "";
+
+      if (conGarantia.length === 0) {
         return `<div class="banner-garantia" style="background:var(--navy-900);color:var(--text-muted);"><div class="ic">&#8505;</div><div>
           <p class="titulo">Sin garantía</p>
-          <p class="detalle">Este producto no incluye garantía.</p>
+          <p class="detalle">Estos productos no incluyen garantía.</p>
         </div></div>`;
       }
-      if (equipo.estado_garantia === "vencida") {
+
+      const vencidos = conGarantia.filter((it) => it.equipo.estado_garantia === "vencida");
+      if (vencidos.length) {
+        const peor = vencidos.reduce((a, b) => (b.equipo.dias_restantes < a.equipo.dias_restantes ? b : a)).equipo;
+        const dias = -peor.dias_restantes;
         return `<div class="banner-garantia danger"><div class="ic">&#10007;</div><div>
           <p class="titulo">Garantía vencida</p>
-          <p class="detalle">Venció el ${fechaLarga(equipo.vence)} · hace ${-dias} día${-dias === 1 ? "" : "s"}.</p>
+          <p class="detalle">Venció el ${fechaLarga(peor.vence)} · hace ${dias} día${dias === 1 ? "" : "s"}.</p>
+          ${nota}
         </div></div>`;
       }
-      if (equipo.estado_garantia === "por_vencer") {
+
+      const porVencer = conGarantia.filter((it) => it.equipo.estado_garantia === "por_vencer");
+      if (porVencer.length) {
+        const peor = porVencer.reduce((a, b) => (b.equipo.dias_restantes < a.equipo.dias_restantes ? b : a)).equipo;
         return `<div class="banner-garantia warn"><div class="ic">&#9888;</div><div>
-          <p class="titulo">Por vencer</p>
-          <p class="detalle">Vence el ${fechaLarga(equipo.vence)} · quedan ${dias} día${dias === 1 ? "" : "s"}.</p>
+          <p class="titulo">Garantía por vencer</p>
+          <p class="detalle">Vence el ${fechaLarga(peor.vence)} · quedan ${peor.dias_restantes} día${peor.dias_restantes === 1 ? "" : "s"}.</p>
+          ${nota}
         </div></div>`;
       }
+
+      const min = conGarantia.reduce((m, it) => Math.min(m, it.equipo.dias_restantes), Infinity);
+      const repr = conGarantia.find((it) => it.equipo.dias_restantes === min).equipo;
       return `<div class="banner-garantia ok"><div class="ic">&#10003;</div><div>
         <p class="titulo">Garantía vigente</p>
-        <p class="detalle">Vence el ${fechaLarga(equipo.vence)} · quedan ${dias} día${dias === 1 ? "" : "s"}.</p>
+        <p class="detalle">Vence el ${fechaLarga(repr.vence)} · quedan ${min} día${min === 1 ? "" : "s"}.</p>
+        ${nota}
       </div></div>`;
     }
 
@@ -147,30 +172,23 @@
       </div></div>`;
     }
 
-    // El precio/pago se muestra UNA sola vez, combinado para todo el
-    // sistema (ver bloque de resumen más abajo) — no se repite por cada
-    // componente, porque el cliente paga por el conjunto, no por partes.
-    function bloqueItem(item) {
+    // Fila compacta por componente: solo el nombre y sus datos puntuales
+    // (marca, N° de serie, fotos si tiene) — la garantía y el precio/pago
+    // ya se muestran UNA sola vez arriba, combinados para todo el sistema.
+    function filaComponente(item) {
       const { equipo } = item;
       const fotosHtml = (item.fotos || [])
         .map((f) => `
-          <figure>
-            <a href="/api/public/fotos/${escapeHtml(f.r2_key)}" target="_blank" rel="noopener">
-              <img src="/api/public/fotos/${escapeHtml(f.r2_key)}" alt="${escapeHtml(f.descripcion || "Foto del equipo")}" loading="lazy">
-            </a>
-          </figure>`)
+          <a href="/api/public/fotos/${escapeHtml(f.r2_key)}" target="_blank" rel="noopener">
+            <img src="/api/public/fotos/${escapeHtml(f.r2_key)}" alt="${escapeHtml(f.descripcion || "Foto del equipo")}" loading="lazy">
+          </a>`)
         .join("");
 
       return `
-        <div class="equipo-item">
-          <h2>${escapeHtml(equipo.tipo_equipo || "Equipo")}</h2>
-          <div class="subt">${escapeHtml(equipo.marca_modelo || "")}${equipo.numero_serie ? ` · N° serie ${escapeHtml(equipo.numero_serie)}` : ""}</div>
-          <div class="detalle-grid">
-            <div class="item"><div class="label">Fecha de compra</div><div class="valor">${fechaLarga(equipo.fecha_venta)}</div></div>
-            <div class="item"><div class="label">Garantía</div><div class="valor">${equipo.meses_garantia > 0 ? `${equipo.meses_garantia} meses` : "Sin garantía"}</div></div>
-          </div>
-          ${bannerGarantia(equipo)}
-          ${item.fotos && item.fotos.length ? `<div class="fotos-grid">${fotosHtml}</div>` : ""}
+        <div class="componente-row">
+          <div class="componente-nombre">${escapeHtml(equipo.tipo_equipo || "Equipo")}</div>
+          <div class="componente-sub">${escapeHtml(equipo.marca_modelo || "")}${equipo.numero_serie ? ` · N° serie ${escapeHtml(equipo.numero_serie)}` : ""}</div>
+          ${item.fotos && item.fotos.length ? `<div class="fotos-grid-mini">${fotosHtml}</div>` : ""}
         </div>`;
     }
 
@@ -197,7 +215,7 @@
         return;
       }
 
-      const { negocio, cliente_nombre, equipos } = data;
+      const { negocio, cliente_nombre, nota, equipos } = data;
       document.title = `Garantía — ${negocio}`;
       document.getElementById("negocio-nombre").textContent = negocio;
       document.getElementById("logo-ini").textContent = negocio.split(" ").filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("") || "PI";
@@ -220,10 +238,17 @@
           </div>`)
         .join("");
 
+      const fechaCompra = equipos[0]?.equipo?.fecha_venta;
+
       content.innerHTML = `
         <div class="card">
           <h1>Tus equipos</h1>
           <div class="cliente">Para ${escapeHtml(cliente_nombre)} · ${equipos.length} equipo${equipos.length === 1 ? "" : "s"}</div>
+        </div>
+        ${nota ? `<div class="card nota-card">${escapeHtml(nota).replace(/\n/g, "<br>")}</div>` : ""}
+        <div class="card">
+          ${fechaCompra ? `<div class="detalle-grid" style="margin-bottom:4px;"><div class="item"><div class="label">Fecha de compra</div><div class="valor">${fechaLarga(fechaCompra)}</div></div></div>` : ""}
+          ${bannerGarantiaGrupo(equipos)}
         </div>
         ${
           totalGeneral > 0
@@ -240,7 +265,8 @@
             : ""
         }
         <div class="card">
-          ${equipos.map(bloqueItem).join("")}
+          <h1 style="font-size:15.5px;margin-bottom:6px;">Componentes incluidos</h1>
+          ${equipos.map(filaComponente).join("")}
         </div>
       `;
     }
