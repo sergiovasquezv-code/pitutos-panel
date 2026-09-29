@@ -18,10 +18,14 @@ export async function onRequestGet({ env }) {
       .all()
   ).results;
   const equipos = equiposRaw.map((e) => equipoConGarantia(e, hoy));
-  const garantiasPorVencer = equipos
+  // Los equipos "sin garantía" (meses_garantia = 0) tienen dias_restantes en
+  // null — hay que excluirlos explícitamente, porque en JS "null >= 0" da
+  // true y se colaban en "por vencer" mostrando "null" días.
+  const conGarantia = equipos.filter((e) => e.dias_restantes !== null);
+  const garantiasPorVencer = conGarantia
     .filter((e) => e.dias_restantes >= 0 && e.dias_restantes <= 15)
     .sort((a, b) => a.dias_restantes - b.dias_restantes);
-  const garantiasVencidas30d = equipos.filter(
+  const garantiasVencidas30d = conGarantia.filter(
     (e) => e.dias_restantes < 0 && e.dias_restantes >= -30
   );
 
