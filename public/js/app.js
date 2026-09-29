@@ -747,7 +747,7 @@ async function viewClienteDetalle(id, opts = {}) {
   // listener delegado [data-scroll-target] en el bootstrap, más abajo en
   // este archivo, que también funciona para filas dentro de un trabajo).
   await Promise.all([
-    ...Array.from(grupos.values()).map((g) => cargarGrupoInline(g, `grupo-block-${g.id}`, cliente.id)),
+    ...Array.from(grupos.values()).map((g) => cargarGrupoInline(g, `grupo-block-${g.id}`, cliente)),
     ...equiposSueltos.map((e) => cargarEquipoInline(e.id, `equipo-block-${e.id}`)),
     ...trabajos.map((t) => cargarTrabajoInline(t.id, cliente.id, `trabajo-block-${t.id}`)),
   ]);
@@ -772,9 +772,10 @@ async function viewClienteDetalle(id, opts = {}) {
 // <details> que, al abrirse, tiene EXACTAMENTE el mismo contenido que un
 // equipo suelto (mismo formulario, mismas fotos, mismos abonos) — no se
 // pierde ningún dato ni funcionalidad, solo se compacta la vista.
-async function cargarGrupoInline(grupo, containerId, clienteId) {
+async function cargarGrupoInline(grupo, containerId, cliente) {
   const wrapper = document.getElementById(containerId);
   if (!wrapper) return;
+  const clienteId = cliente.id;
 
   const miembros = grupo.miembros;
   const precioTotal = miembros.reduce((s, e) => s + (e.precio || 0), 0);
@@ -894,7 +895,7 @@ async function cargarGrupoInline(grupo, containerId, clienteId) {
         mostrar_precio: mostrarPrecio,
         nota,
       });
-      mostrarLinkCombinado(wrapper, `link-combinado-resultado-${grupo.id}`, res.token, miembros, ids);
+      mostrarLinkCombinado(wrapper, `link-combinado-resultado-${grupo.id}`, res.token, cliente, miembros, ids);
     } catch (err) {
       if (await handleAuthError(err)) return;
       flash(err.message, "error");
@@ -904,22 +905,21 @@ async function cargarGrupoInline(grupo, containerId, clienteId) {
 
 // Muestra el link combinado recién generado, con copiar y envío directo
 // por WhatsApp (mismo criterio que el link de garantía de un equipo suelto).
-function mostrarLinkCombinado(wrapper, containerId, token, miembros, idsIncluidos) {
+function mostrarLinkCombinado(wrapper, containerId, token, cliente, miembros, idsIncluidos) {
   const bloque = wrapper.querySelector(`#${containerId}`);
   if (!bloque) return;
 
   const linkUrl = `${window.location.origin}/grupo?t=${token}`;
   const incluidos = miembros.filter((e) => idsIncluidos.includes(e.id));
-  const cliente = incluidos[0] || {};
   const nombres = incluidos.map((e) => e.tipo_equipo).join(", ");
-  const mensaje = `Hola ${cliente.cliente_nombre || ""}, soy de ${currentNombreNegocio}.
+  const mensaje = `Hola ${cliente.nombre || ""}, soy de ${currentNombreNegocio}.
 
 Te comparto el link con la garantía de tu equipo (${nombres}):
 ${linkUrl}
 
 Cualquier consulta, escríbeme por acá. Y si quieres conocer nuestros servicios: ${SITIO_WEB_NEGOCIO}`;
 
-  const numeroWhatsapp = telefonoWhatsapp(cliente.cliente_telefono);
+  const numeroWhatsapp = telefonoWhatsapp(cliente.telefono);
   const hrefWhatsapp = numeroWhatsapp
     ? `https://wa.me/${numeroWhatsapp}?text=${encodeURIComponent(mensaje)}`
     : `https://wa.me/?text=${encodeURIComponent(mensaje)}`;
@@ -932,6 +932,11 @@ Cualquier consulta, escríbeme por acá. Y si quieres conocer nuestros servicios
         <button type="button" class="btn btn-outline btn-sm" id="btn-copiar-link-combinado-${token}">Copiar</button>
         <a class="btn btn-accent btn-sm" href="${hrefWhatsapp}" target="_blank" rel="noopener">Enviar por WhatsApp</a>
       </div>
+      ${
+        !numeroWhatsapp
+          ? `<span class="hint">Este cliente no tiene teléfono registrado, así que WhatsApp te va a pedir elegir el contacto a mano. <a data-goto="#/clientes/${cliente.id}/editar">Agrégalo en su ficha</a> para que la próxima vez se abra el chat directo.</span>`
+          : ""
+      }
     </div>
   `;
 
