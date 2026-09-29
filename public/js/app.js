@@ -814,6 +814,11 @@ async function cargarGrupoInline(grupo, containerId, clienteId) {
             )
             .join("")}
         </div>
+        <label style="display:flex;align-items:center;gap:8px;font-weight:400;margin-bottom:12px;">
+          <input type="checkbox" id="chk-mostrar-precio-${grupo.id}" checked>
+          Mostrar precio, abonos y saldo al cliente
+        </label>
+        <span class="hint" style="display:block;margin-bottom:10px;">Desmárcalo si es una demostración u otro caso donde todavía no corresponde mostrar el precio real.</span>
         <button type="button" class="btn btn-accent btn-sm" id="btn-generar-link-combinado-${grupo.id}">Generar link</button>
         <div id="link-combinado-resultado-${grupo.id}" style="margin-top:14px;"></div>
       </div>
@@ -875,8 +880,13 @@ async function cargarGrupoInline(grupo, containerId, clienteId) {
       flash("Elige al menos un equipo para el link.", "error");
       return;
     }
+    const mostrarPrecio = wrapper.querySelector(`#chk-mostrar-precio-${grupo.id}`).checked;
     try {
-      const res = await apiPost("/api/equipos/link-combinado", { cliente_id: clienteId, equipo_ids: ids });
+      const res = await apiPost("/api/equipos/link-combinado", {
+        cliente_id: clienteId,
+        equipo_ids: ids,
+        mostrar_precio: mostrarPrecio,
+      });
       mostrarLinkCombinado(wrapper, `link-combinado-resultado-${grupo.id}`, res.token, miembros, ids);
     } catch (err) {
       if (await handleAuthError(err)) return;

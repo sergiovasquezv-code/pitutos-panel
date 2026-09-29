@@ -11,7 +11,7 @@ export async function onRequestGet({ env, params }) {
 
   const link = await db
     .prepare(
-      `SELECT links_combinados.equipo_ids, clientes.nombre AS cliente_nombre
+      `SELECT links_combinados.equipo_ids, links_combinados.mostrar_precio, clientes.nombre AS cliente_nombre
        FROM links_combinados JOIN clientes ON clientes.id = links_combinados.cliente_id
        WHERE links_combinados.public_token = ?`
     )
@@ -45,15 +45,6 @@ export async function onRequestGet({ env, params }) {
     const e = porId.get(eid);
     if (!e) continue;
 
-    const info = await infoAbono(db, "equipo", e.id, e.precio);
-    const historial = (
-      await db
-        .prepare(
-          "SELECT monto, fecha_pago, nota FROM abonos WHERE categoria = 'equipo' AND referencia_id = ? ORDER BY fecha_pago, id"
-        )
-        .bind(e.id)
-        .all()
-    ).results;
     const fotos = (
       await db
         .prepare(
@@ -64,13 +55,25 @@ export async function onRequestGet({ env, params }) {
     ).results;
 
     const { id, precio, ...equipoPublico } = e;
-    equipos.push({
-      equipo: equipoConGarantia(equipoPublico),
-      monto_total: precio,
-      historial,
-      fotos,
-      ...info,
-    });
+    const item = { equipo: equipoConGarantia(equipoPublico), fotos };
+
+    // Si el link se generó sin mostrar precio (ej: una demostración), no se
+    // manda precio, abonos ni historial de pago — ni siquiera en la
+    // respuesta, para que no quede visible mirando la red del navegador.
+    if (link.mostrar_precio) {
+      const info = await infoAbono(db, "equipo", e.id, e.precio);
+      const historial = (
+        await db
+          .prepare(
+            "SELECT monto, fecha_pago, nota FROM abonos WHERE categoria = 'equipo' AND referencia_id = ? ORDER BY fecha_pago, id"
+          )
+          .bind(e.id)
+          .all()
+      ).results;
+      Object.assign(item, { monto_total: precio, historial, ...info });
+    }
+
+    equipos.push(item);
   }
 
   if (equipos.length === 0) return json({ error: "Este link no es válido." }, 404);

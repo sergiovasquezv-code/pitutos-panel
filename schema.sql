@@ -76,7 +76,10 @@ CREATE TABLE IF NOT EXISTS links_combinados (
     cliente_id INTEGER NOT NULL,
     equipo_ids TEXT NOT NULL,
     public_token TEXT NOT NULL UNIQUE,
-    creado_en TEXT NOT NULL
+    creado_en TEXT NOT NULL,
+    -- Si es 0, el link público no muestra precio, abonos ni saldo de
+    -- ningún equipo incluido (útil para demostraciones).
+    mostrar_precio INTEGER NOT NULL DEFAULT 1
 );
 CREATE INDEX IF NOT EXISTS idx_links_combinados_token ON links_combinados(public_token);
 

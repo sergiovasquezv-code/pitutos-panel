@@ -147,15 +147,11 @@
       </div></div>`;
     }
 
+    // El precio/pago se muestra UNA sola vez, combinado para todo el
+    // sistema (ver bloque de resumen más abajo) — no se repite por cada
+    // componente, porque el cliente paga por el conjunto, no por partes.
     function bloqueItem(item) {
       const { equipo } = item;
-      const historialHtml = (item.historial || [])
-        .map((a) => `
-          <div class="historial-item">
-            <div><div class="fecha">${fechaLarga(a.fecha_pago)}</div>${a.nota ? `<span class="nota">${escapeHtml(a.nota)}</span>` : ""}</div>
-            <div><strong>${clp(a.monto)}</strong></div>
-          </div>`)
-        .join("");
       const fotosHtml = (item.fotos || [])
         .map((f) => `
           <figure>
@@ -164,7 +160,6 @@
             </a>
           </figure>`)
         .join("");
-      const mostrarPago = !!item.monto_total;
 
       return `
         <div class="equipo-item">
@@ -175,8 +170,6 @@
             <div class="item"><div class="label">Garantía</div><div class="valor">${equipo.meses_garantia > 0 ? `${equipo.meses_garantia} meses` : "Sin garantía"}</div></div>
           </div>
           ${bannerGarantia(equipo)}
-          ${mostrarPago ? bannerSaldo(item) : ""}
-          ${mostrarPago && item.historial && item.historial.length ? `<div style="margin-top:12px;"><strong style="font-size:13px;">Historial de pagos</strong>${historialHtml}</div>` : ""}
           ${item.fotos && item.fotos.length ? `<div class="fotos-grid">${fotosHtml}</div>` : ""}
         </div>`;
     }
@@ -214,20 +207,38 @@
       const abonadoGeneral = equipos.reduce((s, it) => s + (it.abonado || 0), 0);
       const saldoGeneral = equipos.reduce((s, it) => s + (it.saldo || 0), 0);
 
+      // Un solo historial combinado (no uno por componente), porque el
+      // cliente abona contra el total del sistema, no contra cada pieza.
+      const historialCombinado = equipos
+        .flatMap((it) => it.historial || [])
+        .sort((a, b) => (a.fecha_pago < b.fecha_pago ? -1 : a.fecha_pago > b.fecha_pago ? 1 : 0));
+      const historialHtml = historialCombinado
+        .map((a) => `
+          <div class="historial-item">
+            <div><div class="fecha">${fechaLarga(a.fecha_pago)}</div>${a.nota ? `<span class="nota">${escapeHtml(a.nota)}</span>` : ""}</div>
+            <div><strong>${clp(a.monto)}</strong></div>
+          </div>`)
+        .join("");
+
       content.innerHTML = `
         <div class="card">
           <h1>Tus equipos</h1>
           <div class="cliente">Para ${escapeHtml(cliente_nombre)} · ${equipos.length} equipo${equipos.length === 1 ? "" : "s"}</div>
-          ${
-            totalGeneral > 0
-              ? `<div class="resumen-total">
-                   <div><div class="monto-label">Total</div><div class="monto-grande">${clp(totalGeneral)}</div></div>
-                   <div style="text-align:right;"><div class="monto-label">Saldo pendiente</div>
-                     <div class="valor" style="color:${saldoGeneral > 0 ? "var(--danger)" : "var(--ok)"};">${clp(saldoGeneral)}</div></div>
-                 </div>`
-              : ""
-          }
         </div>
+        ${
+          totalGeneral > 0
+            ? `<div class="card">
+                 <div class="monto-label">Valor total</div>
+                 <div class="monto-grande">${clp(totalGeneral)}</div>
+                 ${bannerSaldo({ monto_total: totalGeneral, abonado: abonadoGeneral, saldo: saldoGeneral, pagado_completo: saldoGeneral <= 0 })}
+               </div>`
+            : ""
+        }
+        ${
+          totalGeneral > 0 && historialCombinado.length
+            ? `<div class="card"><h1 style="font-size:15.5px;">Historial de pagos</h1>${historialHtml}</div>`
+            : ""
+        }
         <div class="card">
           ${equipos.map(bloqueItem).join("")}
         </div>
