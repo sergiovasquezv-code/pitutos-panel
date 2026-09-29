@@ -34,11 +34,23 @@ export async function onRequestPost({ request, env }) {
 
   const fechaVenta = (body.fecha_venta || "").trim() || todayStr();
   const trabajoId = Number(body.trabajo_id) || null;
+
+  // Si viene grupo_id, se valida que el grupo sea de este mismo cliente
+  // (permite agregar otro componente a un "sistema" ya agrupado).
+  let grupoId = Number(body.grupo_id) || null;
+  if (grupoId) {
+    const grupo = await db
+      .prepare("SELECT id FROM grupos_equipos WHERE id = ? AND cliente_id = ?")
+      .bind(grupoId, clienteId)
+      .first();
+    if (!grupo) grupoId = null;
+  }
+
   const result = await db
     .prepare(
       `INSERT INTO equipos
-       (cliente_id, trabajo_id, tipo_equipo, marca_modelo, numero_serie, precio, fecha_venta, meses_garantia, notas, creado_en)
-       VALUES (?,?,?,?,?,?,?,?,?,?)`
+       (cliente_id, trabajo_id, tipo_equipo, marca_modelo, numero_serie, precio, fecha_venta, meses_garantia, notas, creado_en, grupo_id)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?)`
     )
     .bind(
       clienteId,
@@ -48,9 +60,11 @@ export async function onRequestPost({ request, env }) {
       (body.numero_serie || "").trim(),
       Number(body.precio) || 0,
       fechaVenta,
-      Number(body.meses_garantia) || 3,
+      // 0 es válido a propósito: significa "sin garantía".
+      body.meses_garantia === undefined || body.meses_garantia === "" ? 3 : Math.max(0, Number(body.meses_garantia) || 0),
       (body.notas || "").trim(),
-      nowIso()
+      nowIso(),
+      grupoId
     )
     .run();
 

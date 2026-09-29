@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Garantía de tus equipos</title>
+  <meta property="og:title" content="Garantía de tus equipos">
+  <meta property="og:description" content="Revisa el estado de la garantía de los equipos que compraste.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://panel.mispitutosinformaticos.cl/grupo">
+  <meta name="twitter:card" content="summary">
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    /* Mismo tema claro y profesional de /garantia, independiente del tema
+       Matrix del panel interno. */
+    :root {
+      --bg: #f4f6fa;
+      --card: #ffffff;
+      --border: #e3e7ef;
+      --text: #1c2536;
+      --text-muted: #6b7690;
+      --navy-950: #10203a;
+      --navy-900: #eef1f6;
+      --navy-800: #e6eaf1;
+      --accent: #0f9d70;
+      --accent-dark: #0b7d59;
+      --accent-soft: #e6f7ef;
+      --warn: #b45309;
+      --warn-soft: #fff2d9;
+      --danger: #b3261e;
+      --danger-soft: #fdeceb;
+      --ok: #197a4f;
+      --ok-soft: #e7f6ee;
+      --radius: 12px;
+      --shadow: 0 8px 30px rgba(20, 30, 50, .08), 0 1px 2px rgba(20, 30, 50, .04);
+    }
+    body { background: var(--bg); }
+    .public-wrap { max-width: 640px; margin: 0 auto; padding: 32px 18px 60px; }
+    .public-header { display: flex; align-items: center; gap: 12px; margin-bottom: 22px; }
+    .public-header .logo {
+      width: 42px; height: 42px; border-radius: 10px; background: var(--navy-950); color: var(--accent);
+      display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 15px; flex-shrink: 0;
+    }
+    .public-header .negocio { font-weight: 650; font-size: 15.5px; }
+    .public-header .subt { color: var(--text-muted); font-size: 12.5px; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 22px; margin-bottom: 18px; }
+    .card h1 { font-size: 19px; margin: 0 0 4px; }
+    .card .cliente { color: var(--text-muted); font-size: 13.5px; margin-bottom: 4px; }
+    .equipo-item + .equipo-item { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border); }
+    .equipo-item h2 { font-size: 16px; margin: 0 0 4px; }
+    .equipo-item .subt { color: var(--text-muted); font-size: 12.5px; margin-bottom: 12px; }
+    .detalle-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 18px; margin-top: 4px; }
+    .detalle-grid .item .label { font-size: 11.5px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .03em; font-weight: 600; }
+    .detalle-grid .item .valor { font-size: 14.5px; margin-top: 2px; }
+    .banner-garantia, .banner-saldo { border-radius: 12px; border-left: 4px solid currentColor; padding: 16px; margin-top: 12px; display: flex; align-items: flex-start; gap: 12px; }
+    .banner-garantia .ic, .banner-saldo .ic { font-size: 20px; line-height: 1; flex-shrink: 0; }
+    .banner-garantia .titulo, .banner-saldo .titulo { font-weight: 700; font-size: 15px; margin: 0 0 4px; }
+    .banner-garantia .detalle, .banner-saldo .detalle { font-size: 13px; margin: 0; }
+    .banner-garantia.ok, .banner-saldo.ok { background: var(--ok-soft); color: var(--ok); }
+    .banner-garantia.warn, .banner-saldo.warn { background: var(--warn-soft); color: var(--warn); }
+    .banner-garantia.danger { background: var(--danger-soft); color: var(--danger); }
+    .monto-grande { font-size: 24px; font-weight: 700; margin: 6px 0 2px; }
+    .monto-label { color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: .03em; font-weight: 600; }
+    .resumen-total { display: flex; justify-content: space-between; align-items: baseline; margin-top: 6px; }
+    .resumen-total .valor { font-size: 22px; font-weight: 700; }
+    .historial-item { display: flex; justify-content: space-between; align-items: baseline; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+    .historial-item:last-child { border-bottom: none; }
+    .historial-item .fecha { color: var(--text-muted); }
+    .historial-item .nota { display: block; color: var(--text-muted); font-size: 11.5px; margin-top: 2px; }
+    .fotos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; margin-top: 8px; }
+    .fotos-grid figure { margin: 0; }
+    .fotos-grid img { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; border-radius: 10px; border: 1px solid var(--border); display: block; cursor: zoom-in; }
+    .footer-note { text-align: center; color: var(--text-muted); font-size: 12px; margin-top: 24px; }
+  </style>
+</head>
+<body>
+  <div class="public-wrap">
+    <div class="public-header">
+      <div class="logo" id="logo-ini">PI</div>
+      <div>
+        <div class="negocio" id="negocio-nombre">Cargando…</div>
+        <div class="subt">Garantía de tus equipos</div>
+      </div>
+    </div>
+
+    <div id="content">
+      <div class="card"><div class="empty-state">Cargando información…</div></div>
+    </div>
+
+    <div class="footer-note" id="footer-note" style="display:none;">
+      Este es un link privado — no lo compartas si no quieres que otras personas vean los datos de tus equipos.
+      <br><a href="https://mispitutosinformaticos.cl/" target="_blank" rel="noopener">Conoce más de nuestros servicios</a>
+    </div>
+  </div>
+
+  <script type="module">
+    function escapeHtml(str) {
+      return String(str ?? "").replace(/[&<>"']/g, (c) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+      }[c]));
+    }
+    function fechaLarga(iso) {
+      if (!iso) return "";
+      try { return new Date(iso).toLocaleDateString("es-CL", { dateStyle: "long" }); } catch { return iso; }
+    }
+    function clp(value) {
+      const n = Math.round(Number(value) || 0);
+      return "$" + n.toLocaleString("es-CL");
+    }
+
+    function bannerGarantia(equipo) {
+      const dias = equipo.dias_restantes;
+      if (equipo.estado_garantia === "sin_garantia") {
+        return `<div class="banner-garantia" style="background:var(--navy-900);color:var(--text-muted);"><div class="ic">&#8505;</div><div>
+          <p class="titulo">Sin garantía</p>
+          <p class="detalle">Este producto no incluye garantía.</p>
+        </div></div>`;
+      }
+      if (equipo.estado_garantia === "vencida") {
+        return `<div class="banner-garantia danger"><div class="ic">&#10007;</div><div>
+          <p class="titulo">Garantía vencida</p>
+          <p class="detalle">Venció el ${fechaLarga(equipo.vence)} · hace ${-dias} día${-dias === 1 ? "" : "s"}.</p>
+        </div></div>`;
+      }
+      if (equipo.estado_garantia === "por_vencer") {
+        return `<div class="banner-garantia warn"><div class="ic">&#9888;</div><div>
+          <p class="titulo">Por vencer</p>
+          <p class="detalle">Vence el ${fechaLarga(equipo.vence)} · quedan ${dias} día${dias === 1 ? "" : "s"}.</p>
+        </div></div>`;
+      }
+      return `<div class="banner-garantia ok"><div class="ic">&#10003;</div><div>
+        <p class="titulo">Garantía vigente</p>
+        <p class="detalle">Vence el ${fechaLarga(equipo.vence)} · quedan ${dias} día${dias === 1 ? "" : "s"}.</p>
+      </div></div>`;
+    }
+
+    function bannerSaldo(item) {
+      if (!item.monto_total) return "";
+      if (item.pagado_completo) {
+        return `<div class="banner-saldo ok"><div class="ic">&#10003;</div><div>
+          <p class="titulo">Pagado por completo</p><p class="detalle">Ya pagaste el total de ${clp(item.monto_total)}. ¡Gracias!</p>
+        </div></div>`;
+      }
+      return `<div class="banner-saldo warn"><div class="ic">&#8987;</div><div>
+        <p class="titulo">Pago pendiente</p>
+        <p class="detalle">Llevas abonado ${clp(item.abonado)} de ${clp(item.monto_total)} · saldo pendiente: <strong>${clp(item.saldo)}</strong>.</p>
+      </div></div>`;
+    }
+
+    function bloqueItem(item) {
+      const { equipo } = item;
+      const historialHtml = (item.historial || [])
+        .map((a) => `
+          <div class="historial-item">
+            <div><div class="fecha">${fechaLarga(a.fecha_pago)}</div>${a.nota ? `<span class="nota">${escapeHtml(a.nota)}</span>` : ""}</div>
+            <div><strong>${clp(a.monto)}</strong></div>
+          </div>`)
+        .join("");
+      const fotosHtml = (item.fotos || [])
+        .map((f) => `
+          <figure>
+            <a href="/api/public/fotos/${escapeHtml(f.r2_key)}" target="_blank" rel="noopener">
+              <img src="/api/public/fotos/${escapeHtml(f.r2_key)}" alt="${escapeHtml(f.descripcion || "Foto del equipo")}" loading="lazy">
+            </a>
+          </figure>`)
+        .join("");
+      const mostrarPago = !!item.monto_total;
+
+      return `
+        <div class="equipo-item">
+          <h2>${escapeHtml(equipo.tipo_equipo || "Equipo")}</h2>
+          <div class="subt">${escapeHtml(equipo.marca_modelo || "")}${equipo.numero_serie ? ` · N° serie ${escapeHtml(equipo.numero_serie)}` : ""}</div>
+          <div class="detalle-grid">
+            <div class="item"><div class="label">Fecha de compra</div><div class="valor">${fechaLarga(equipo.fecha_venta)}</div></div>
+            <div class="item"><div class="label">Garantía</div><div class="valor">${equipo.meses_garantia > 0 ? `${equipo.meses_garantia} meses` : "Sin garantía"}</div></div>
+          </div>
+          ${bannerGarantia(equipo)}
+          ${mostrarPago ? bannerSaldo(item) : ""}
+          ${mostrarPago && item.historial && item.historial.length ? `<div style="margin-top:12px;"><strong style="font-size:13px;">Historial de pagos</strong>${historialHtml}</div>` : ""}
+          ${item.fotos && item.fotos.length ? `<div class="fotos-grid">${fotosHtml}</div>` : ""}
+        </div>`;
+    }
+
+    async function cargar() {
+      const params = new URLSearchParams(window.location.search);
+      const token = params.get("t");
+      const content = document.getElementById("content");
+
+      if (!token) {
+        content.innerHTML = `<div class="card"><div class="empty-state">Este link no es válido.</div></div>`;
+        return;
+      }
+
+      let data;
+      try {
+        const res = await fetch(`/api/public/grupo/${encodeURIComponent(token)}`);
+        if (!res.ok) {
+          content.innerHTML = `<div class="card"><div class="empty-state">Este link no es válido o ya no está disponible.</div></div>`;
+          return;
+        }
+        data = await res.json();
+      } catch {
+        content.innerHTML = `<div class="card"><div class="empty-state">No se pudo cargar la información. Intenta de nuevo más tarde.</div></div>`;
+        return;
+      }
+
+      const { negocio, cliente_nombre, equipos } = data;
+      document.title = `Garantía — ${negocio}`;
+      document.getElementById("negocio-nombre").textContent = negocio;
+      document.getElementById("logo-ini").textContent = negocio.split(" ").filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("") || "PI";
+      document.getElementById("footer-note").style.display = "block";
+
+      const totalGeneral = equipos.reduce((s, it) => s + (it.monto_total || 0), 0);
+      const abonadoGeneral = equipos.reduce((s, it) => s + (it.abonado || 0), 0);
+      const saldoGeneral = equipos.reduce((s, it) => s + (it.saldo || 0), 0);
+
+      content.innerHTML = `
+        <div class="card">
+          <h1>Tus equipos</h1>
+          <div class="cliente">Para ${escapeHtml(cliente_nombre)} · ${equipos.length} equipo${equipos.length === 1 ? "" : "s"}</div>
+          ${
+            totalGeneral > 0
+              ? `<div class="resumen-total">
+                   <div><div class="monto-label">Total</div><div class="monto-grande">${clp(totalGeneral)}</div></div>
+                   <div style="text-align:right;"><div class="monto-label">Saldo pendiente</div>
+                     <div class="valor" style="color:${saldoGeneral > 0 ? "var(--danger)" : "var(--ok)"};">${clp(saldoGeneral)}</div></div>
+                 </div>`
+              : ""
+          }
+        </div>
+        <div class="card">
+          ${equipos.map(bloqueItem).join("")}
+        </div>
+      `;
+    }
+
+    cargar();
+  </script>
+</body>
+</html>

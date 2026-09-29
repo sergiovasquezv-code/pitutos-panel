@@ -1,7 +1,14 @@
 import { addMonths, diffDays, todayStr, periodoActual } from "./dates.js";
 
 export function equipoConGarantia(equipo, hoy = todayStr()) {
-  const vence = addMonths(equipo.fecha_venta, equipo.meses_garantia);
+  const meses = Number(equipo.meses_garantia) || 0;
+  // meses_garantia = 0 significa "sin garantía" a propósito (ej:
+  // configuraciones u otros ítems que llevan precio pero no garantía) — no
+  // se calcula vencimiento ni se muestra como vencida.
+  if (meses <= 0) {
+    return { ...equipo, vence: null, dias_restantes: null, estado_garantia: "sin_garantia" };
+  }
+  const vence = addMonths(equipo.fecha_venta, meses);
   const dias = diffDays(vence, hoy);
   let estado;
   if (dias < 0) estado = "vencida";

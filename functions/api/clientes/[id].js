@@ -10,7 +10,11 @@ export async function onRequestGet({ env, params }) {
 
   const equiposRaw = (
     await db
-      .prepare("SELECT * FROM equipos WHERE cliente_id = ? ORDER BY fecha_venta DESC")
+      .prepare(
+        `SELECT equipos.*, grupos_equipos.nombre AS grupo_nombre
+         FROM equipos LEFT JOIN grupos_equipos ON grupos_equipos.id = equipos.grupo_id
+         WHERE equipos.cliente_id = ? ORDER BY equipos.fecha_venta DESC`
+      )
       .bind(id)
       .all()
   ).results;
@@ -104,6 +108,8 @@ export async function onRequestDelete({ env, params }) {
   }
 
   await db.prepare("DELETE FROM equipos WHERE cliente_id = ?").bind(id).run();
+  await db.prepare("DELETE FROM grupos_equipos WHERE cliente_id = ?").bind(id).run();
+  await db.prepare("DELETE FROM links_combinados WHERE cliente_id = ?").bind(id).run();
   await db.prepare("DELETE FROM trabajos WHERE cliente_id = ?").bind(id).run();
   await db.prepare("DELETE FROM mensualidades WHERE cliente_id = ?").bind(id).run();
   await db.prepare("DELETE FROM clientes WHERE id = ?").bind(id).run();

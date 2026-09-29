@@ -414,7 +414,16 @@
         : escapeHtml(equipo.tipo_equipo);
 
       const bannerHtml =
-        equipo.estado_garantia === "vencida"
+        equipo.estado_garantia === "sin_garantia"
+          ? `
+        <div class="banner-garantia" style="background:var(--navy-900);color:var(--text-muted);">
+          <div class="ic">&#8505;</div>
+          <div>
+            <p class="titulo">${nombre} · sin garantía</p>
+            <p class="detalle">Este producto no incluye garantía.</p>
+          </div>
+        </div>`
+          : equipo.estado_garantia === "vencida"
           ? `
         <div class="banner-garantia danger">
           <div class="ic">&#10007;</div>
@@ -459,7 +468,7 @@
         .join("");
 
       const condicionesHtml =
-        equipo.estado_garantia === "vencida"
+        equipo.estado_garantia === "vencida" || equipo.estado_garantia === "sin_garantia"
           ? ""
           : `
         <div class="card condiciones-card">

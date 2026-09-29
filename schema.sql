@@ -48,10 +48,37 @@ CREATE TABLE IF NOT EXISTS equipos (
     -- equipo no se ve afectado por esto: si tú lo compartes, es porque ya
     -- decidiste mostrarlo.
     visible_cliente INTEGER NOT NULL DEFAULT 0,
-    visible_desde TEXT
+    visible_desde TEXT,
+    -- Agrupa componentes de una misma venta tipo "sistema" (ej: Mini PC +
+    -- monitor + lector + impresora) que comparten garantía, para que el
+    -- panel los muestre compactados en vez de una tarjeta por cada uno.
+    -- NULL = equipo suelto, se ve exactamente igual que siempre.
+    grupo_id INTEGER
 );
 
 CREATE INDEX IF NOT EXISTS idx_equipos_trabajo ON equipos(trabajo_id);
+CREATE INDEX IF NOT EXISTS idx_equipos_grupo ON equipos(grupo_id);
+
+-- Grupo de equipos (ver equipos.grupo_id más arriba).
+CREATE TABLE IF NOT EXISTS grupos_equipos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    cliente_id INTEGER NOT NULL,
+    nombre TEXT NOT NULL,
+    creado_en TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_grupos_equipos_cliente ON grupos_equipos(cliente_id);
+
+-- Link público combinado: muestra exactamente los equipos (de un mismo
+-- cliente) que el negocio eligió incluir al generarlo, no necesariamente
+-- todo un grupo.
+CREATE TABLE IF NOT EXISTS links_combinados (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    cliente_id INTEGER NOT NULL,
+    equipo_ids TEXT NOT NULL,
+    public_token TEXT NOT NULL UNIQUE,
+    creado_en TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_links_combinados_token ON links_combinados(public_token);
 
 -- Fotos que reflejan el estado actual del equipo (por ejemplo, cómo llegó
 -- o cómo quedó tras una reparación), que el cliente ve en su link público

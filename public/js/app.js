@@ -85,6 +85,9 @@ async function handleAuthError(err) {
 }
 
 function badgeGarantia(equipo) {
+  if (equipo.estado_garantia === "sin_garantia") {
+    return `<span class="badge neutral">Sin garantía</span>`;
+  }
   if (equipo.estado_garantia === "vencida") {
     const dias = -equipo.dias_restantes;
     return `<span class="badge danger">&#9888; Vencida hace ${dias}d</span>`;
@@ -93,6 +96,70 @@ function badgeGarantia(equipo) {
     return `<span class="badge warn">&#9888; Por vencer (${equipo.dias_restantes}d)</span>`;
   }
   return `<span class="badge ok">&#10003; Vigente (${equipo.dias_restantes}d)</span>`;
+}
+
+// Igual que badgeGarantia pero para un grupo de equipos: muestra el peor
+// caso (si alguno venció, manda esa; si no, si alguno está por vencer,
+// manda esa; si no, vigente con los días del que vence antes).
+function badgeGarantiaGrupo(miembros) {
+  const conGarantia = miembros.filter((e) => e.estado_garantia !== "sin_garantia");
+  const sufijoSinGarantia =
+    conGarantia.length && conGarantia.length < miembros.length
+      ? ` <span class="hint">(${miembros.length - conGarantia.length} sin garantía)</span>`
+      : "";
+
+  if (conGarantia.length === 0) {
+    return `<span class="badge neutral">Sin garantía</span>`;
+  }
+
+  const vencidos = conGarantia.filter((e) => e.estado_garantia === "vencida");
+  if (vencidos.length) {
+    const peor = vencidos.reduce((a, b) => (b.dias_restantes < a.dias_restantes ? b : a));
+    const dias = -peor.dias_restantes;
+    return `<span class="badge danger">&#9888; Vencida hace ${dias}d</span>${sufijoSinGarantia}`;
+  }
+  const porVencer = conGarantia.filter((e) => e.estado_garantia === "por_vencer");
+  if (porVencer.length) {
+    const peor = porVencer.reduce((a, b) => (b.dias_restantes < a.dias_restantes ? b : a));
+    return `<span class="badge warn">&#9888; Por vencer (${peor.dias_restantes}d)</span>${sufijoSinGarantia}`;
+  }
+  const dias = conGarantia.reduce((min, e) => Math.min(min, e.dias_restantes), Infinity);
+  return `<span class="badge ok">&#10003; Vigente (${dias}d)</span>${sufijoSinGarantia}`;
+}
+
+// Campo reutilizable de "Meses de garantía" con un checkbox "Sin garantía"
+// (para ítems que llevan precio pero no garantía, ej: configuraciones).
+// Marcar el checkbox deja el número en 0, que es lo que interpreta el
+// backend como "sin garantía" (ver equipoConGarantia en negocio.js).
+function campoMesesGarantia(meses) {
+  const sinGarantia = Number(meses) === 0;
+  return `
+    <div class="field"><label for="meses_garantia">Meses de garantía</label>
+      <input type="number" id="meses_garantia" min="0" step="1" value="${sinGarantia ? 3 : meses}" ${sinGarantia ? "disabled" : ""}>
+      <label style="display:flex;align-items:center;gap:6px;font-weight:400;margin-top:6px;">
+        <input type="checkbox" id="chk-sin-garantia" ${sinGarantia ? "checked" : ""}>
+        Sin garantía (ej: configuraciones u otros ítems sin garantía)
+      </label>
+    </div>`;
+}
+
+// Conecta el checkbox de "Sin garantía" con el input numérico dentro del
+// wrapper indicado (document o un contenedor específico, para no chocar
+// con otros equipos abiertos a la vez en la misma hoja).
+function wireSinGarantiaCheckbox(scope) {
+  const chk = scope.querySelector("#chk-sin-garantia");
+  const input = scope.querySelector("#meses_garantia");
+  if (!chk || !input) return;
+  chk.addEventListener("change", () => {
+    if (chk.checked) {
+      input.dataset.prev = input.value && input.value !== "0" ? input.value : input.dataset.prev || "3";
+      input.value = "0";
+      input.disabled = true;
+    } else {
+      input.disabled = false;
+      input.value = input.dataset.prev || "3";
+    }
+  });
 }
 
 function badgeTrabajo(estado) {
@@ -445,12 +512,26 @@ async function viewClienteDetalle(id, opts = {}) {
     trabajos.reduce((s, t) => s + (t.saldo || 0), 0) +
     mensualidades.filter((m) => m.activo).reduce((s, m) => s + (m.saldo || 0), 0);
 
+  // Los equipos que comparten grupo_id (una venta tipo "sistema" con varios
+  // componentes que comparten garantía) se compactan en UNA fila/bloque en
+  // vez de una por cada componente — ver cargarGrupoInline más abajo. Los
+  // equipos sueltos (grupo_id null) se siguen viendo exactamente igual que
+  // antes, sin ningún cambio.
+  const grupos = new Map();
+  const equiposSueltos = [];
+  for (const e of equipos) {
+    if (e.grupo_id) {
+      if (!grupos.has(e.grupo_id)) grupos.set(e.grupo_id, { id: e.grupo_id, nombre: e.grupo_nombre, miembros: [] });
+      grupos.get(e.grupo_id).miembros.push(e);
+    } else {
+      equiposSueltos.push(e);
+    }
+  }
+
   // Cada fila apunta (con scroll suave) a su propio bloque de detalle, que
   // va SIEMPRE desplegado más abajo en esta misma hoja — no hay que apretar
   // nada para verlo, la fila es solo un atajo para bajar directo a él.
-  const equiposRows = equipos
-    .map(
-      (e) => `
+  const filaEquipoSuelto = (e) => `
       <tr data-scroll-target="equipo-block-${e.id}" style="cursor:pointer;">
         <td>${escapeHtml(e.tipo_equipo)}${e.marca_modelo ? `<br><span class="muted">${escapeHtml(e.marca_modelo)}</span>` : ""}</td>
         <td>${escapeHtml(e.numero_serie || "—")}</td>
@@ -458,8 +539,34 @@ async function viewClienteDetalle(id, opts = {}) {
         <td class="num">${e.saldo > 0 ? `<span class="danger">${clp(e.saldo)}</span>` : clp(0)}</td>
         <td>${e.fecha_venta}</td>
         <td>${badgeGarantia(e)}</td>
-      </tr>`
-    )
+      </tr>`;
+
+  const filaGrupo = (g) => {
+    const precioTotal = g.miembros.reduce((s, e) => s + (e.precio || 0), 0);
+    const saldoTotal = g.miembros.reduce((s, e) => s + (e.saldo || 0), 0);
+    const ventaMasReciente = g.miembros.reduce((max, e) => (e.fecha_venta > max ? e.fecha_venta : max), g.miembros[0].fecha_venta);
+    return `
+      <tr data-scroll-target="grupo-block-${g.id}" style="cursor:pointer;">
+        <td><strong>&#128230; ${escapeHtml(g.nombre)}</strong><br><span class="muted">${g.miembros.length} equipos agrupados</span></td>
+        <td>—</td>
+        <td class="num">${clp(precioTotal)}</td>
+        <td class="num">${saldoTotal > 0 ? `<span class="danger">${clp(saldoTotal)}</span>` : clp(0)}</td>
+        <td>${ventaMasReciente}</td>
+        <td>${badgeGarantiaGrupo(g.miembros)}</td>
+      </tr>`;
+  };
+
+  // Se listan en el mismo orden en que ya vienen los equipos (por fecha de
+  // venta descendente), mostrando cada grupo una sola vez, la primera vez
+  // que aparece alguno de sus miembros.
+  const gruposMostrados = new Set();
+  const equiposRows = equipos
+    .map((e) => {
+      if (!e.grupo_id) return filaEquipoSuelto(e);
+      if (gruposMostrados.has(e.grupo_id)) return "";
+      gruposMostrados.add(e.grupo_id);
+      return filaGrupo(grupos.get(e.grupo_id));
+    })
     .join("");
 
   const trabajosRows = trabajos
@@ -475,7 +582,9 @@ async function viewClienteDetalle(id, opts = {}) {
     )
     .join("");
 
-  const equiposBloques = equipos.map((e) => `<div id="equipo-block-${e.id}" style="margin-top:14px;"></div>`).join("");
+  const equiposBloques =
+    Array.from(grupos.values()).map((g) => `<div id="grupo-block-${g.id}" style="margin-top:14px;"></div>`).join("") +
+    equiposSueltos.map((e) => `<div id="equipo-block-${e.id}" style="margin-top:14px;"></div>`).join("");
   const trabajosBloques = trabajos.map((t) => `<div id="trabajo-block-${t.id}" style="margin-top:14px;"></div>`).join("");
 
   const mensRows = mensualidades
@@ -518,13 +627,46 @@ async function viewClienteDetalle(id, opts = {}) {
 
     <div class="panel">
       <div class="panel-header"><h2>Equipos y garantías</h2>
-        <button class="btn btn-accent btn-sm" data-goto="#/equipos/nuevo?cliente_id=${cliente.id}">+ Registrar venta</button></div>
+        <div class="actions-row">
+          ${
+            equipos.length > 1
+              ? `<button class="btn btn-outline btn-sm" id="btn-agrupar-equipos">&#128230; Agrupar equipos</button>`
+              : ""
+          }
+          <button class="btn btn-accent btn-sm" data-goto="#/equipos/nuevo?cliente_id=${cliente.id}">+ Registrar venta</button>
+        </div>
+      </div>
       <div class="panel-body">
         ${
           equiposRows
             ? `<table><thead><tr><th>Equipo</th><th>N° serie</th><th class="num">Precio</th><th class="num">Saldo</th><th>Venta</th><th>Garantía</th></tr></thead><tbody>${equiposRows}</tbody></table>`
             : `<div class="panel-empty">Sin equipos registrados todavía.</div>`
         }
+      </div>
+      <div class="panel-body" id="agrupar-equipos-form" style="border-top:1px solid var(--border);" hidden>
+        <p class="hint" style="display:block;margin-bottom:10px;">Marca los equipos que forman parte de una misma venta (ej: un sistema de venta con Mini PC, monitor, lector e impresora) — quedarán compactados en una sola tarjeta y vas a poder generar un solo link con los que elijas enviarle al cliente.</p>
+        <form id="form-crear-grupo">
+          <div class="field"><label for="grupo-nombre">Nombre del grupo</label>
+            <input type="text" id="grupo-nombre" required placeholder="Ej: Sistema de venta"></div>
+          <div class="field"><label>Equipos a incluir</label>
+            <div style="display:flex;flex-direction:column;gap:6px;">
+              ${equipos
+                .map(
+                  (e) => `
+                <label style="display:flex;align-items:center;gap:8px;font-weight:400;">
+                  <input type="checkbox" class="chk-equipo-grupo" value="${e.id}">
+                  ${escapeHtml(e.tipo_equipo)}${e.marca_modelo ? " · " + escapeHtml(e.marca_modelo) : ""}
+                  ${e.grupo_id ? `<span class="hint">(ya en "${escapeHtml(e.grupo_nombre)}")</span>` : ""}
+                </label>`
+                )
+                .join("")}
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-accent btn-sm">Crear grupo</button>
+            <button type="button" class="btn btn-outline btn-sm" id="btn-cancelar-agrupar">Cancelar</button>
+          </div>
+        </form>
       </div>
     </div>
 
@@ -570,21 +712,222 @@ async function viewClienteDetalle(id, opts = {}) {
     }
   });
 
+  const btnAgrupar = document.getElementById("btn-agrupar-equipos");
+  const panelAgrupar = document.getElementById("agrupar-equipos-form");
+  if (btnAgrupar) {
+    btnAgrupar.addEventListener("click", () => {
+      panelAgrupar.hidden = !panelAgrupar.hidden;
+    });
+    document.getElementById("btn-cancelar-agrupar").addEventListener("click", () => {
+      panelAgrupar.hidden = true;
+    });
+    document.getElementById("form-crear-grupo").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const nombre = document.getElementById("grupo-nombre").value.trim();
+      const equipoIds = Array.from(document.querySelectorAll(".chk-equipo-grupo:checked")).map((c) => Number(c.value));
+      if (equipoIds.length < 2) {
+        flash("Elige al menos 2 equipos para agrupar.", "error");
+        return;
+      }
+      try {
+        await apiPost("/api/grupos", { cliente_id: cliente.id, nombre, equipo_ids: equipoIds });
+        flash("Grupo creado.");
+        viewClienteDetalle(cliente.id);
+      } catch (err) {
+        if (await handleAuthError(err)) return;
+        flash(err.message, "error");
+      }
+    });
+  }
+
   // Todos los trabajos y equipos del cliente van SIEMPRE desplegados en esta
   // misma hoja (nada de apretar para recién ver el detalle) — las filas de
   // arriba son solo un atajo con scroll suave hasta su bloque (ver el
   // listener delegado [data-scroll-target] en el bootstrap, más abajo en
   // este archivo, que también funciona para filas dentro de un trabajo).
   await Promise.all([
-    ...equipos.map((e) => cargarEquipoInline(e.id, `equipo-block-${e.id}`)),
+    ...Array.from(grupos.values()).map((g) => cargarGrupoInline(g, `grupo-block-${g.id}`, cliente.id)),
+    ...equiposSueltos.map((e) => cargarEquipoInline(e.id, `equipo-block-${e.id}`)),
     ...trabajos.map((t) => cargarTrabajoInline(t.id, cliente.id, `trabajo-block-${t.id}`)),
   ]);
 
   if (opts.openTrabajoId) {
     document.getElementById(`trabajo-block-${opts.openTrabajoId}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
   } else if (opts.openEquipoId) {
-    document.getElementById(`equipo-block-${opts.openEquipoId}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    const eq = equipos.find((e) => String(e.id) === String(opts.openEquipoId));
+    if (eq && eq.grupo_id) {
+      document.getElementById(`grupo-block-${eq.grupo_id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+      const detalle = document.getElementById(`equipo-detalle-${opts.openEquipoId}`);
+      if (detalle) detalle.open = true;
+    } else {
+      document.getElementById(`equipo-block-${opts.openEquipoId}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
   }
+}
+
+// Renderiza el bloque compacto de UN grupo de equipos (una venta tipo
+// "sistema"): resumen agregado, generador de link combinado (eligiendo
+// exactamente qué componentes mandar) y cada componente colapsado en un
+// <details> que, al abrirse, tiene EXACTAMENTE el mismo contenido que un
+// equipo suelto (mismo formulario, mismas fotos, mismos abonos) — no se
+// pierde ningún dato ni funcionalidad, solo se compacta la vista.
+async function cargarGrupoInline(grupo, containerId, clienteId) {
+  const wrapper = document.getElementById(containerId);
+  if (!wrapper) return;
+
+  const miembros = grupo.miembros;
+  const precioTotal = miembros.reduce((s, e) => s + (e.precio || 0), 0);
+  const abonadoTotal = miembros.reduce((s, e) => s + (e.abonado || 0), 0);
+  const saldoTotal = miembros.reduce((s, e) => s + (e.saldo || 0), 0);
+
+  wrapper.innerHTML = `
+    <div class="panel" style="margin-top:22px;border-color:var(--accent-dark);">
+      <div class="panel-header">
+        <h2>&#128230; ${escapeHtml(grupo.nombre)} <span class="muted" style="font-weight:400;">· ${miembros.length} equipos</span></h2>
+        <div class="actions-row">
+          <button class="btn btn-outline btn-sm" id="btn-renombrar-grupo-${grupo.id}">Renombrar</button>
+          <button class="btn btn-danger-outline btn-sm" id="btn-eliminar-grupo-${grupo.id}">Desagrupar</button>
+        </div>
+      </div>
+      <div class="panel-body padded">
+        <div class="form-grid" style="margin-bottom:6px;">
+          <div><span class="text-muted">Precio total</span><br><strong>${clp(precioTotal)}</strong></div>
+          <div><span class="text-muted">Abonado</span><br><strong>${clp(abonadoTotal)}</strong></div>
+          <div><span class="text-muted">Saldo pendiente</span><br><strong class="${saldoTotal > 0 ? "danger" : "ok"}">${clp(saldoTotal)}</strong></div>
+          <div><span class="text-muted">Garantía</span><br>${badgeGarantiaGrupo(miembros)}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:14px;">
+      <div class="panel-header"><h2>Link para el cliente</h2></div>
+      <div class="panel-body padded">
+        <span class="hint" style="display:block;margin-bottom:10px;">Elige exactamente qué componentes le vas a mostrar al cliente en el link (por defecto vienen todos marcados).</span>
+        <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px;">
+          ${miembros
+            .map(
+              (e) => `
+            <label style="display:flex;align-items:center;gap:8px;font-weight:400;">
+              <input type="checkbox" class="chk-link-combinado-${grupo.id}" value="${e.id}" checked>
+              ${escapeHtml(e.tipo_equipo)}${e.marca_modelo ? " · " + escapeHtml(e.marca_modelo) : ""}
+            </label>`
+            )
+            .join("")}
+        </div>
+        <button type="button" class="btn btn-accent btn-sm" id="btn-generar-link-combinado-${grupo.id}">Generar link</button>
+        <div id="link-combinado-resultado-${grupo.id}" style="margin-top:14px;"></div>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:14px;">
+      <div class="panel-header"><h2>Componentes</h2></div>
+      <div class="panel-body padded" style="display:flex;flex-direction:column;gap:10px;">
+        ${miembros
+          .map(
+            (e) => `
+          <details id="equipo-detalle-${e.id}" style="border:1px solid var(--border);border-radius:10px;padding:10px 14px;">
+            <summary style="cursor:pointer;display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
+              <strong>${escapeHtml(e.tipo_equipo)}</strong>
+              ${e.marca_modelo ? `<span class="muted">${escapeHtml(e.marca_modelo)}</span>` : ""}
+              ${e.numero_serie ? `<span class="muted">N° ${escapeHtml(e.numero_serie)}</span>` : ""}
+              <span class="num">${clp(e.precio)}</span>
+              ${e.saldo > 0 ? `<span class="danger">Saldo ${clp(e.saldo)}</span>` : ""}
+              ${badgeGarantia(e)}
+            </summary>
+            <div id="equipo-detalle-contenido-${e.id}" style="margin-top:12px;"></div>
+          </details>`
+          )
+          .join("")}
+      </div>
+    </div>
+  `;
+
+  await Promise.all(miembros.map((e) => cargarEquipoInline(e.id, `equipo-detalle-contenido-${e.id}`)));
+
+  wrapper.querySelector(`#btn-renombrar-grupo-${grupo.id}`).addEventListener("click", async () => {
+    const nuevoNombre = prompt("Nuevo nombre del grupo:", grupo.nombre);
+    if (!nuevoNombre || !nuevoNombre.trim()) return;
+    try {
+      await apiPut(`/api/grupos/${grupo.id}`, { nombre: nuevoNombre.trim() });
+      flash("Grupo renombrado.");
+      viewClienteDetalle(clienteId);
+    } catch (err) {
+      if (await handleAuthError(err)) return;
+      flash(err.message, "error");
+    }
+  });
+
+  wrapper.querySelector(`#btn-eliminar-grupo-${grupo.id}`).addEventListener("click", async () => {
+    if (!confirm("¿Desagrupar estos equipos? Cada uno vuelve a verse suelto (no se borra ningún dato).")) return;
+    try {
+      await apiDelete(`/api/grupos/${grupo.id}`);
+      flash("Grupo eliminado.");
+      viewClienteDetalle(clienteId);
+    } catch (err) {
+      if (await handleAuthError(err)) return;
+      flash(err.message, "error");
+    }
+  });
+
+  wrapper.querySelector(`#btn-generar-link-combinado-${grupo.id}`).addEventListener("click", async () => {
+    const ids = Array.from(wrapper.querySelectorAll(`.chk-link-combinado-${grupo.id}:checked`)).map((c) => Number(c.value));
+    if (ids.length === 0) {
+      flash("Elige al menos un equipo para el link.", "error");
+      return;
+    }
+    try {
+      const res = await apiPost("/api/equipos/link-combinado", { cliente_id: clienteId, equipo_ids: ids });
+      mostrarLinkCombinado(wrapper, `link-combinado-resultado-${grupo.id}`, res.token, miembros, ids);
+    } catch (err) {
+      if (await handleAuthError(err)) return;
+      flash(err.message, "error");
+    }
+  });
+}
+
+// Muestra el link combinado recién generado, con copiar y envío directo
+// por WhatsApp (mismo criterio que el link de garantía de un equipo suelto).
+function mostrarLinkCombinado(wrapper, containerId, token, miembros, idsIncluidos) {
+  const bloque = wrapper.querySelector(`#${containerId}`);
+  if (!bloque) return;
+
+  const linkUrl = `${window.location.origin}/grupo?t=${token}`;
+  const incluidos = miembros.filter((e) => idsIncluidos.includes(e.id));
+  const cliente = incluidos[0] || {};
+  const nombres = incluidos.map((e) => e.tipo_equipo).join(", ");
+  const mensaje = `Hola ${cliente.cliente_nombre || ""}, soy de ${currentNombreNegocio}.
+
+Te comparto el link con la garantía de tu equipo (${nombres}):
+${linkUrl}
+
+Cualquier consulta, escríbeme por acá. Y si quieres conocer nuestros servicios: ${SITIO_WEB_NEGOCIO}`;
+
+  const numeroWhatsapp = telefonoWhatsapp(cliente.cliente_telefono);
+  const hrefWhatsapp = numeroWhatsapp
+    ? `https://wa.me/${numeroWhatsapp}?text=${encodeURIComponent(mensaje)}`
+    : `https://wa.me/?text=${encodeURIComponent(mensaje)}`;
+
+  bloque.innerHTML = `
+    <div class="field">
+      <label>Link generado — envíaselo al cliente</label>
+      <div class="actions-row">
+        <input type="text" readonly value="${escapeHtml(linkUrl)}" id="link-combinado-${token}" style="flex:1;">
+        <button type="button" class="btn btn-outline btn-sm" id="btn-copiar-link-combinado-${token}">Copiar</button>
+        <a class="btn btn-accent btn-sm" href="${hrefWhatsapp}" target="_blank" rel="noopener">Enviar por WhatsApp</a>
+      </div>
+    </div>
+  `;
+
+  bloque.querySelector(`#btn-copiar-link-combinado-${token}`).addEventListener("click", async () => {
+    const input = bloque.querySelector(`#link-combinado-${token}`);
+    try {
+      await navigator.clipboard.writeText(input.value);
+      flash("Link copiado.");
+    } catch {
+      input.select();
+      flash("Selecciona y copia el link manualmente.", "error");
+    }
+  });
 }
 
 // Renderiza el detalle completo de UN trabajo (datos, equipos/garantía,
@@ -620,7 +963,7 @@ async function cargarTrabajoInline(trabajoId, clienteId, containerId = "trabajo-
   const equiposVinculadosRows = equiposVinculados
     .map(
       (e) => `
-      <tr data-scroll-target="equipo-block-${e.id}" style="cursor:pointer;">
+      <tr data-scroll-target="${e.grupo_id ? `grupo-block-${e.grupo_id}` : `equipo-block-${e.id}`}" style="cursor:pointer;">
         <td>${escapeHtml(e.tipo_equipo)}${e.marca_modelo ? `<br><span class="muted">${escapeHtml(e.marca_modelo)}</span>` : ""}</td>
         <td>${escapeHtml(e.numero_serie || "—")}</td>
         <td class="num">${clp(e.precio)}</td>
@@ -798,12 +1141,16 @@ async function cargarEquipoInline(equipoId, containerId = "equipo-detalle-inline
           <div class="form-grid">
             <div class="field"><label for="fecha_venta">Fecha de venta</label>
               <input type="date" id="fecha_venta" value="${equipo.fecha_venta}"></div>
-            <div class="field"><label for="meses_garantia">Meses de garantía</label>
-              <input type="number" id="meses_garantia" min="0" step="1" value="${equipo.meses_garantia}"></div>
+            ${campoMesesGarantia(equipo.meses_garantia)}
           </div>
           <div class="field"><label for="notas">Notas</label><textarea id="notas">${escapeHtml(equipo.notas || "")}</textarea></div>
           <div class="form-actions">
             <button type="submit" class="btn btn-accent">Guardar</button>
+            ${
+              equipo.grupo_id
+                ? `<button type="button" class="btn btn-outline" id="btn-quitar-del-grupo">Quitar del grupo</button>`
+                : ""
+            }
             <button type="button" class="btn btn-danger-outline" id="btn-eliminar-equipo" style="margin-left:auto;">Eliminar equipo</button>
           </div>
         </form>
@@ -817,6 +1164,7 @@ async function cargarEquipoInline(equipoId, containerId = "equipo-detalle-inline
   // Igual que en cargarTrabajoInline: como puede haber varios equipos
   // desplegados a la vez en la misma hoja, los campos se buscan dentro de
   // este wrapper específico, no con document.getElementById a secas.
+  wireSinGarantiaCheckbox(wrapper);
   renderGarantiaPublica(equipo, `garantia-${equipo.id}`);
   renderFotosEquipoPanel(equipo, `fotos-equipo-${equipo.id}`);
   renderAbonosPanel(`abonos-equipo-${equipo.id}`, {
@@ -850,6 +1198,21 @@ async function cargarEquipoInline(equipoId, containerId = "equipo-detalle-inline
       flash(err.message, "error");
     }
   });
+
+  const btnQuitarGrupo = wrapper.querySelector("#btn-quitar-del-grupo");
+  if (btnQuitarGrupo) {
+    btnQuitarGrupo.addEventListener("click", async () => {
+      if (!confirm("¿Quitar este equipo del grupo? Vuelve a verse suelto (no se borra ningún dato).")) return;
+      try {
+        await apiPut(`/api/equipos/${equipo.id}/grupo`, { grupo_id: null });
+        flash("Equipo sacado del grupo.");
+        viewClienteDetalle(clienteId, { openEquipoId: equipo.id });
+      } catch (err) {
+        if (await handleAuthError(err)) return;
+        flash(err.message, "error");
+      }
+    });
+  }
 
   wrapper.querySelector("#btn-eliminar-equipo").addEventListener("click", async () => {
     if (!confirm("¿Eliminar este equipo?")) return;
@@ -940,8 +1303,7 @@ async function viewEquipoForm(id, presetClienteId, presetTrabajoId) {
         <div class="form-grid">
           <div class="field"><label for="fecha_venta">Fecha de venta</label>
             <input type="date" id="fecha_venta" value="${equipo ? equipo.fecha_venta : hoy}"></div>
-          <div class="field"><label for="meses_garantia">Meses de garantía</label>
-            <input type="number" id="meses_garantia" min="0" step="1" value="${equipo ? equipo.meses_garantia : 3}"></div>
+          ${campoMesesGarantia(equipo ? equipo.meses_garantia : 3)}
         </div>
         <div class="field"><label for="notas">Notas</label><textarea id="notas">${escapeHtml(equipo?.notas || "")}</textarea></div>
         <div class="form-actions">
@@ -961,6 +1323,7 @@ async function viewEquipoForm(id, presetClienteId, presetTrabajoId) {
     ${equipo ? `<div id="abonos-container" style="margin-top:22px;"></div>` : ""}
   `);
   attachNav();
+  wireSinGarantiaCheckbox(document);
   if (equipo) renderGarantiaPublica(equipo);
   if (equipo) renderFotosEquipoPanel(equipo);
   if (equipo) {

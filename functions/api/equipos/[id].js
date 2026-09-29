@@ -58,7 +58,9 @@ export async function onRequestPut({ request, env, params }) {
       (body.numero_serie || "").trim(),
       Number(body.precio) || 0,
       (body.fecha_venta || "").trim() || equipo.fecha_venta,
-      Number(body.meses_garantia) || 3,
+      // 0 es válido a propósito: significa "sin garantía" (no se confunde
+      // con "no venía en el body", que cae en el default de 3).
+      body.meses_garantia === undefined || body.meses_garantia === "" ? equipo.meses_garantia : Math.max(0, Number(body.meses_garantia) || 0),
       (body.notas || "").trim(),
       id
     )
