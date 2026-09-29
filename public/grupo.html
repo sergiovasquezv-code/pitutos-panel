@@ -46,7 +46,7 @@
     .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 22px; margin-bottom: 18px; }
     .card h1 { font-size: 19px; margin: 0 0 4px; }
     .card .cliente { color: var(--text-muted); font-size: 13.5px; margin-bottom: 4px; }
-    .nota-card { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-dark); font-size: 14px; line-height: 1.5; }
+    .nota-card { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-dark); font-size: 14px; line-height: 1.5; white-space: pre-wrap; }
     .detalle-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 18px; margin-top: 4px; }
     .detalle-grid .item .label { font-size: 11.5px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .03em; font-weight: 600; }
     .detalle-grid .item .valor { font-size: 14.5px; margin-top: 2px; }
@@ -75,6 +75,11 @@
     .fotos-grid figure { margin: 0; }
     .fotos-grid img { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; border-radius: 10px; border: 1px solid var(--border); display: block; cursor: zoom-in; }
     .footer-note { text-align: center; color: var(--text-muted); font-size: 12px; margin-top: 24px; }
+    .btn-whatsapp-consulta {
+      display: inline-flex; align-items: center; gap: 8px; background: #25d366; color: #fff;
+      font-weight: 650; font-size: 14px; padding: 12px 22px; border-radius: 999px; text-decoration: none;
+    }
+    .btn-whatsapp-consulta:hover { background: #1fb959; }
   </style>
 </head>
 <body>
@@ -215,7 +220,7 @@
         return;
       }
 
-      const { negocio, cliente_nombre, nota, equipos } = data;
+      const { negocio, negocio_telefono, cliente_nombre, nota, equipos } = data;
       document.title = `Garantía — ${negocio}`;
       document.getElementById("negocio-nombre").textContent = negocio;
       document.getElementById("logo-ini").textContent = negocio.split(" ").filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("") || "PI";
@@ -245,7 +250,7 @@
           <h1>Tus equipos</h1>
           <div class="cliente">Para ${escapeHtml(cliente_nombre)} · ${equipos.length} equipo${equipos.length === 1 ? "" : "s"}</div>
         </div>
-        ${nota ? `<div class="card nota-card">${escapeHtml(nota).replace(/\n/g, "<br>")}</div>` : ""}
+        ${nota ? `<div class="card nota-card">${escapeHtml(nota)}</div>` : ""}
         <div class="card">
           ${fechaCompra ? `<div class="detalle-grid" style="margin-bottom:4px;"><div class="item"><div class="label">Fecha de compra</div><div class="valor">${fechaLarga(fechaCompra)}</div></div></div>` : ""}
           ${bannerGarantiaGrupo(equipos)}
@@ -268,7 +273,21 @@
           <h1 style="font-size:15.5px;margin-bottom:6px;">Componentes incluidos</h1>
           ${equipos.map(filaComponente).join("")}
         </div>
+        ${
+          negocio_telefono
+            ? `<div class="card" style="text-align:center;">
+                 <h1 style="font-size:15.5px;">¿Tienes alguna consulta u observación?</h1>
+                 <p style="color:var(--text-muted);font-size:13px;margin:4px 0 14px;">Escríbenos directo y te respondemos por ahí.</p>
+                 <a class="btn-whatsapp-consulta" href="${hrefConsultaWhatsapp(negocio_telefono, cliente_nombre)}" target="_blank" rel="noopener">&#128241; Escribir por WhatsApp</a>
+               </div>`
+            : ""
+        }
       `;
+    }
+
+    function hrefConsultaWhatsapp(telefono, clienteNombre) {
+      const mensaje = `Hola, soy ${clienteNombre || "cliente"}. Tengo una consulta sobre el link de garantía que me enviaron:\n${window.location.href}`;
+      return `https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`;
     }
 
     cargar();
