@@ -4,7 +4,7 @@ import { apiGet, apiPost, apiPut, apiDelete, apiPostForm } from "./api.js";
 import { clp, escapeHtml, telefonoWhatsapp, soloDigitosTelefono, formatearRut } from "./format.js";
 
 const TIPOS_TRABAJO = ["Programación", "Soporte técnico", "Instalación", "Mantención", "Otro"];
-const ESTADOS_TRABAJO = ["Pendiente", "En curso", "Esperando cliente", "Demostración", "Terminado"];
+const ESTADOS_TRABAJO = ["Pendiente", "En curso", "Esperando cliente", "Cliente no ubicado", "Demostración", "Terminado"];
 
 const els = {
   content: document.getElementById("content"),
@@ -209,6 +209,7 @@ function badgeTrabajo(estado) {
   if (estado === "Terminado") cls = "ok";
   else if (estado === "En curso") cls = "warn";
   else if (estado === "Esperando cliente") cls = "danger";
+  else if (estado === "Cliente no ubicado") cls = "danger";
   else if (estado === "Demostración") cls = "accent";
   return `<span class="badge ${cls}">${escapeHtml(estado)}</span>`;
 }

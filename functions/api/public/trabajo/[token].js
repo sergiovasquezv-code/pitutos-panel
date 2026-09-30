@@ -96,6 +96,7 @@ export async function onRequestGet({ env, params }) {
   if (!mostrarDetalle) trabajoPublico.monto = 0;
   return json({
     negocio: env.NOMBRE_NEGOCIO || "Pitutos Informáticos",
+    negocio_telefono: env.NEGOCIO_TELEFONO || null,
     trabajo: { ...trabajoPublico, ...pago },
     items,
     equipos,
