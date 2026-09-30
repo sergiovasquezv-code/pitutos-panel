@@ -40,9 +40,9 @@ const PAGINA_BASE = `<!DOCTYPE html>
       --navy-950: #10203a;
       --navy-900: #eef1f6;
       --navy-800: #e6eaf1;
-      --accent: #0f9d70;
-      --accent-dark: #0b7d59;
-      --accent-soft: #e6f7ef;
+      --accent: #7c3aed;
+      --accent-dark: #6d28d9;
+      --accent-soft: #f1ecfd;
       --warn: #b45309;
       --warn-soft: #fff2d9;
       --danger: #b3261e;
@@ -282,6 +282,16 @@ const PAGINA_BASE = `<!DOCTYPE html>
 
     function bannerGarantia(equipo) {
       const dias = equipo.dias_restantes;
+      if (equipo.estado_garantia === "sin_garantia") {
+        return \`
+          <div class="banner-garantia" style="background:var(--navy-900);color:var(--text-muted);">
+            <div class="ic">&#8505;</div>
+            <div>
+              <p class="titulo">Sin garantía</p>
+              <p class="detalle">Este producto no incluye garantía.</p>
+            </div>
+          </div>\`;
+      }
       if (equipo.estado_garantia === "vencida") {
         return \`
           <div class="banner-garantia danger">
@@ -316,7 +326,7 @@ const PAGINA_BASE = `<!DOCTYPE html>
     // para dejar clara la letra chica antes de que el cliente reclame por
     // algo que no corresponde. Cuando ya venció, no tiene sentido mostrarla.
     function bloqueCondicionesGarantia(equipo) {
-      if (equipo.estado_garantia === "vencida") return "";
+      if (equipo.estado_garantia === "vencida" || equipo.estado_garantia === "sin_garantia") return "";
       return \`
         <div class="card condiciones-card">
           <h1>Condiciones de la garantía</h1>
@@ -405,7 +415,7 @@ const PAGINA_BASE = `<!DOCTYPE html>
                 : ""
             }
             <div class="item"><div class="label">Fecha de compra</div><div class="valor">\${fechaLarga(equipo.fecha_venta)}</div></div>
-            <div class="item"><div class="label">Garantía</div><div class="valor">\${equipo.meses_garantia} meses</div></div>
+            <div class="item"><div class="label">Garantía</div><div class="valor">\${equipo.meses_garantia > 0 ? \`\${equipo.meses_garantia} meses\` : "Sin garantía"}</div></div>
           </div>
         </div>
         <div class="card">
@@ -439,7 +449,7 @@ const PAGINA_BASE = `<!DOCTYPE html>
   </script>
 </body>
 </html>
-`;
+`
 
 export async function onRequestGet({ request, env }) {
   const url = new URL(request.url);
