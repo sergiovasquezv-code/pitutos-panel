@@ -31,9 +31,9 @@ const PAGINA_BASE = `<!DOCTYPE html>
       --navy-950: #10203a;
       --navy-900: #eef1f6;
       --navy-800: #e6eaf1;
-      --accent: #7c3aed;
-      --accent-dark: #6d28d9;
-      --accent-soft: #f1ecfd;
+      --accent: #0f9d70;
+      --accent-dark: #0b7d59;
+      --accent-soft: #e6f7ef;
       --warn: #b45309;
       --warn-soft: #fff2d9;
       --danger: #b3261e;
@@ -214,7 +214,7 @@ const PAGINA_BASE = `<!DOCTYPE html>
   </script>
 </body>
 </html>
-`
+`;
 
 export async function onRequestGet({ request, env }) {
   const url = new URL(request.url);
