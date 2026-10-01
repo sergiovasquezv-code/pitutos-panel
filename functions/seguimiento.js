@@ -43,9 +43,9 @@ const PAGINA_BASE = `<!DOCTYPE html>
       --navy-950: #10203a;
       --navy-900: #eef1f6;
       --navy-800: #e6eaf1;
-      --accent: #0f9d70;
-      --accent-dark: #0b7d59;
-      --accent-soft: #e6f7ef;
+      --accent: #7c3aed;
+      --accent-dark: #6d28d9;
+      --accent-soft: #f1ecfd;
       --warn: #b45309;
       --warn-soft: #fff2d9;
       --danger: #b3261e;
@@ -193,6 +193,26 @@ const PAGINA_BASE = `<!DOCTYPE html>
     }
     .btn-marcar-revisado:hover { background: var(--accent-dark); }
 
+    .banner-no-ubicado {
+      background: var(--danger-soft);
+      color: var(--danger);
+      border-radius: 10px;
+      border-left: 4px solid currentColor;
+      padding: 16px 18px;
+      margin-top: 14px;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+    .banner-no-ubicado .ic { font-size: 22px; line-height: 1; flex-shrink: 0; }
+    .banner-no-ubicado .titulo { font-weight: 700; font-size: 15px; margin: 0 0 3px; }
+    .banner-no-ubicado .detalle { font-size: 13.5px; margin: 0 0 12px; }
+    .btn-whatsapp-consulta {
+      display: inline-flex; align-items: center; gap: 8px; background: #25d366; color: #fff;
+      font-weight: 650; font-size: 13.5px; padding: 10px 18px; border-radius: 999px; text-decoration: none;
+    }
+    .btn-whatsapp-consulta:hover { background: #1fb959; }
+
     .timeline { margin-top: 6px; }
     .timeline-item {
       display: flex;
@@ -320,7 +340,17 @@ const PAGINA_BASE = `<!DOCTYPE html>
 <body>
   <div class="public-wrap">
     <div class="public-header">
-      <div class="logo" id="logo-ini">PI</div>
+      <div class="logo" id="logo-ini">
+        <svg width="26" height="22" viewBox="0 0 120 100" aria-hidden="true">
+          <defs><linearGradient id="logo-grad" x1="0" y1="0" x2="120" y2="0" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#a78bfa"/><stop offset="1" stop-color="#22d3ee"/></linearGradient></defs>
+          <polyline points="10,80 35,20 60,65 85,20 110,80" fill="none" stroke="url(#logo-grad)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="10" cy="80" r="10" fill="url(#logo-grad)"/>
+          <circle cx="35" cy="20" r="10" fill="url(#logo-grad)"/>
+          <circle cx="60" cy="65" r="10" fill="url(#logo-grad)"/>
+          <circle cx="85" cy="20" r="10" fill="url(#logo-grad)"/>
+          <circle cx="110" cy="80" r="10" fill="url(#logo-grad)"/>
+        </svg>
+      </div>
       <div>
         <div class="negocio" id="negocio-nombre">Cargando…</div>
         <div class="subt">Seguimiento de tu trabajo</div>
@@ -434,7 +464,16 @@ const PAGINA_BASE = `<!DOCTYPE html>
         : escapeHtml(equipo.tipo_equipo);
 
       const bannerHtml =
-        equipo.estado_garantia === "vencida"
+        equipo.estado_garantia === "sin_garantia"
+          ? \`
+        <div class="banner-garantia" style="background:var(--navy-900);color:var(--text-muted);">
+          <div class="ic">&#8505;</div>
+          <div>
+            <p class="titulo">\${nombre} · sin garantía</p>
+            <p class="detalle">Este producto no incluye garantía.</p>
+          </div>
+        </div>\`
+          : equipo.estado_garantia === "vencida"
           ? \`
         <div class="banner-garantia danger">
           <div class="ic">&#10007;</div>
@@ -479,7 +518,7 @@ const PAGINA_BASE = `<!DOCTYPE html>
         .join("");
 
       const condicionesHtml =
-        equipo.estado_garantia === "vencida"
+        equipo.estado_garantia === "vencida" || equipo.estado_garantia === "sin_garantia"
           ? ""
           : \`
         <div class="card condiciones-card">
@@ -521,6 +560,11 @@ const PAGINA_BASE = `<!DOCTYPE html>
         }
         \${condicionesHtml}
       \`;
+    }
+
+    function hrefConsultaWhatsapp(telefono, clienteNombre) {
+      const mensaje = \`Hola, soy \${clienteNombre || "cliente"}. Vi que pasaron por mi local y no me encontraron — les escribo por este link:\\n\${window.location.href}\`;
+      return \`https://wa.me/\${telefono}?text=\${encodeURIComponent(mensaje)}\`;
     }
 
     const ESTADOS = ["Pendiente", "En curso", "Esperando cliente", "Terminado"];
@@ -614,15 +658,11 @@ const PAGINA_BASE = `<!DOCTYPE html>
         return;
       }
 
-      const { negocio, trabajo, items, equipos, avances, ultima_actualizacion } = data;
+      const { negocio, negocio_telefono, trabajo, items, equipos, avances, ultima_actualizacion } = data;
       document.title = \`Seguimiento — \${negocio}\`;
       document.getElementById("negocio-nombre").textContent = negocio;
-      document.getElementById("logo-ini").textContent = negocio
-        .split(" ")
-        .filter(Boolean)
-        .slice(0, 2)
-        .map((w) => w[0].toUpperCase())
-        .join("") || "PI";
+      // El logo ya es el ícono fijo de la marca (ver HTML); ya no se
+      // reemplaza por las iniciales del negocio.
       document.getElementById("footer-note").style.display = "block";
 
       const timelineHtml = avances.length
@@ -652,6 +692,22 @@ const PAGINA_BASE = `<!DOCTYPE html>
           \${
             trabajo.estado === "Esperando cliente"
               ? \`<div class="banner-espera"><div class="ic">&#9203;</div><div><p class="titulo">Necesitamos tu respuesta</p><p class="detalle">Este trabajo está esperando algo de tu parte para poder seguir avanzando.</p></div></div>\`
+              : ""
+          }
+          \${
+            trabajo.estado === "Cliente no ubicado"
+              ? \`<div class="banner-no-ubicado">
+                   <div class="ic">&#128712;</div>
+                   <div>
+                     <p class="titulo">Pasamos a tu local y no te encontramos</p>
+                     <p class="detalle">Avísanos si sigues interesado en este trabajo para coordinar de nuevo, o si ya no lo necesitas.</p>
+                     \${
+                       negocio_telefono
+                         ? \`<a class="btn-whatsapp-consulta" href="\${hrefConsultaWhatsapp(negocio_telefono, trabajo.cliente_nombre)}" target="_blank" rel="noopener">&#128241; Responder por WhatsApp</a>\`
+                         : ""
+                     }
+                   </div>
+                 </div>\`
               : ""
           }
         </div>

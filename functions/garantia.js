@@ -40,9 +40,9 @@ const PAGINA_BASE = `<!DOCTYPE html>
       --navy-950: #10203a;
       --navy-900: #eef1f6;
       --navy-800: #e6eaf1;
-      --accent: #0f9d70;
-      --accent-dark: #0b7d59;
-      --accent-soft: #e6f7ef;
+      --accent: #7c3aed;
+      --accent-dark: #6d28d9;
+      --accent-soft: #f1ecfd;
       --warn: #b45309;
       --warn-soft: #fff2d9;
       --danger: #b3261e;
@@ -218,7 +218,17 @@ const PAGINA_BASE = `<!DOCTYPE html>
 <body>
   <div class="public-wrap">
     <div class="public-header">
-      <div class="logo" id="logo-ini">PI</div>
+      <div class="logo" id="logo-ini">
+        <svg width="26" height="22" viewBox="0 0 120 100" aria-hidden="true">
+          <defs><linearGradient id="logo-grad" x1="0" y1="0" x2="120" y2="0" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#a78bfa"/><stop offset="1" stop-color="#22d3ee"/></linearGradient></defs>
+          <polyline points="10,80 35,20 60,65 85,20 110,80" fill="none" stroke="url(#logo-grad)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="10" cy="80" r="10" fill="url(#logo-grad)"/>
+          <circle cx="35" cy="20" r="10" fill="url(#logo-grad)"/>
+          <circle cx="60" cy="65" r="10" fill="url(#logo-grad)"/>
+          <circle cx="85" cy="20" r="10" fill="url(#logo-grad)"/>
+          <circle cx="110" cy="80" r="10" fill="url(#logo-grad)"/>
+        </svg>
+      </div>
       <div>
         <div class="negocio" id="negocio-nombre">Cargando…</div>
         <div class="subt">Garantía de tu equipo</div>
@@ -282,6 +292,16 @@ const PAGINA_BASE = `<!DOCTYPE html>
 
     function bannerGarantia(equipo) {
       const dias = equipo.dias_restantes;
+      if (equipo.estado_garantia === "sin_garantia") {
+        return \`
+          <div class="banner-garantia" style="background:var(--navy-900);color:var(--text-muted);">
+            <div class="ic">&#8505;</div>
+            <div>
+              <p class="titulo">Sin garantía</p>
+              <p class="detalle">Este producto no incluye garantía.</p>
+            </div>
+          </div>\`;
+      }
       if (equipo.estado_garantia === "vencida") {
         return \`
           <div class="banner-garantia danger">
@@ -316,7 +336,7 @@ const PAGINA_BASE = `<!DOCTYPE html>
     // para dejar clara la letra chica antes de que el cliente reclame por
     // algo que no corresponde. Cuando ya venció, no tiene sentido mostrarla.
     function bloqueCondicionesGarantia(equipo) {
-      if (equipo.estado_garantia === "vencida") return "";
+      if (equipo.estado_garantia === "vencida" || equipo.estado_garantia === "sin_garantia") return "";
       return \`
         <div class="card condiciones-card">
           <h1>Condiciones de la garantía</h1>
@@ -381,12 +401,8 @@ const PAGINA_BASE = `<!DOCTYPE html>
         )
         .join("");
       document.getElementById("negocio-nombre").textContent = negocio;
-      document.getElementById("logo-ini").textContent = negocio
-        .split(" ")
-        .filter(Boolean)
-        .slice(0, 2)
-        .map((w) => w[0].toUpperCase())
-        .join("") || "PI";
+      // El logo ya es el ícono fijo de la marca (ver HTML); ya no se
+      // reemplaza por las iniciales del negocio.
       document.getElementById("footer-note").style.display = "block";
 
       content.innerHTML = \`
@@ -405,7 +421,7 @@ const PAGINA_BASE = `<!DOCTYPE html>
                 : ""
             }
             <div class="item"><div class="label">Fecha de compra</div><div class="valor">\${fechaLarga(equipo.fecha_venta)}</div></div>
-            <div class="item"><div class="label">Garantía</div><div class="valor">\${equipo.meses_garantia} meses</div></div>
+            <div class="item"><div class="label">Garantía</div><div class="valor">\${equipo.meses_garantia > 0 ? \`\${equipo.meses_garantia} meses\` : "Sin garantía"}</div></div>
           </div>
         </div>
         <div class="card">

@@ -85,7 +85,17 @@
 <body>
   <div class="public-wrap">
     <div class="public-header">
-      <div class="logo" id="logo-ini">PI</div>
+      <div class="logo" id="logo-ini">
+        <svg width="26" height="22" viewBox="0 0 120 100" aria-hidden="true">
+          <defs><linearGradient id="logo-grad" x1="0" y1="0" x2="120" y2="0" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#a78bfa"/><stop offset="1" stop-color="#22d3ee"/></linearGradient></defs>
+          <polyline points="10,80 35,20 60,65 85,20 110,80" fill="none" stroke="url(#logo-grad)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="10" cy="80" r="10" fill="url(#logo-grad)"/>
+          <circle cx="35" cy="20" r="10" fill="url(#logo-grad)"/>
+          <circle cx="60" cy="65" r="10" fill="url(#logo-grad)"/>
+          <circle cx="85" cy="20" r="10" fill="url(#logo-grad)"/>
+          <circle cx="110" cy="80" r="10" fill="url(#logo-grad)"/>
+        </svg>
+      </div>
       <div>
         <div class="negocio" id="negocio-nombre">Cargando…</div>
         <div class="subt">Garantía de tus equipos</div>
@@ -223,7 +233,8 @@
       const { negocio, negocio_telefono, cliente_nombre, nota, equipos } = data;
       document.title = `Garantía — ${negocio}`;
       document.getElementById("negocio-nombre").textContent = negocio;
-      document.getElementById("logo-ini").textContent = negocio.split(" ").filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("") || "PI";
+      // El logo ya es el ícono fijo de la marca (ver HTML); ya no se
+      // reemplaza por las iniciales del negocio.
       document.getElementById("footer-note").style.display = "block";
 
       const totalGeneral = equipos.reduce((s, it) => s + (it.monto_total || 0), 0);
