@@ -1,12 +1,13 @@
 // POST /api/mipos/por-equipo {equipo} -> licencia vigente de ese PC, si tiene (MiPOS lo consulta mientras espera un pago)
 import { asegurarTablasVenta, base, claveDeEquipo, error, firmarLicencia, json, leerCuerpo, licenciaDeClave,
-  normalizarEquipo, problemaClave, texto, ahora } from '../../../mipos-lib/licencias.js';
+  normalizarEquipo, problemaClave, texto, ahora , recordatoriosDelDia } from '../../../mipos-lib/licencias.js';
 
-export async function onRequestPost({ request, env }) {
+export async function onRequestPost({ request, env, waitUntil }) {
   try {
     const db = base(env);
     await asegurarTablasVenta(db);
     const d = await leerCuerpo(request);
+    if (waitUntil) waitUntil(recordatoriosDelDia(db, env, new URL(request.url).origin).catch(() => {}));  // una vez al día
     const equipo = normalizarEquipo(d.equipo);
     if (!equipo) return error(400, 'Código de equipo inválido');
     const c = await claveDeEquipo(db, equipo);

@@ -287,6 +287,7 @@ function formClave(k) {
     <div class="grid2" style="margin-top:12px">
       <label class="full">Cliente / negocio<input name="cliente" value="${esc(k?.cliente || '')}" required autofocus placeholder="Ej: Almacén Rosita"></label>
       <label>WhatsApp o contacto<input name="contacto" value="${esc(k?.contacto || '')}" placeholder="+56912345678"></label>
+      <label>Correo (para recordatorios de renovación)<input name="email" type="email" value="${esc(k?.email || '')}" placeholder="cliente@gmail.com"></label>
       <label>Cajas permitidas<input name="cajas" type="number" min="1" max="50" value="${k?.cajas || 1}"></label>
       <label>Vence<input name="vence" type="date" value="${esc(k?.vence || '')}"></label>
       <label>PCs donde se puede activar<input name="max_equipos" type="number" min="1" max="20" value="${k?.max_equipos || 1}"></label>
@@ -300,7 +301,7 @@ function formClave(k) {
   $$('[data-meses]', f).forEach(b => b.addEventListener('click', () => { f.vence.value = +b.dataset.meses ? sumar(null, { meses: +b.dataset.meses }) : ''; }));
   f.addEventListener('submit', async e => {
     e.preventDefault();
-    const body = { cliente: f.cliente.value, contacto: f.contacto.value, cajas: +f.cajas.value, vence: f.vence.value || null, max_equipos: +f.max_equipos.value, notas: f.notas.value };
+    const body = { cliente: f.cliente.value, contacto: f.contacto.value, email: f.email.value, cajas: +f.cajas.value, vence: f.vence.value || null, max_equipos: +f.max_equipos.value, notas: f.notas.value };
     try {
       const r = await api(k ? 'claves/' + k.id : 'claves', { method: k ? 'PUT' : 'POST', body });
       m.cerrar(); await cargar();
@@ -371,7 +372,17 @@ function vistaVentas() {
       <td>${c.clave ? `<code>${esc(c.clave)}</code>` : ''}</td>
       <td>${c.estado === 'pendiente' ? `<button class="btn chico" data-revisar="${c.id}">Revisar pago</button>` : ''}</td></tr>`; }).join('')}</tbody></table></div>`
     : '<div class="vacio">Aún no hay ventas en línea. Cuando alguien compre desde MiPOS o desde tu página de compra, aparecerá aquí.</div>'}
+    <div class="barra" style="margin-top:12px"><div class="det" style="flex:1">Recordatorios por correo: se envían solos 7 días antes, 1 día antes y al día siguiente de vencer (una vez al día, con el enlace para renovar).</div>
+      <button class="btn chico" id="rec-ahora">Revisar recordatorios ahora</button></div>
     <div class="det" style="margin-top:10px">Página de compra para compartir: <a href="mipos-comprar.html" target="_blank" rel="noopener">${location.origin}/mipos-comprar.html</a>. Recuerda emitir la boleta o factura de cada venta.</div>`;
+  $('#rec-ahora').addEventListener('click', async e => {
+    e.target.disabled = true;
+    try {
+      const r = await api('recordatorios', { method: 'POST' });
+      toast(`${r.enviados} recordatorio(s) enviado(s)${r.sin_correo.length ? ' · sin correo: ' + r.sin_correo.join(', ') : ''}`);
+    } catch (err) { toast(err.message, 'error'); }
+    e.target.disabled = false;
+  });
   $$('[data-revisar]').forEach(b => b.addEventListener('click', async () => {
     b.disabled = true;
     try { const r = await api(`compras/${b.dataset.revisar}/revisar`, { method: 'POST' }); toast(r.estado === 'aprobada' ? 'Pago confirmado: licencia entregada' : 'Mercado Pago aún no lo muestra pagado'); await cargar(); }
@@ -433,7 +444,7 @@ function formPlan(p) {
 }
 
 const NOMBRES_EVENTO = { activacion: 'Activación', activacion_rechazada: 'Activación rechazada', prueba: 'Prueba iniciada', clave_creada: 'Clave creada',
-  clave_editada: 'Clave modificada', compra_pagada: 'Venta en línea', renovacion_pagada: 'Renovación pagada', plan: 'Plan', clave_eliminada: 'Clave eliminada', pc_liberado: 'PC liberado', prueba_reiniciada: 'Prueba reiniciada', codigo_sin_internet: 'Código sin internet' };
+  clave_editada: 'Clave modificada', recordatorio: 'Recordatorio enviado', compra_pagada: 'Venta en línea', renovacion_pagada: 'Renovación pagada', plan: 'Plan', clave_eliminada: 'Clave eliminada', pc_liberado: 'PC liberado', prueba_reiniciada: 'Prueba reiniciada', codigo_sin_internet: 'Código sin internet' };
 async function vistaHistorial() {
   const c = $('#contenido');
   c.innerHTML = '<div class="det">Cargando…</div>';

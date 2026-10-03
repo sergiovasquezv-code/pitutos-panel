@@ -142,7 +142,10 @@ export async function asegurarTablasVenta(db) {
   await db.batch([
     db.prepare("CREATE TABLE IF NOT EXISTS mipos_planes (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL, descripcion TEXT NOT NULL DEFAULT '', meses INTEGER NOT NULL DEFAULT 1, cajas INTEGER NOT NULL DEFAULT 1, precio INTEGER NOT NULL, destacado INTEGER NOT NULL DEFAULT 0, activo INTEGER NOT NULL DEFAULT 1, orden INTEGER NOT NULL DEFAULT 0, creado TEXT NOT NULL)"),
     db.prepare("CREATE TABLE IF NOT EXISTS mipos_compras (id INTEGER PRIMARY KEY AUTOINCREMENT, ref TEXT NOT NULL UNIQUE, plan_id INTEGER, plan_nombre TEXT NOT NULL, precio INTEGER NOT NULL, meses INTEGER NOT NULL, cajas INTEGER NOT NULL, nombre TEXT NOT NULL, email TEXT NOT NULL, telefono TEXT NOT NULL DEFAULT '', equipo TEXT, clave_id INTEGER, renovacion INTEGER NOT NULL DEFAULT 0, estado TEXT NOT NULL DEFAULT 'pendiente', mp_preferencia TEXT, mp_pago TEXT, mp_detalle TEXT, terminos_version TEXT NOT NULL, terminos_aceptados TEXT NOT NULL, ip TEXT, creado TEXT NOT NULL, pagado TEXT, vence_resultado TEXT, correo TEXT)"),
+    db.prepare("CREATE TABLE IF NOT EXISTS mipos_recordatorios (clave_id INTEGER NOT NULL, vence TEXT NOT NULL, tipo TEXT NOT NULL, enviado TEXT NOT NULL, resultado TEXT, PRIMARY KEY (clave_id, vence, tipo))"),
+    db.prepare("CREATE TABLE IF NOT EXISTS mipos_config (clave TEXT PRIMARY KEY, valor TEXT)"),
   ]);
+  try { await db.prepare("ALTER TABLE mipos_claves ADD COLUMN email TEXT NOT NULL DEFAULT ''").run(); } catch (e) { /* ya existe */ }
   tablasVenta = true;
 }
 
@@ -185,14 +188,14 @@ export async function cumplirCompra(db, env, compra, pago) {
   const base = clave && clave.vence && clave.vence > hoy() ? clave.vence : hoy();
   const vence = sumarMeses(base, compra.meses);
   if (clave) {
-    await db.prepare("UPDATE mipos_claves SET vence=?, cajas=?, estado='activa' WHERE id=?").bind(vence, compra.cajas, clave.id).run();
+    await db.prepare("UPDATE mipos_claves SET vence=?, cajas=?, estado='activa', email=CASE WHEN email='' THEN ? ELSE email END WHERE id=?").bind(vence, compra.cajas, compra.email, clave.id).run();
     await anotar(db, 'renovacion_pagada', { clave_id: clave.id, equipo: compra.equipo, detalle: `${compra.plan_nombre} · ${clp(compra.precio)} · vence ${fechaCL(vence)}` });
   } else {
     let id = null;
     for (let i = 0; i < 5 && !id; i++) {
       try {
-        const ins = await db.prepare('INSERT INTO mipos_claves(clave, cliente, contacto, cajas, vence, max_equipos, notas, creado) VALUES(?,?,?,?,?,?,?,?)')
-          .bind(claveNueva(), compra.nombre, compra.telefono || compra.email, compra.cajas, vence, 1, `Compra web · ${compra.email}`, ahora()).run();
+        const ins = await db.prepare('INSERT INTO mipos_claves(clave, cliente, contacto, cajas, vence, max_equipos, notas, creado, email) VALUES(?,?,?,?,?,?,?,?,?)')
+          .bind(claveNueva(), compra.nombre, compra.telefono || compra.email, compra.cajas, vence, 1, 'Compra web', ahora(), compra.email).run();
         id = ins.meta.last_row_id;
       } catch (e) { if (!/UNIQUE/i.test(e.message)) throw e; }
     }
@@ -226,7 +229,7 @@ function correoCliente(compra, clave) {
   ${compra.equipo ? '<p>Compraste desde MiPOS, así que <b>se activa solo</b> en ese computador (en unos segundos).</p>' : ''}
   <p><b>Para activarla en otro momento o en un PC nuevo:</b> abre MiPOS, escribe la clave donde dice “Clave de producto” y presiona <b>Activar</b>.</p>
   <p>Unos días antes del vencimiento MiPOS te avisará para renovar. Guarda este correo.</p>
-  <p style="color:#5f6580;font-size:12px">Compra sujeta a los términos y condiciones de MiPOS (versión ${escH(compra.terminos_version)}), aceptados el ${escH(String(compra.terminos_aceptados).slice(0, 10))}.</p></div>`;
+</div>`;
 }
 
 // Revisa en Mercado Pago un pago (por id, o buscando la referencia) y, si está aprobado y cuadra, cumple la compra.
@@ -251,4 +254,50 @@ export async function revisarPago(db, env, { pagoId, compra }) {
       .bind(String(pago.id), pago.status_detail || pago.status, compra.id).run();
   }
   return db.prepare('SELECT * FROM mipos_compras WHERE id=?').bind(compra.id).first();
+}
+
+// ================================================================== RECORDATORIOS DE RENOVACIÓN (correo)
+// Se revisan una vez al día, aprovechando cualquier conexión (MiPOS verifica cada 6 horas, o tu página de licencias):
+// 7 días antes, 1 día antes y el día después de vencer. Cada aviso se envía una sola vez por fecha de vencimiento.
+const diasEntre = (desde, hasta) => Math.round((new Date(hasta + 'T12:00:00Z') - new Date(desde + 'T12:00:00Z')) / 86400000);
+
+export async function recordatoriosDelDia(db, env, origen, { forzar = false } = {}) {
+  await asegurarTablasVenta(db);
+  const hoyCL = hoy();
+  if (!forzar) {
+    const r = await db.prepare("INSERT INTO mipos_config(clave, valor) VALUES('recordatorios', ?) ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor WHERE mipos_config.valor <> excluded.valor").bind(hoyCL).run();
+    if (!r.meta.changes) return { omitido: 'ya se revisó hoy' };
+  }
+  const claves = (await db.prepare("SELECT * FROM mipos_claves WHERE estado='activa' AND vence IS NOT NULL AND vence >= ? AND vence <= ?")
+    .bind(sumarDias(hoyCL, -3), sumarDias(hoyCL, 7)).all()).results;
+  const resumen = { enviados: 0, sin_correo: [], revisados: claves.length };
+  for (const k of claves) {
+    const dias = diasEntre(hoyCL, k.vence);
+    const tipo = dias < 0 ? 'vencida' : dias <= 1 ? '1d' : '7d';
+    let email = k.email;
+    if (!email) {
+      const c = await db.prepare("SELECT email FROM mipos_compras WHERE clave_id=? AND estado='aprobada' ORDER BY id DESC LIMIT 1").bind(k.id).first();
+      email = c ? c.email : '';
+    }
+    if (!email) { resumen.sin_correo.push(k.cliente); continue; }
+    const nuevo = await db.prepare("INSERT OR IGNORE INTO mipos_recordatorios(clave_id, vence, tipo, enviado) VALUES(?,?,?,?)").bind(k.id, k.vence, tipo, ahora()).run();
+    if (!nuevo.meta.changes) continue;  // ya se avisó
+    const asunto = tipo === 'vencida' ? 'Tu licencia de MiPOS venció: renuévala para seguir vendiendo'
+      : dias === 0 ? 'Tu licencia de MiPOS vence hoy' : dias === 1 ? 'Tu licencia de MiPOS vence mañana' : `Tu licencia de MiPOS vence en ${dias} días`;
+    const res = await correo(env, email, asunto, correoRecordatorio(k, dias, `${origen}/mipos-comprar.html?clave=${encodeURIComponent(k.clave)}`));
+    await db.prepare('UPDATE mipos_recordatorios SET resultado=? WHERE clave_id=? AND vence=? AND tipo=?').bind(res, k.id, k.vence, tipo).run();
+    await anotar(db, 'recordatorio', { clave_id: k.id, detalle: `${asunto} · ${email} · ${res}` });
+    if (res === 'enviado') resumen.enviados++;
+  }
+  return resumen;
+}
+
+function correoRecordatorio(k, dias, link) {
+  const cuando = dias < 0 ? `venció el <b>${fechaCL(k.vence)}</b>` : dias === 0 ? '<b>vence hoy</b>' : dias === 1 ? '<b>vence mañana</b>' : `vence el <b>${fechaCL(k.vence)}</b> (en ${dias} días)`;
+  return `<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;color:#161a2e">
+  <h2 style="margin:0 0 8px">Hola ${escH(k.cliente)}</h2>
+  <p>Tu licencia de MiPOS ${cuando}.${dias < 0 ? ' MiPOS no permite vender hasta renovarla. <b>Tus datos están intactos</b> y vuelven apenas renuevas.' : ' Renuévala ahora y no tendrás interrupciones: los meses se suman desde tu fecha de vencimiento, así que no pierdes días.'}</p>
+  <p style="text-align:center;margin:22px 0"><a href="${link}" style="background:#0063e6;color:#fff;text-decoration:none;font-weight:bold;padding:13px 26px;border-radius:10px;display:inline-block">Renovar ahora con Mercado Pago</a></p>
+  <p>También puedes hacerlo desde MiPOS: <b>Ajustes → Licencia → Renovar o ampliar</b>. Se aplica sola en tu computador.</p>
+  <p style="color:#5f6580;font-size:13px">Clave: ${escH(k.clave)} · ${k.cajas} caja(s). ¿Dudas? Responde este correo.</p></div>`;
 }

@@ -52,6 +52,10 @@ form { display: grid; gap: 14px; }
 label { display: grid; gap: 5px; font-weight: 650; font-size: .9rem; color: var(--suave); }
 input { font: inherit; color: inherit; width: 100%; padding: 11px 13px; border: 1px solid var(--borde); border-radius: 12px; background: var(--panel); }
 input:focus { outline: 2px solid color-mix(in srgb, var(--acento) 45%, transparent); border-color: var(--acento); }
+.fono { display: flex; border: 1px solid var(--borde); border-radius: 12px; background: var(--panel); overflow: hidden; }
+.fono:focus-within { outline: 2px solid color-mix(in srgb, var(--acento) 45%, transparent); border-color: var(--acento); }
+.fono span { display: grid; place-items: center; padding: 0 4px 0 13px; color: var(--texto); font-weight: 700; background: var(--panel-2); }
+.fono input { border: 0; border-radius: 0; outline: none !important; }
 .check { display: flex; gap: 10px; align-items: flex-start; font-weight: 500; color: var(--texto); }
 .check input { width: 20px; height: 20px; margin-top: 2px; flex: none; }
 .pagar { border: 0; border-radius: 14px; padding: 15px 20px; font: inherit; font-weight: 800; font-size: 1.1rem; cursor: pointer; color: #fff;
@@ -85,7 +89,7 @@ footer { text-align: center; color: var(--suave); font-size: .85rem; padding: 0 
 
 <main><div class="caja" id="contenido"><div class="resultado"><div class="anillo"></div><div class="det">Cargando…</div></div></div></main>
 <footer>¿Dudas? Escríbenos por <a id="wa" href="#" target="_blank" rel="noopener">WhatsApp</a> o a <a href="mailto:contacto@mispitutosinformaticos.cl">contacto@mispitutosinformaticos.cl</a>
-  · <a href="mipos-terminos.html" target="_blank" rel="noopener">Términos y condiciones</a></footer>
+</footer>
 
 <script>
 'use strict';
@@ -115,6 +119,7 @@ async function pintarCompra() {
     [datos, equipo] = await Promise.all([llamar('planes'), EQUIPO ? llamar('info-equipo?equipo=' + encodeURIComponent(EQUIPO)).catch(() => null) : null]);
   } catch (e) { c.innerHTML = `<div class="aviso rojo">${esc(e.message)}</div>`; return; }
   const renovando = equipo && equipo.tiene;
+  if (q.get('clave')) { $('#titulo').textContent = 'Renueva tu licencia'; $('#bajada').textContent = 'Elige cuánto tiempo quieres sumar. Los meses se cuentan desde tu fecha de vencimiento y se aplican solos en tu MiPOS.'; }
   if (renovando) { $('#titulo').textContent = 'Renueva tu licencia'; $('#bajada').textContent = 'Elige cuánto tiempo quieres sumar. Se aplica sola en tu computador apenas se confirme el pago.'; }
   if (!datos.venta_activa || !datos.planes.length) {
     c.innerHTML = `<div class="aviso amarillo">La compra en línea no está disponible en este momento.</div>
@@ -139,11 +144,9 @@ async function pintarCompra() {
       <div class="grid2">
         <label>Nombre de tu negocio<input name="nombre" required autocomplete="organization" placeholder="Ej: Almacén Rosita" value="${esc(renovando ? equipo.cliente : '')}"></label>
         <label>Correo (ahí te llega la licencia)<input name="email" type="email" required autocomplete="email" placeholder="tucorreo@gmail.com"></label>
-        <label>WhatsApp (opcional)<input name="telefono" inputmode="tel" autocomplete="tel" placeholder="+56912345678"></label>
-        ${EQUIPO ? '<div></div>' : '<label>¿Renuevas? Tu clave actual (opcional)<input name="clave" placeholder="MIPOS-XXXX-XXXX-XXXX" autocomplete="off" spellcheck="false"></label>'}
+        <label>Celular / WhatsApp<div class="fono"><span>+569</span><input name="telefono" inputmode="numeric" autocomplete="tel-national" placeholder="12345678" maxlength="14" required pattern="[0-9 +]{8,14}" title="Los 8 números de tu celular, después del +569"></div></label>
+        ${EQUIPO ? '<div></div>' : `<label>¿Renuevas? Tu clave actual (opcional)<input name="clave" placeholder="MIPOS-XXXX-XXXX-XXXX" autocomplete="off" spellcheck="false" value="${esc(q.get('clave') || '')}"></label>`}
       </div>
-      <label class="check"><input type="checkbox" name="terminos" required> <span>Leí y acepto los <a href="mipos-terminos.html" target="_blank" rel="noopener">términos y condiciones</a> de la licencia de MiPOS
-        (licencia por período, sin cobros automáticos; al vencer se renueva pagando de nuevo).</span></label>
       <div id="error" class="aviso rojo oculto"></div>
       <button class="pagar" id="pagar">Pagar con Mercado Pago</button>
       <div class="seguro">🔒 Pagas en Mercado Pago: tarjetas de crédito o débito, saldo o transferencia. No guardamos los datos de tu tarjeta.</div>
@@ -164,8 +167,11 @@ async function pintarCompra() {
     const err = $('#error'); err.classList.add('oculto');
     const btn = $('#pagar'); btn.disabled = true; const antes = btn.textContent; btn.textContent = 'Conectando con Mercado Pago…';
     try {
-      const r = await llamar('comprar', { plan_id: elegido, nombre: f.nombre.value, email: f.email.value, telefono: f.telefono.value,
-        equipo: EQUIPO || undefined, clave: f.clave ? f.clave.value : undefined, acepta_terminos: f.terminos.checked });
+      const mc = f.telefono.value.replace(/\D/g, '').match(/^(?:569|9)?(\d{8})$/);
+      if (!mc) throw new Error('Escribe los 8 números de tu celular (después del +569)');
+      const cel = mc[1];
+      const r = await llamar('comprar', { plan_id: elegido, nombre: f.nombre.value, email: f.email.value, telefono: '+569' + cel,
+        equipo: EQUIPO || undefined, clave: f.clave ? f.clave.value : undefined });
       try { sessionStorage.setItem('mipos_compra', r.ref); } catch (x) { /* nada */ }
       location.href = r.pago_url;
     } catch (x) {

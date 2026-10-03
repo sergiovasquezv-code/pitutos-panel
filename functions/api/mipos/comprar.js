@@ -1,4 +1,4 @@
-// POST /api/mipos/comprar {plan_id, nombre, email, telefono, equipo?, clave?, acepta_terminos} -> {pago_url, ref}
+// POST /api/mipos/comprar {plan_id, nombre, email, telefono (+569XXXXXXXX), equipo?, clave?} -> {pago_url, ref}
 // Crea la compra pendiente y la preferencia de Mercado Pago. El precio sale SIEMPRE del plan guardado, nunca del navegador.
 import { asegurarTablasVenta, base, claveDeEquipo, error, json, leerCuerpo, mp, normalizarClave, normalizarEquipo,
   TERMINOS_VERSION, texto, ahora } from '../../../mipos-lib/licencias.js';
@@ -8,12 +8,14 @@ export async function onRequestPost({ request, env }) {
     const db = base(env);
     await asegurarTablasVenta(db);
     const d = await leerCuerpo(request);
-    if (d.acepta_terminos !== true) return error(400, 'Debes aceptar los términos y condiciones para comprar');
     const plan = await db.prepare('SELECT * FROM mipos_planes WHERE id=? AND activo=1').bind(parseInt(d.plan_id, 10) || 0).first();
     if (!plan) return error(400, 'Elige un plan');
     const nombre = texto(d.nombre, 100), email = texto(d.email, 120).toLowerCase(), telefono = texto(d.telefono, 30);
     if (!nombre) return error(400, 'Escribe el nombre de tu negocio');
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return error(400, 'Escribe un correo válido: ahí te llega la licencia');
+    const m = telefono.replace(/\D/g, '').match(/^(?:569|9)?(\d{8})$/);  // 12345678, 912345678 o 56912345678
+    if (!m) return error(400, 'Escribe tu celular: +569 y 8 números');
+    const cel = m[1];
     let equipo = d.equipo ? normalizarEquipo(d.equipo) : null;
     let clave = null;
     if (d.clave) {
@@ -29,7 +31,7 @@ export async function onRequestPost({ request, env }) {
     const origen = new URL(request.url).origin;
     const pagina = env.MIPOS_URL_PAGINA || `${origen}/mipos-comprar.html`;
     await db.prepare('INSERT INTO mipos_compras(ref, plan_id, plan_nombre, precio, meses, cajas, nombre, email, telefono, equipo, clave_id, renovacion, terminos_version, terminos_aceptados, ip, creado) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
-      .bind(ref, plan.id, plan.nombre, plan.precio, plan.meses, plan.cajas, nombre, email, telefono, equipo, clave ? clave.id : null, clave ? 1 : 0,
+      .bind(ref, plan.id, plan.nombre, plan.precio, plan.meses, plan.cajas, nombre, email, '+569' + cel, equipo, clave ? clave.id : null, clave ? 1 : 0,
             TERMINOS_VERSION, ahora(), request.headers.get('CF-Connecting-IP') || '', ahora()).run();
     const pref = await mp(env, 'POST', '/checkout/preferences', {
       items: [{ id: `plan-${plan.id}`, title: `MiPOS · ${plan.nombre}${clave ? ' (renovación)' : ''}`,

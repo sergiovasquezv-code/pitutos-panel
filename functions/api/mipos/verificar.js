@@ -2,13 +2,14 @@
 // MiPOS lo llama solo (al iniciar y cada 6 horas). Responde con la licencia renovada, o {revocada, motivo}
 // si la clave se suspendió, venció o se liberó este PC. Sin internet, MiPOS sigue con la licencia que tiene.
 import { asegurarTablasVenta, claveDeEquipo, asegurarTablas, base, error, firmarLicencia, json, leerCuerpo, licenciaDeClave, licenciaDePrueba,
-  normalizarEquipo, problemaClave, texto, ahora, hoy } from '../../../mipos-lib/licencias.js';
+  normalizarEquipo, problemaClave, texto, ahora, hoy , recordatoriosDelDia } from '../../../mipos-lib/licencias.js';
 
-export async function onRequestPost({ request, env }) {
+export async function onRequestPost({ request, env, waitUntil }) {
   try {
     const db = base(env);
     await asegurarTablasVenta(db);
     const d = await leerCuerpo(request);
+    if (waitUntil) waitUntil(recordatoriosDelDia(db, env, new URL(request.url).origin).catch(() => {}));  // una vez al día
     const equipo = normalizarEquipo(d.equipo);
     if (!equipo) return error(400, 'Código de equipo inválido');
     if (d.tipo === 'prueba' || !parseInt(d.k, 10)) {
