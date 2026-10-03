@@ -1,5 +1,5 @@
 // POST /api/mipos/soporte {accion, ...}  — casos de soporte abiertos desde MiPOS.
-//   crear:     {equipo, nombre, telefono, email, tipo, texto, adjunto?, diagnostico} -> {numero, token}
+//   crear:     {equipo, nombre, email, tipo, texto, adjunto?, diagnostico} -> {numero, token}
 //   listar:    {tokens:[...]} -> casos de este PC (MiPOS guarda sus tokens)
 //   ver:       {token} -> caso + mensajes (marca leídas las respuestas)
 //   responder: {token, texto, adjunto?}
@@ -21,11 +21,11 @@ export async function onRequestPost({ request, env }) {
       const equipo = normalizarEquipo(d.equipo);
       const msg = texto(d.texto, 4000);
       if (!msg || msg.length < 5) return error(400, 'Cuéntanos qué pasó (al menos una frase)');
-      const m = String(d.telefono || '').replace(/\D/g, '').match(/^(?:569|9)?(\d{8})$/);
-      if (!m) return error(400, 'Escribe tu celular: +569 y 8 números, para poder contactarte');
+      const email = texto(d.email, 120).toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return error(400, 'Escribe tu correo: ahí te llega la respuesta');
       if (equipo) {
         const hoyN = await db.prepare("SELECT COUNT(*) AS n FROM mipos_tickets WHERE equipo=? AND creado >= ?").bind(equipo, new Date(Date.now() - 86400000).toISOString()).first();
-        if (hoyN.n >= 10) return error(429, 'Ya enviaste muchos casos hoy. Escríbenos por WhatsApp si es urgente.');
+        if (hoyN.n >= 10) return error(429, 'Ya enviaste muchos casos hoy. Si es urgente, escríbenos por correo.');
       }
       const adj = adjuntoValido(d.adjunto);
       const clave = equipo ? await claveDeEquipo(db, equipo) : null;
@@ -35,7 +35,7 @@ export async function onRequestPost({ request, env }) {
       const token = crypto.randomUUID();
       const tipo = d.tipo === 'problema' ? 'problema' : 'consulta';
       const r = await db.prepare('INSERT INTO mipos_tickets(token, equipo, clave_id, cliente, telefono, email, tipo, asunto, diagnostico, creado, actualizado) VALUES(?,?,?,?,?,?,?,?,?,?,?)')
-        .bind(token, equipo, clave ? clave.id : null, texto(d.nombre, 100) || (clave ? clave.cliente : ''), '+569' + m[1], texto(d.email, 120).toLowerCase(),
+        .bind(token, equipo, clave ? clave.id : null, texto(d.nombre, 100) || (clave ? clave.cliente : ''), '', email,
               tipo, msg.split('\n')[0].slice(0, 90), diag, ahora(), ahora()).run();
       const id = r.meta.last_row_id;
       await db.prepare("INSERT INTO mipos_ticket_msgs(ticket_id, autor, texto, adjunto, creado) VALUES(?, 'cliente', ?, ?, ?)").bind(id, msg, adj, ahora()).run();
