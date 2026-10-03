@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Comprar MiPOS</title>
+<meta name="description" content="Compra o renueva tu licencia de MiPOS, el punto de venta para almacenes y minimarkets.">
+<style>
+:root {
+  --bg: #f3f4f8; --panel: #fff; --panel-2: #f6f7fb; --texto: #161a2e; --suave: #5f6580; --borde: #e3e5ee;
+  --acento: #2f5bff; --acento-claro: #e8edff; --tinta: #161a2e; --etiqueta: #ffd23f; --etiqueta-osc: #f2b705;
+  --ok: #0a8f62; --ok-claro: #dff5ec; --peligro: #d42a3c; --peligro-claro: #fde5e8; --aviso: #b26b00; --aviso-claro: #fff1d6;
+  --sombra: 0 1px 2px rgba(20, 24, 50, .06), 0 10px 30px rgba(20, 24, 50, .08); color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1220; --panel: #171b2e; --panel-2: #1e2338; --texto: #eef0fa; --suave: #9aa1bf; --borde: #2a3050;
+    --acento: #6b8bff; --acento-claro: #222a52; --ok: #3ccf98; --ok-claro: #12352a; --peligro: #ff6b7a; --peligro-claro: #3d1820;
+    --aviso: #ffbe55; --aviso-claro: #3a2c12; --sombra: 0 1px 2px rgba(0,0,0,.3), 0 10px 30px rgba(0,0,0,.3); color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--texto); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+a { color: var(--acento); }
+.hero { background: linear-gradient(160deg, #2a2f7a, #1d2160 60%, #181b4a); color: #fff; padding: 0 16px 70px; position: relative; overflow: hidden; }
+.toldo { height: 14px; margin: 0 -16px 26px; background:
+  radial-gradient(circle at 50% 0, var(--etiqueta) 0 9px, transparent 9.6px) -9px 14px / 36px 12px repeat-x,
+  repeating-linear-gradient(90deg, var(--etiqueta) 0 18px, #fff8e2 18px 36px) 0 0 / 100% 14px no-repeat; }
+.hero-in { max-width: 1040px; margin: 0 auto; }
+.marca { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 1.3rem; }
+.marca svg { width: 40px; height: 40px; }
+.marca small { display: block; font-weight: 500; font-size: .8rem; opacity: .75; }
+.hero h1 { font-size: clamp(1.8rem, 4vw, 2.6rem); line-height: 1.1; margin: 26px 0 8px; letter-spacing: -.02em; }
+.hero p { margin: 0; opacity: .85; max-width: 620px; }
+main { max-width: 1040px; margin: -46px auto 0; padding: 0 16px 60px; position: relative; }
+.caja { background: var(--panel); border: 1px solid var(--borde); border-radius: 20px; box-shadow: var(--sombra); padding: 22px; }
+.aviso { padding: 12px 16px; border-radius: 14px; background: var(--acento-claro); margin-bottom: 16px; font-size: .95rem; }
+.aviso.amarillo { background: var(--aviso-claro); color: var(--aviso); }
+.aviso.rojo { background: var(--peligro-claro); color: var(--peligro); }
+.planes { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-bottom: 22px; }
+.plan { position: relative; text-align: left; cursor: pointer; border: 2px solid var(--borde); background: var(--panel); border-radius: 18px; padding: 18px; display: grid; gap: 6px; font: inherit; color: inherit; transition: border-color .15s, transform .12s, box-shadow .15s; }
+.plan:hover { transform: translateY(-2px); box-shadow: var(--sombra); }
+.plan.elegido { border-color: var(--acento); box-shadow: 0 0 0 4px color-mix(in srgb, var(--acento) 18%, transparent); }
+.plan h3 { margin: 0; font-size: 1.1rem; }
+.plan .precio { font-size: 2rem; font-weight: 900; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.plan .periodo { color: var(--suave); font-size: .9rem; }
+.plan ul { margin: 6px 0 0; padding-left: 18px; color: var(--suave); font-size: .9rem; }
+.plan .cinta { position: absolute; top: -11px; right: 14px; background: var(--etiqueta); color: var(--tinta); font-weight: 800; font-size: .75rem; padding: 3px 10px; border-radius: 999px; }
+.plan .equivale { color: var(--ok); font-weight: 700; font-size: .85rem; }
+form { display: grid; gap: 14px; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+label { display: grid; gap: 5px; font-weight: 650; font-size: .9rem; color: var(--suave); }
+input { font: inherit; color: inherit; width: 100%; padding: 11px 13px; border: 1px solid var(--borde); border-radius: 12px; background: var(--panel); }
+input:focus { outline: 2px solid color-mix(in srgb, var(--acento) 45%, transparent); border-color: var(--acento); }
+.check { display: flex; gap: 10px; align-items: flex-start; font-weight: 500; color: var(--texto); }
+.check input { width: 20px; height: 20px; margin-top: 2px; flex: none; }
+.pagar { border: 0; border-radius: 14px; padding: 15px 20px; font: inherit; font-weight: 800; font-size: 1.1rem; cursor: pointer; color: #fff;
+  background: linear-gradient(180deg, #2d8cff, #0063e6); box-shadow: 0 8px 22px rgba(0, 99, 230, .3); }
+.pagar:disabled { opacity: .55; cursor: default; box-shadow: none; }
+.seguro { display: flex; gap: 8px; align-items: center; justify-content: center; color: var(--suave); font-size: .85rem; }
+.pasos { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-top: 22px; }
+.paso { background: var(--panel-2); border-radius: 14px; padding: 14px; font-size: .92rem; }
+.paso b { display: block; color: var(--acento); font-size: 1.4rem; }
+.resultado { text-align: center; display: grid; gap: 12px; justify-items: center; padding: 10px 0; }
+.resultado h2 { margin: 0; }
+.clave { font-family: Consolas, "SFMono-Regular", monospace; font-size: clamp(1.2rem, 4vw, 1.8rem); letter-spacing: .06em; padding: 14px 18px; border: 2px dashed var(--etiqueta-osc); border-radius: 14px; background: color-mix(in srgb, var(--etiqueta) 14%, var(--panel)); word-break: break-all; }
+.btn { border: 1px solid var(--borde); background: var(--panel); border-radius: 12px; padding: 9px 16px; font: inherit; font-weight: 700; cursor: pointer; color: inherit; text-decoration: none; display: inline-block; }
+.anillo { width: 48px; height: 48px; border-radius: 50%; border: 5px solid var(--acento-claro); border-top-color: var(--acento); animation: girar 1s linear infinite; }
+@keyframes girar { to { transform: rotate(360deg); } }
+.ok-icono { width: 64px; height: 64px; border-radius: 50%; background: var(--ok-claro); color: var(--ok); display: grid; place-items: center; font-size: 2rem; font-weight: 900; }
+.det { color: var(--suave); font-size: .9rem; }
+.oculto { display: none !important; }
+footer { text-align: center; color: var(--suave); font-size: .85rem; padding: 0 16px 30px; }
+@media (max-width: 600px) { .grid2 { grid-template-columns: 1fr; } .caja { padding: 18px 16px; } }
+@media (prefers-reduced-motion: reduce) { .anillo { animation-duration: 3s; } .plan:hover { transform: none; } }
+</style>
+</head>
+<body>
+<header class="hero"><div class="toldo"></div><div class="hero-in">
+  <div class="marca"><svg viewBox="0 0 40 40" aria-hidden="true"><path d="M6 20 17 6h17v28H17z" fill="#ffd23f"/><circle cx="16" cy="20" r="3" fill="#161a2e"/><text x="27" y="26" text-anchor="middle" font-size="15" font-weight="800" fill="#161a2e" font-family="system-ui">$</text></svg>
+    <div>MiPOS<small>por Mis Pitutos Informáticos</small></div></div>
+  <h1 id="titulo">Tu licencia de MiPOS</h1>
+  <p id="bajada">La caja, el inventario y las boletas de tu almacén, en un solo lugar. Paga con Mercado Pago y queda activado al instante.</p>
+</div></header>
+
+<main><div class="caja" id="contenido"><div class="resultado"><div class="anillo"></div><div class="det">Cargando…</div></div></div></main>
+<footer>¿Dudas? Escríbenos por <a id="wa" href="#" target="_blank" rel="noopener">WhatsApp</a> o a <a href="mailto:contacto@mispitutosinformaticos.cl">contacto@mispitutosinformaticos.cl</a>
+  · <a href="mipos-terminos.html" target="_blank" rel="noopener">Términos y condiciones</a></footer>
+
+<script>
+'use strict';
+const WHATSAPP = '56993189534';
+const API = '/api/mipos/';
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const clp = n => '$' + Math.round(Number(n) || 0).toLocaleString('es-CL');
+const fecha = f => f ? new Date(f + 'T12:00').toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric' }) : 'sin vencimiento';
+const q = new URLSearchParams(location.search);
+const EQUIPO = q.get('equipo') || '';
+$('#wa').href = `https://wa.me/${WHATSAPP}?text=${encodeURIComponent('Hola, tengo una consulta sobre la licencia de MiPOS' + (EQUIPO ? ` (equipo ${EQUIPO})` : ''))}`;
+
+async function llamar(ruta, body) {
+  const r = await fetch(API + ruta, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {});
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || 'Error ' + r.status);
+  return d;
+}
+function periodo(m) { return m === 1 ? 'por 1 mes' : m % 12 === 0 ? `por ${m / 12} año${m === 12 ? '' : 's'}` : `por ${m} meses`; }
+
+// ------------------------------------------------------------------ elegir plan y pagar
+async function pintarCompra() {
+  const c = $('#contenido');
+  let datos, equipo = null;
+  try {
+    [datos, equipo] = await Promise.all([llamar('planes'), EQUIPO ? llamar('info-equipo?equipo=' + encodeURIComponent(EQUIPO)).catch(() => null) : null]);
+  } catch (e) { c.innerHTML = `<div class="aviso rojo">${esc(e.message)}</div>`; return; }
+  const renovando = equipo && equipo.tiene;
+  if (renovando) { $('#titulo').textContent = 'Renueva tu licencia'; $('#bajada').textContent = 'Elige cuánto tiempo quieres sumar. Se aplica sola en tu computador apenas se confirme el pago.'; }
+  if (!datos.venta_activa || !datos.planes.length) {
+    c.innerHTML = `<div class="aviso amarillo">La compra en línea no está disponible en este momento.</div>
+      <p>Escríbenos y te ayudamos al tiro: <a class="btn" href="${$('#wa').href}" target="_blank" rel="noopener">WhatsApp +${WHATSAPP}</a></p>`;
+    return;
+  }
+  const planes = datos.planes;
+  let elegido = (planes.find(p => p.destacado) || planes[0]).id;
+  const mensual = planes.filter(p => p.meses === 1).map(p => p.precio / p.cajas)[0];
+  c.innerHTML = `
+    ${renovando ? `<div class="aviso">Renovación de <b>${esc(equipo.cliente)}</b> · tu licencia vence el <b>${fecha(equipo.vence)}</b>. El tiempo que compres se suma desde esa fecha.</div>`
+      : EQUIPO ? '<div class="aviso">Estás comprando desde MiPOS: <b>al pagar, tu computador se activa solo</b>. Igual te enviamos la clave por correo.</div>' : ''}
+    <div class="planes" id="planes">${planes.map(p => {
+      const porMes = p.meses > 1 ? Math.round(p.precio / p.meses) : null;
+      const ahorro = porMes && mensual && p.cajas === 1 ? Math.round((1 - porMes / mensual) * 100) : 0;
+      return `<button type="button" class="plan" data-id="${p.id}">${p.destacado ? '<span class="cinta">Más conveniente</span>' : ''}
+        <h3>${esc(p.nombre)}</h3><div class="precio">${clp(p.precio)}</div><div class="periodo">${periodo(p.meses)}</div>
+        ${porMes ? `<div class="equivale">${clp(porMes)} al mes${ahorro > 0 ? ` · ahorras ${ahorro}%` : ''}</div>` : ''}
+        <ul><li>${p.cajas} caja${p.cajas === 1 ? '' : 's'} para vender a la vez</li><li>Todas las funciones y actualizaciones</li>${p.descripcion ? `<li>${esc(p.descripcion)}</li>` : ''}</ul></button>`;
+    }).join('')}</div>
+    <form id="f">
+      <div class="grid2">
+        <label>Nombre de tu negocio<input name="nombre" required autocomplete="organization" placeholder="Ej: Almacén Rosita" value="${esc(renovando ? equipo.cliente : '')}"></label>
+        <label>Correo (ahí te llega la licencia)<input name="email" type="email" required autocomplete="email" placeholder="tucorreo@gmail.com"></label>
+        <label>WhatsApp (opcional)<input name="telefono" inputmode="tel" autocomplete="tel" placeholder="+56912345678"></label>
+        ${EQUIPO ? '<div></div>' : '<label>¿Renuevas? Tu clave actual (opcional)<input name="clave" placeholder="MIPOS-XXXX-XXXX-XXXX" autocomplete="off" spellcheck="false"></label>'}
+      </div>
+      <label class="check"><input type="checkbox" name="terminos" required> <span>Leí y acepto los <a href="mipos-terminos.html" target="_blank" rel="noopener">términos y condiciones</a> de la licencia de MiPOS
+        (licencia por período, sin cobros automáticos; al vencer se renueva pagando de nuevo).</span></label>
+      <div id="error" class="aviso rojo oculto"></div>
+      <button class="pagar" id="pagar">Pagar con Mercado Pago</button>
+      <div class="seguro">🔒 Pagas en Mercado Pago: tarjetas de crédito o débito, saldo o transferencia. No guardamos los datos de tu tarjeta.</div>
+    </form>
+    <div class="pasos"><div class="paso"><b>1</b>Elige el plan y paga con Mercado Pago.</div>
+      <div class="paso"><b>2</b>${EQUIPO ? 'Tu MiPOS se activa solo en segundos.' : 'Te llega tu clave de producto por correo.'}</div>
+      <div class="paso"><b>3</b>${EQUIPO ? 'Te llega la clave por correo, para guardarla.' : 'En MiPOS la escribes en “Clave de producto” y listo.'}</div></div>`;
+  const f = $('#f');
+  const pintar = () => {
+    document.querySelectorAll('.plan').forEach(b => b.classList.toggle('elegido', +b.dataset.id === elegido));
+    const p = planes.find(x => x.id === elegido);
+    $('#pagar').textContent = `Pagar ${clp(p.precio)} con Mercado Pago`;
+  };
+  document.querySelectorAll('.plan').forEach(b => b.addEventListener('click', () => { elegido = +b.dataset.id; pintar(); }));
+  pintar();
+  f.addEventListener('submit', async e => {
+    e.preventDefault();
+    const err = $('#error'); err.classList.add('oculto');
+    const btn = $('#pagar'); btn.disabled = true; const antes = btn.textContent; btn.textContent = 'Conectando con Mercado Pago…';
+    try {
+      const r = await llamar('comprar', { plan_id: elegido, nombre: f.nombre.value, email: f.email.value, telefono: f.telefono.value,
+        equipo: EQUIPO || undefined, clave: f.clave ? f.clave.value : undefined, acepta_terminos: f.terminos.checked });
+      try { sessionStorage.setItem('mipos_compra', r.ref); } catch (x) { /* nada */ }
+      location.href = r.pago_url;
+    } catch (x) {
+      err.textContent = x.message; err.classList.remove('oculto');
+      btn.disabled = false; btn.textContent = antes;
+    }
+  });
+}
+
+// ------------------------------------------------------------------ vuelta desde Mercado Pago
+async function pintarResultado(ref) {
+  const c = $('#contenido');
+  $('#titulo').textContent = 'Estado de tu compra';
+  $('#bajada').textContent = 'Estamos confirmando tu pago con Mercado Pago.';
+  let intentos = 0;
+  const revisar = async () => {
+    let d;
+    try { d = await llamar('compra-estado', { ref }); } catch (e) { c.innerHTML = `<div class="aviso rojo">${esc(e.message)}</div>`; return; }
+    if (d.estado === 'aprobada') {
+      $('#titulo').textContent = '¡Gracias por tu compra!';
+      $('#bajada').textContent = d.renovacion ? 'Tu licencia quedó renovada.' : 'Tu licencia de MiPOS está lista.';
+      c.innerHTML = `<div class="resultado"><div class="ok-icono">✓</div>
+        <h2>${d.renovacion ? 'Licencia renovada' : 'Esta es tu clave de producto'}</h2>
+        <div class="clave">${esc(d.clave)}</div>
+        <div><b>${esc(d.plan)}</b> · ${d.cajas} caja${d.cajas === 1 ? '' : 's'} · válida hasta el <b>${fecha(d.vence)}</b></div>
+        ${d.desde_mipos ? '<div class="aviso">Compraste desde MiPOS: <b>tu computador ya se activó solo</b> (vuelve a MiPOS; tarda unos segundos).</div>'
+          : '<div class="aviso">Abre MiPOS, escribe esta clave donde dice <b>“Clave de producto”</b> y presiona <b>Activar</b>.</div>'}
+        <div class="det">${d.correo === 'enviado' ? `También te la enviamos a <b>${esc(d.email)}</b>. ` : ''}Guárdala: la necesitas si cambias de computador.</div>
+        <button class="btn" id="copiar">Copiar clave</button></div>`;
+      $('#copiar').addEventListener('click', async () => { try { await navigator.clipboard.writeText(d.clave); $('#copiar').textContent = 'Copiada ✓'; } catch (e) { /* nada */ } });
+      return;
+    }
+    if (d.estado === 'rechazada') {
+      c.innerHTML = `<div class="resultado"><h2>El pago no se completó</h2><div class="aviso rojo">Mercado Pago rechazó el pago${d.detalle ? ` (${esc(d.detalle)})` : ''}. No se hizo ningún cargo.</div>
+        <a class="btn" href="${location.pathname}${EQUIPO ? '?equipo=' + encodeURIComponent(EQUIPO) : ''}">Intentar de nuevo</a></div>`;
+      return;
+    }
+    intentos++;
+    c.innerHTML = `<div class="resultado"><div class="anillo"></div><h2>Confirmando tu pago…</h2>
+      <div class="det">${intentos < 20 ? 'Esto toma unos segundos.' : 'Tu pago aún está pendiente (por ejemplo, una transferencia en proceso). Apenas se confirme te llegará la licencia por correo; puedes cerrar esta página.'}</div></div>`;
+    setTimeout(revisar, intentos < 20 ? 3000 : 15000);
+  };
+  revisar();
+}
+
+const ref = q.get('ref') || q.get('external_reference');
+if (ref) pintarResultado(ref); else pintarCompra();
+</script>
+</body>
+</html>

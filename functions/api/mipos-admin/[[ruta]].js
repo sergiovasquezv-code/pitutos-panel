@@ -1,7 +1,7 @@
 // /api/mipos-admin/*  — administración de licencias (la usa public/mipos-licencias.html).
 // Protegida con el secreto MIPOS_ADMIN_CLAVE (encabezado Authorization: Bearer <clave>).
-import { anotar, asegurarTablas, base, claveNueva, diasPrueba, diasSinInternet, error, firmarLicencia, hoy, json, leerCuerpo,
-  normalizarEquipo, texto, ahora } from '../../../mipos-lib/licencias.js';
+import { anotar, asegurarTablasVenta, base, claveNueva, diasPrueba, diasSinInternet, error, firmarLicencia, hoy, json, leerCuerpo,
+  normalizarEquipo, revisarPago, texto, ahora } from '../../../mipos-lib/licencias.js';
 
 function igual(a, b) {
   const x = new TextEncoder().encode(a), y = new TextEncoder().encode(b);
@@ -27,10 +27,14 @@ async function resumen(db, env) {
   const claves = (await db.prepare('SELECT * FROM mipos_claves ORDER BY id DESC').all()).results;
   const acts = (await db.prepare('SELECT * FROM mipos_activaciones ORDER BY id').all()).results;
   const pruebas = (await db.prepare('SELECT * FROM mipos_pruebas ORDER BY inicio DESC').all()).results;
+  const planes = (await db.prepare('SELECT * FROM mipos_planes ORDER BY orden, precio').all()).results;
+  const compras = (await db.prepare('SELECT c.*, k.clave FROM mipos_compras c LEFT JOIN mipos_claves k ON k.id=c.clave_id ORDER BY c.id DESC LIMIT 300').all()).results;
   for (const c of claves) c.equipos = acts.filter(a => a.clave_id === c.id);
   let firma = 'ok';
   try { await firmarLicencia(env, { prueba: 1 }); } catch (e) { firma = e.message; }
-  return { hoy: hoy(), claves, pruebas, config: { dias_prueba: diasPrueba(env), dias_sin_internet: diasSinInternet(env), firma } };
+  return { hoy: hoy(), claves, pruebas, planes, compras, config: { dias_prueba: diasPrueba(env), dias_sin_internet: diasSinInternet(env), firma,
+    mercado_pago: env.MP_ACCESS_TOKEN ? (String(env.MP_ACCESS_TOKEN).startsWith('TEST-') ? 'prueba' : 'ok') : 'falta',
+    correo: env.RESEND_API_KEY && env.EMAIL_REMITENTE ? 'ok' : 'falta' } };
 }
 
 export async function onRequest({ request, env, params }) {
@@ -39,7 +43,7 @@ export async function onRequest({ request, env, params }) {
   if (!igual(token, env.MIPOS_ADMIN_CLAVE)) return error(401, 'Clave de administrador incorrecta');
   try {
     const db = base(env);
-    await asegurarTablas(db);
+    await asegurarTablasVenta(db);
     const ruta = (params.ruta || []).join('/');
     const m = request.method;
     const d = m === 'GET' || m === 'DELETE' ? {} : await leerCuerpo(request);
@@ -99,6 +103,41 @@ export async function onRequest({ request, env, params }) {
       await db.prepare('DELETE FROM mipos_pruebas WHERE equipo=?').bind(p[1]).run();
       await anotar(db, 'prueba_reiniciada', { equipo: p[1] });
       return json({ ok: true });
+    }
+
+    // ---- planes a la venta (los ve la página de compra)
+    const datosPlan = x => {
+      const v = { nombre: texto(x.nombre, 60), descripcion: texto(x.descripcion, 200), meses: Math.min(Math.max(parseInt(x.meses, 10) || 1, 1), 120),
+                  cajas: Math.min(Math.max(parseInt(x.cajas, 10) || 1, 1), 50), precio: Math.max(parseInt(x.precio, 10) || 0, 0),
+                  destacado: x.destacado ? 1 : 0, activo: x.activo === false ? 0 : 1, orden: parseInt(x.orden, 10) || 0 };
+      if (!v.nombre) throw Object.assign(new Error('Falta el nombre del plan'), { status: 400 });
+      if (v.precio < 100) throw Object.assign(new Error('El precio debe ser de al menos $100'), { status: 400 });
+      return v;
+    };
+    if (m === 'POST' && ruta === 'planes') {
+      const v = datosPlan(d);
+      r = await db.prepare('INSERT INTO mipos_planes(nombre, descripcion, meses, cajas, precio, destacado, activo, orden, creado) VALUES(?,?,?,?,?,?,?,?,?)')
+        .bind(v.nombre, v.descripcion, v.meses, v.cajas, v.precio, v.destacado, v.activo, v.orden, ahora()).run();
+      await anotar(db, 'plan', { detalle: `Nuevo plan: ${v.nombre} · $${v.precio}` });
+      return json(await db.prepare('SELECT * FROM mipos_planes WHERE id=?').bind(r.meta.last_row_id).first());
+    }
+    p = ruta.match(/^planes\/(\d+)$/);
+    if (p && m === 'PUT') {
+      const v = datosPlan(d);
+      await db.prepare('UPDATE mipos_planes SET nombre=?, descripcion=?, meses=?, cajas=?, precio=?, destacado=?, activo=?, orden=? WHERE id=?')
+        .bind(v.nombre, v.descripcion, v.meses, v.cajas, v.precio, v.destacado, v.activo, v.orden, +p[1]).run();
+      await anotar(db, 'plan', { detalle: `Plan modificado: ${v.nombre} · $${v.precio}${v.activo ? '' : ' (pausado)'}` });
+      return json(await db.prepare('SELECT * FROM mipos_planes WHERE id=?').bind(+p[1]).first());
+    }
+    if (p && m === 'DELETE') {
+      await db.prepare('DELETE FROM mipos_planes WHERE id=?').bind(+p[1]).run();
+      return json({ ok: true });
+    }
+    p = ruta.match(/^compras\/(\d+)\/revisar$/);
+    if (p && m === 'POST') {  // vuelve a consultar el pago en Mercado Pago (por si el aviso no llegó)
+      const c = await db.prepare('SELECT * FROM mipos_compras WHERE id=?').bind(+p[1]).first();
+      if (!c) return error(404, 'Compra no encontrada');
+      return json(await revisarPago(db, env, { compra: c }));
     }
 
     if (m === 'POST' && ruta === 'codigo') {

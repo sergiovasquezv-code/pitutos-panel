@@ -188,23 +188,29 @@ function pintar() {
   const pcs = d.claves.reduce((a, k) => a + k.equipos.filter(x => x.estado === 'activa').length, 0);
   const pronto = activas.filter(k => k.vence && diasHasta(k.vence) <= 30).length;
   const enPrueba = d.pruebas.filter(p => diasHasta(fin(p)) >= 0).length;
+  const mes = d.hoy.slice(0, 7);
+  const ventasMes = d.compras.filter(c => c.estado === 'aprobada' && String(c.pagado || '').slice(0, 7) === mes).reduce((a, c) => a + c.precio, 0);
   $('#app').innerHTML = `<div class="envoltura">
     <header><div class="marca">${LOGO}<div><h1>Licencias MiPOS</h1><small>Claves de producto, pruebas y equipos</small></div></div>
       <button class="btn primario" id="b-nueva">+ Nueva clave</button><button class="btn" id="b-salir">Salir</button></header>
     ${d.config.firma !== 'ok' ? `<div class="aviso peligro">El servidor no puede firmar licencias: ${esc(d.config.firma)}</div>` : ''}
+    ${d.config.mercado_pago === 'falta' && d.planes.length ? '<div class="aviso">Para vender en línea falta el secreto <b>MP_ACCESS_TOKEN</b> (tu Access Token de Mercado Pago) en Cloudflare.</div>' : ''}
+    ${d.config.mercado_pago === 'prueba' ? '<div class="aviso">Mercado Pago está en <b>modo de prueba</b> (token TEST-): los pagos no son reales.</div>' : ''}
+    ${d.config.correo === 'falta' && d.planes.length ? '<div class="aviso">Sin correo configurado (RESEND_API_KEY y EMAIL_REMITENTE): las licencias se activan igual, pero no se envía el correo.</div>' : ''}
     <div class="stats">
       <div class="stat"><span>Clientes activos</span><strong>${activas.length}</strong></div>
       <div class="stat"><span>PCs activados</span><strong>${pcs}</strong></div>
       <div class="stat"><span>Vencen en 30 días</span><strong style="color:${pronto ? 'var(--aviso)' : 'inherit'}">${pronto}</strong></div>
       <div class="stat"><span>Pruebas en curso</span><strong>${enPrueba}</strong></div>
+      <div class="stat"><span>Ventas web este mes</span><strong>$${ventasMes.toLocaleString('es-CL')}</strong></div>
     </div>
-    <div class="tabs">${[['claves', 'Clientes'], ['pruebas', 'Pruebas gratis'], ['codigo', 'Código sin internet'], ['historial', 'Historial']]
+    <div class="tabs">${[['claves', 'Clientes'], ['ventas', 'Ventas'], ['planes', 'Planes y precios'], ['pruebas', 'Pruebas gratis'], ['codigo', 'Código sin internet'], ['historial', 'Historial']]
       .map(([k, t]) => `<button data-tab="${k}" class="${E.tab === k ? 'activo' : ''}">${t}</button>`).join('')}</div>
     <div id="contenido"></div></div>`;
   $('#b-nueva').addEventListener('click', () => formClave());
   $('#b-salir').addEventListener('click', salir);
   $$('[data-tab]').forEach(b => b.addEventListener('click', () => { E.tab = b.dataset.tab; pintar(); }));
-  ({ claves: vistaClaves, pruebas: vistaPruebas, codigo: vistaCodigo, historial: vistaHistorial })[E.tab]();
+  ({ claves: vistaClaves, ventas: vistaVentas, planes: vistaPlanes, pruebas: vistaPruebas, codigo: vistaCodigo, historial: vistaHistorial })[E.tab]();
 }
 
 function badgeVence(k) {
@@ -350,8 +356,84 @@ function vistaCodigo() {
   });
 }
 
+// ------------------------------------------------------------------ ventas en línea (Mercado Pago)
+const ESTADOS_COMPRA = { aprobada: ['verde', 'Pagada'], pendiente: ['amarillo', 'Pendiente'], procesando: ['amarillo', 'Procesando'], rechazada: ['rojo', 'Rechazada'] };
+function vistaVentas() {
+  const l = E.datos.compras;
+  $('#contenido').innerHTML = `<div class="det" style="margin-bottom:10px">Cada pago aprobado crea o renueva la clave del cliente y le envía el correo, sin que hagas nada. “Pendiente” = abrió el pago y no lo terminó (o una transferencia en proceso).</div>
+    ${l.length ? `<div class="tabla-wrap"><table><thead><tr><th>Fecha</th><th>Cliente</th><th>Plan</th><th>Monto</th><th>Estado</th><th>Clave</th><th></th></tr></thead><tbody>
+    ${l.map(c => { const [cl, t] = ESTADOS_COMPRA[c.estado] || ['', c.estado]; return `<tr>
+      <td style="white-space:nowrap">${fechaHora(c.pagado || c.creado)}</td>
+      <td><b>${esc(c.nombre)}</b><div class="det">${esc(c.email)}${c.telefono ? ' · ' + esc(c.telefono) : ''}</div></td>
+      <td>${esc(c.plan_nombre)}${c.renovacion ? ' <span class="badge azul">renovación</span>' : ''}${c.equipo ? ' <span class="badge">desde MiPOS</span>' : ''}</td>
+      <td style="white-space:nowrap">$${Number(c.precio).toLocaleString('es-CL')}</td>
+      <td><span class="badge ${cl}">${t}</span>${c.mp_detalle ? `<div class="det">${esc(c.mp_detalle)}</div>` : ''}${c.estado === 'aprobada' && c.correo && c.correo !== 'enviado' ? `<div class="det">correo: ${esc(c.correo)}</div>` : ''}</td>
+      <td>${c.clave ? `<code>${esc(c.clave)}</code>` : ''}</td>
+      <td>${c.estado === 'pendiente' ? `<button class="btn chico" data-revisar="${c.id}">Revisar pago</button>` : ''}</td></tr>`; }).join('')}</tbody></table></div>`
+    : '<div class="vacio">Aún no hay ventas en línea. Cuando alguien compre desde MiPOS o desde tu página de compra, aparecerá aquí.</div>'}
+    <div class="det" style="margin-top:10px">Página de compra para compartir: <a href="mipos-comprar.html" target="_blank" rel="noopener">${location.origin}/mipos-comprar.html</a>. Recuerda emitir la boleta o factura de cada venta.</div>`;
+  $$('[data-revisar]').forEach(b => b.addEventListener('click', async () => {
+    b.disabled = true;
+    try { const r = await api(`compras/${b.dataset.revisar}/revisar`, { method: 'POST' }); toast(r.estado === 'aprobada' ? 'Pago confirmado: licencia entregada' : 'Mercado Pago aún no lo muestra pagado'); await cargar(); }
+    catch (e) { toast(e.message, 'error'); b.disabled = false; }
+  }));
+}
+
+function vistaPlanes() {
+  const l = E.datos.planes;
+  $('#contenido').innerHTML = `<div class="barra"><div class="det" style="flex:1">Estos planes aparecen en tu página de compra y en el botón “Comprar” de MiPOS. El precio cobrado sale siempre de aquí.</div>
+      <button class="btn primario" id="pl-nuevo">+ Nuevo plan</button></div>
+    ${l.length ? `<div class="tabla-wrap"><table><thead><tr><th>Plan</th><th>Precio</th><th>Duración</th><th>Cajas</th><th>Estado</th><th></th></tr></thead><tbody>
+    ${l.map(p => `<tr><td><b>${esc(p.nombre)}</b>${p.destacado ? ' <span class="badge amarillo">destacado</span>' : ''}${p.descripcion ? `<div class="det">${esc(p.descripcion)}</div>` : ''}</td>
+      <td>$${Number(p.precio).toLocaleString('es-CL')}</td><td>${p.meses} mes${p.meses === 1 ? '' : 'es'}</td><td>${p.cajas}</td>
+      <td>${p.activo ? '<span class="badge verde">a la venta</span>' : '<span class="badge">pausado</span>'}</td>
+      <td class="acciones"><button class="btn chico" data-editar-plan="${p.id}">Editar</button><button class="btn chico peligro" data-borrar-plan="${p.id}">Eliminar</button></td></tr>`).join('')}</tbody></table></div>`
+    : `<div class="vacio">Aún no hay planes. Crea por ejemplo “Mensual” (1 mes), “Semestral” (6 meses) y “Anual” (12 meses).
+        <div style="margin-top:10px"><button class="btn" id="pl-ejemplo">Crear 3 planes de ejemplo</button></div></div>`}`;
+  $('#pl-nuevo').addEventListener('click', () => formPlan());
+  const ej = $('#pl-ejemplo');
+  if (ej) ej.addEventListener('click', async () => {
+    ej.disabled = true;
+    try {
+      for (const p of [{ nombre: 'Mensual', meses: 1, cajas: 1, precio: 9990, orden: 1 }, { nombre: 'Semestral', meses: 6, cajas: 1, precio: 49990, orden: 2 },
+        { nombre: 'Anual', meses: 12, cajas: 1, precio: 89990, orden: 3, destacado: true }]) await api('planes', { method: 'POST', body: p });
+      toast('Planes de ejemplo creados: ajusta los precios'); await cargar();
+    } catch (e) { toast(e.message, 'error'); ej.disabled = false; }
+  });
+  $$('[data-editar-plan]').forEach(b => b.addEventListener('click', () => formPlan(l.find(p => p.id === +b.dataset.editarPlan))));
+  $$('[data-borrar-plan]').forEach(b => b.addEventListener('click', async () => {
+    const p = l.find(x => x.id === +b.dataset.borrarPlan);
+    if (!confirm(`¿Eliminar el plan “${p.nombre}”? Las ventas ya hechas no cambian. Para dejar de venderlo sin borrarlo, mejor edítalo y desmarca “A la venta”.`)) return;
+    try { await api('planes/' + p.id, { method: 'DELETE' }); toast('Plan eliminado'); await cargar(); } catch (e) { toast(e.message, 'error'); }
+  }));
+}
+
+function formPlan(p) {
+  const m = modal(`<form id="f-plan"><h2>${p ? 'Editar plan' : 'Nuevo plan'}</h2>
+    <div class="grid2" style="margin-top:12px">
+      <label class="full">Nombre (lo ve el cliente)<input name="nombre" value="${esc(p?.nombre || '')}" required autofocus placeholder="Ej: Anual"></label>
+      <label>Precio (pesos)<input name="precio" type="number" min="100" step="1" value="${p?.precio || ''}" required></label>
+      <label>Duración (meses)<input name="meses" type="number" min="1" max="120" value="${p?.meses || 1}" required></label>
+      <label>Cajas incluidas<input name="cajas" type="number" min="1" max="50" value="${p?.cajas || 1}" required></label>
+      <label>Orden en la página<input name="orden" type="number" value="${p?.orden || 0}"></label>
+      <label class="full">Detalle (opcional)<input name="descripcion" value="${esc(p?.descripcion || '')}" placeholder="Ej: Ideal para empezar"></label>
+      <label class="check"><input type="checkbox" name="destacado" ${p?.destacado ? 'checked' : ''}> Destacarlo (“Más conveniente”)</label>
+      <label class="check"><input type="checkbox" name="activo" ${!p || p.activo ? 'checked' : ''}> A la venta</label>
+    </div>
+    <div class="det" style="margin:10px 0">Al renovar, el cliente queda con las cajas de este plan y los meses se suman desde su fecha de vencimiento.</div>
+    <div class="acciones" style="justify-content:flex-end"><button type="button" class="btn" data-cerrar>Cancelar</button><button class="btn primario">Guardar</button></div></form>`);
+  const f = $('#f-plan', m.el);
+  f.addEventListener('submit', async e => {
+    e.preventDefault();
+    const body = { nombre: f.nombre.value, precio: +f.precio.value, meses: +f.meses.value, cajas: +f.cajas.value, orden: +f.orden.value,
+                   descripcion: f.descripcion.value, destacado: f.destacado.checked, activo: f.activo.checked };
+    try { await api(p ? 'planes/' + p.id : 'planes', { method: p ? 'PUT' : 'POST', body }); m.cerrar(); toast('Plan guardado'); await cargar(); }
+    catch (err) { toast(err.message, 'error'); }
+  });
+}
+
 const NOMBRES_EVENTO = { activacion: 'Activación', activacion_rechazada: 'Activación rechazada', prueba: 'Prueba iniciada', clave_creada: 'Clave creada',
-  clave_editada: 'Clave modificada', clave_eliminada: 'Clave eliminada', pc_liberado: 'PC liberado', prueba_reiniciada: 'Prueba reiniciada', codigo_sin_internet: 'Código sin internet' };
+  clave_editada: 'Clave modificada', compra_pagada: 'Venta en línea', renovacion_pagada: 'Renovación pagada', plan: 'Plan', clave_eliminada: 'Clave eliminada', pc_liberado: 'PC liberado', prueba_reiniciada: 'Prueba reiniciada', codigo_sin_internet: 'Código sin internet' };
 async function vistaHistorial() {
   const c = $('#contenido');
   c.innerHTML = '<div class="det">Cargando…</div>';
