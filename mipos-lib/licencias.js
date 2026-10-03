@@ -301,3 +301,44 @@ function correoRecordatorio(k, dias, link) {
   <p>También puedes hacerlo desde MiPOS: <b>Ajustes → Licencia → Renovar o ampliar</b>. Se aplica sola en tu computador.</p>
   <p style="color:#5f6580;font-size:13px">Clave: ${escH(k.clave)} · ${k.cajas} caja(s). ¿Dudas? Responde este correo.</p></div>`;
 }
+
+// ================================================================== SOPORTE (casos que los clientes abren desde MiPOS)
+let tablasSoporte = false;
+export async function asegurarTablasSoporte(db) {
+  await asegurarTablas(db);
+  if (tablasSoporte) return;
+  await db.batch([
+    db.prepare("CREATE TABLE IF NOT EXISTS mipos_tickets (id INTEGER PRIMARY KEY AUTOINCREMENT, token TEXT NOT NULL UNIQUE, equipo TEXT, clave_id INTEGER, cliente TEXT NOT NULL DEFAULT '', telefono TEXT NOT NULL DEFAULT '', email TEXT NOT NULL DEFAULT '', tipo TEXT NOT NULL DEFAULT 'consulta', asunto TEXT NOT NULL DEFAULT '', estado TEXT NOT NULL DEFAULT 'nuevo', diagnostico TEXT NOT NULL DEFAULT '{}', creado TEXT NOT NULL, actualizado TEXT NOT NULL, sin_leer_cliente INTEGER NOT NULL DEFAULT 0, sin_leer_soporte INTEGER NOT NULL DEFAULT 1)"),
+    db.prepare("CREATE TABLE IF NOT EXISTS mipos_ticket_msgs (id INTEGER PRIMARY KEY AUTOINCREMENT, ticket_id INTEGER NOT NULL, autor TEXT NOT NULL, texto TEXT NOT NULL DEFAULT '', adjunto TEXT, creado TEXT NOT NULL)"),
+  ]);
+  tablasSoporte = true;
+}
+
+export function adjuntoValido(a) {
+  if (!a) return null;
+  const s = String(a);
+  if (!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(s)) throw Object.assign(new Error('La imagen adjunta no es válida'), { status: 400 });
+  if (s.length > 1400000) throw Object.assign(new Error('La imagen es muy grande (máximo 1 MB)'), { status: 400 });
+  return s;
+}
+
+export function correoNuevoCaso(t, texto, panel) {
+  let d = {};
+  try { d = JSON.parse(t.diagnostico || '{}'); } catch (e) { /* nada */ }
+  const filas = Object.entries(d).filter(([k]) => k !== 'errores').map(([k, v]) => `<tr><td style="color:#5f6580;padding-right:10px">${escH(k)}</td><td>${escH(typeof v === 'object' ? JSON.stringify(v) : v)}</td></tr>`).join('');
+  return `<div style="font-family:Arial,sans-serif;max-width:640px;color:#161a2e">
+  <h2 style="margin:0 0 6px">Caso #${t.id} · ${t.tipo === 'problema' ? 'Problema' : 'Consulta'}</h2>
+  <p><b>${escH(t.cliente || 'Sin nombre')}</b>${t.telefono ? ' · ' + escH(t.telefono) : ''}${t.email ? ' · ' + escH(t.email) : ''}</p>
+  <blockquote style="border-left:4px solid #ffd23f;margin:0;padding:8px 14px;background:#fffbea;white-space:pre-wrap">${escH(texto)}</blockquote>
+  <table style="font-size:13px;margin-top:12px">${filas}</table>
+  ${d.errores ? `<pre style="font-size:12px;background:#f6f7fb;padding:10px;white-space:pre-wrap">${escH(d.errores)}</pre>` : ''}
+  <p><a href="${panel}/mipos-licencias.html">Responder desde tu página de licencias → pestaña Soporte</a></p></div>`;
+}
+
+export function correoRespuesta(t, texto) {
+  return `<div style="font-family:Arial,sans-serif;max-width:560px;color:#161a2e">
+  <h2 style="margin:0 0 6px">Respuesta a tu caso #${t.id}</h2>
+  <blockquote style="border-left:4px solid #2f5bff;margin:0;padding:8px 14px;background:#f3f6ff;white-space:pre-wrap">${escH(texto)}</blockquote>
+  <p>También la ves en MiPOS, en el botón <b>Soporte</b> → Mis casos, donde puedes seguir conversando.</p>
+  <p style="color:#5f6580;font-size:13px">Mis Pitutos Informáticos · soporte de MiPOS</p></div>`;
+}

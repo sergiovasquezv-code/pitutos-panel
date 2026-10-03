@@ -1,7 +1,7 @@
 // /api/mipos-admin/*  — administración de licencias (la usa public/mipos-licencias.html).
 // Protegida con el secreto MIPOS_ADMIN_CLAVE (encabezado Authorization: Bearer <clave>).
 import { anotar, asegurarTablasVenta, base, claveNueva, diasPrueba, diasSinInternet, error, firmarLicencia, hoy, json, leerCuerpo,
-  normalizarEquipo, recordatoriosDelDia, revisarPago, texto, ahora } from '../../../mipos-lib/licencias.js';
+  normalizarEquipo, recordatoriosDelDia, revisarPago, texto, ahora, asegurarTablasSoporte, adjuntoValido, correo, correoRespuesta } from '../../../mipos-lib/licencias.js';
 
 function igual(a, b) {
   const x = new TextEncoder().encode(a), y = new TextEncoder().encode(b);
@@ -29,11 +29,12 @@ async function resumen(db, env) {
   const acts = (await db.prepare('SELECT * FROM mipos_activaciones ORDER BY id').all()).results;
   const pruebas = (await db.prepare('SELECT * FROM mipos_pruebas ORDER BY inicio DESC').all()).results;
   const planes = (await db.prepare('SELECT * FROM mipos_planes ORDER BY orden, precio').all()).results;
+  const soporte = await db.prepare("SELECT SUM(estado<>'resuelto') AS abiertos, SUM(sin_leer_soporte>0 AND estado<>'resuelto') AS sin_leer FROM mipos_tickets").first();
   const compras = (await db.prepare('SELECT c.*, k.clave FROM mipos_compras c LEFT JOIN mipos_claves k ON k.id=c.clave_id ORDER BY c.id DESC LIMIT 300').all()).results;
   for (const c of claves) c.equipos = acts.filter(a => a.clave_id === c.id);
   let firma = 'ok';
   try { await firmarLicencia(env, { prueba: 1 }); } catch (e) { firma = e.message; }
-  return { hoy: hoy(), claves, pruebas, planes, compras, config: { dias_prueba: diasPrueba(env), dias_sin_internet: diasSinInternet(env), firma,
+  return { hoy: hoy(), claves, pruebas, planes, compras, soporte: { abiertos: soporte.abiertos || 0, sin_leer: soporte.sin_leer || 0 }, config: { dias_prueba: diasPrueba(env), dias_sin_internet: diasSinInternet(env), firma,
     mercado_pago: env.MP_ACCESS_TOKEN ? (String(env.MP_ACCESS_TOKEN).startsWith('TEST-') ? 'prueba' : 'ok') : 'falta',
     correo: env.RESEND_API_KEY && env.EMAIL_REMITENTE ? 'ok' : 'falta' } };
 }
@@ -45,6 +46,7 @@ export async function onRequest({ request, env, params, waitUntil }) {
   try {
     const db = base(env);
     await asegurarTablasVenta(db);
+    await asegurarTablasSoporte(db);
     const ruta = (params.ruta || []).join('/');
     const m = request.method;
     const d = m === 'GET' || m === 'DELETE' ? {} : await leerCuerpo(request);
@@ -143,6 +145,39 @@ export async function onRequest({ request, env, params, waitUntil }) {
       const c = await db.prepare('SELECT * FROM mipos_compras WHERE id=?').bind(+p[1]).first();
       if (!c) return error(404, 'Compra no encontrada');
       return json(await revisarPago(db, env, { compra: c }));
+    }
+
+    // ---- soporte
+    if (m === 'GET' && ruta === 'soporte') {
+      return json((await db.prepare('SELECT t.id, t.cliente, t.telefono, t.email, t.tipo, t.asunto, t.estado, t.creado, t.actualizado, t.sin_leer_soporte, t.equipo, c.clave FROM mipos_tickets t LEFT JOIN mipos_claves c ON c.id=t.clave_id ORDER BY (t.estado=\'resuelto\'), t.actualizado DESC LIMIT 300').all()).results);
+    }
+    p = ruta.match(/^soporte\/(\d+)$/);
+    if (p && m === 'GET') {
+      const t = await db.prepare('SELECT * FROM mipos_tickets WHERE id=?').bind(+p[1]).first();
+      if (!t) return error(404, 'Caso no encontrado');
+      const msgs = (await db.prepare('SELECT * FROM mipos_ticket_msgs WHERE ticket_id=? ORDER BY id').bind(t.id).all()).results;
+      await db.prepare('UPDATE mipos_tickets SET sin_leer_soporte=0 WHERE id=?').bind(t.id).run();
+      return json({ ...t, mensajes: msgs });
+    }
+    p = ruta.match(/^soporte\/(\d+)\/responder$/);
+    if (p && m === 'POST') {
+      const t = await db.prepare('SELECT * FROM mipos_tickets WHERE id=?').bind(+p[1]).first();
+      if (!t) return error(404, 'Caso no encontrado');
+      const msg = texto(d.texto, 4000);
+      if (!msg) return error(400, 'Escribe la respuesta');
+      const estado = ['nuevo', 'en_curso', 'resuelto'].includes(d.estado) ? d.estado : 'en_curso';
+      await db.batch([
+        db.prepare("INSERT INTO mipos_ticket_msgs(ticket_id, autor, texto, adjunto, creado) VALUES(?, 'soporte', ?, ?, ?)").bind(t.id, msg, adjuntoValido(d.adjunto), ahora()),
+        db.prepare('UPDATE mipos_tickets SET estado=?, actualizado=?, sin_leer_cliente=sin_leer_cliente+1, sin_leer_soporte=0 WHERE id=?').bind(estado, ahora(), t.id),
+      ]);
+      const enviado = t.email ? await correo(env, t.email, `Respuesta a tu caso #${t.id} de MiPOS`, correoRespuesta(t, msg)) : 'sin correo';
+      return json({ ok: true, correo: enviado });
+    }
+    p = ruta.match(/^soporte\/(\d+)\/estado$/);
+    if (p && m === 'POST') {
+      if (!['nuevo', 'en_curso', 'resuelto'].includes(d.estado)) return error(400, 'Estado inválido');
+      await db.prepare('UPDATE mipos_tickets SET estado=?, actualizado=? WHERE id=?').bind(d.estado, ahora(), +p[1]).run();
+      return json({ ok: true });
     }
 
     if (m === 'POST' && ruta === 'codigo') {

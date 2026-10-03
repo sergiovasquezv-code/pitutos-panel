@@ -44,8 +44,19 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; }
 .stat span { display: block; color: var(--suave); font-size: .8rem; font-weight: 700; }
 .stat strong { font-size: 1.6rem; font-variant-numeric: tabular-nums; }
 .tabs { display: flex; gap: 4px; background: var(--panel); border: 1px solid var(--borde); padding: 4px; border-radius: 13px; width: fit-content; max-width: 100%; overflow-x: auto; margin-bottom: 14px; }
-.tabs button { border: 0; background: none; padding: 7px 14px; border-radius: 10px; cursor: pointer; font-weight: 650; color: var(--suave); white-space: nowrap; }
+.tabs button { border: 0; display: inline-flex; align-items: center; background: none; padding: 7px 14px; border-radius: 10px; cursor: pointer; font-weight: 650; color: var(--suave); white-space: nowrap; }
 .tabs button.activo { background: var(--acento); color: #fff; }
+.burbuja { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: #ef5128; color: #fff; font-size: .75rem; font-weight: 800; margin-left: 4px; }
+.chat { display: grid; gap: 10px; max-height: 46vh; overflow: auto; padding: 4px; }
+.msg { max-width: 85%; padding: 10px 13px; border-radius: 14px; white-space: pre-wrap; line-height: 1.45; }
+.msg.cliente { background: var(--panel-2); justify-self: start; border-bottom-left-radius: 4px; }
+.msg.soporte { background: var(--acento-claro); justify-self: end; border-bottom-right-radius: 4px; }
+.msg small { display: block; color: var(--suave); font-size: .75rem; margin-top: 4px; }
+.msg img { display: block; max-width: 100%; max-height: 260px; border-radius: 8px; margin-top: 8px; cursor: zoom-in; }
+.diag { font-size: .82rem; background: var(--panel-2); border-radius: 12px; padding: 10px 12px; display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; }
+.diag b { color: var(--suave); font-weight: 600; }
+.diag pre { grid-column: 1 / -1; white-space: pre-wrap; margin: 6px 0 0; font-size: .76rem; max-height: 160px; overflow: auto; }
+.modal.ancho { width: min(820px, 100%); }
 .barra { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
 input, select, textarea { width: 100%; border: 1px solid var(--borde); background: var(--panel); border-radius: 10px; padding: 9px 11px; }
 input:focus, select:focus, textarea:focus { outline: 2px solid color-mix(in srgb, var(--acento) 45%, transparent); border-color: var(--acento); }
@@ -204,13 +215,13 @@ function pintar() {
       <div class="stat"><span>Pruebas en curso</span><strong>${enPrueba}</strong></div>
       <div class="stat"><span>Ventas web este mes</span><strong>$${ventasMes.toLocaleString('es-CL')}</strong></div>
     </div>
-    <div class="tabs">${[['claves', 'Clientes'], ['ventas', 'Ventas'], ['planes', 'Planes y precios'], ['pruebas', 'Pruebas gratis'], ['codigo', 'Código sin internet'], ['historial', 'Historial']]
+    <div class="tabs">${[['claves', 'Clientes'], ['soporte', `Soporte${d.soporte && d.soporte.sin_leer ? ` <span class="burbuja">${d.soporte.sin_leer}</span>` : ''}`], ['ventas', 'Ventas'], ['planes', 'Planes y precios'], ['pruebas', 'Pruebas gratis'], ['codigo', 'Código sin internet'], ['historial', 'Historial']]
       .map(([k, t]) => `<button data-tab="${k}" class="${E.tab === k ? 'activo' : ''}">${t}</button>`).join('')}</div>
     <div id="contenido"></div></div>`;
   $('#b-nueva').addEventListener('click', () => formClave());
   $('#b-salir').addEventListener('click', salir);
   $$('[data-tab]').forEach(b => b.addEventListener('click', () => { E.tab = b.dataset.tab; pintar(); }));
-  ({ claves: vistaClaves, ventas: vistaVentas, planes: vistaPlanes, pruebas: vistaPruebas, codigo: vistaCodigo, historial: vistaHistorial })[E.tab]();
+  ({ claves: vistaClaves, soporte: vistaSoporte, ventas: vistaVentas, planes: vistaPlanes, pruebas: vistaPruebas, codigo: vistaCodigo, historial: vistaHistorial })[E.tab]();
 }
 
 function badgeVence(k) {
@@ -357,6 +368,63 @@ function vistaCodigo() {
   });
 }
 
+// ------------------------------------------------------------------ soporte
+const ESTADOS_SOP = { nuevo: ['rojo', 'Nuevo'], en_curso: ['amarillo', 'En curso'], resuelto: ['verde', 'Resuelto'] };
+async function vistaSoporte() {
+  const c = $('#contenido');
+  c.innerHTML = '<div class="det">Cargando…</div>';
+  let l;
+  try { l = await api('soporte'); } catch (e) { c.innerHTML = `<div class="aviso peligro">${esc(e.message)}</div>`; return; }
+  c.innerHTML = `<div class="det" style="margin-bottom:10px">Casos que tus clientes abren con el botón <b>Soporte</b> de MiPOS. Cada uno trae su versión, licencia, impresora y últimos errores. Te llega un correo con cada caso nuevo y cada mensaje.</div>
+    ${l.length ? `<div class="tabla-wrap"><table><thead><tr><th>Caso</th><th>Cliente</th><th>Asunto</th><th>Estado</th><th>Actualizado</th></tr></thead><tbody>
+    ${l.map(t => { const [cl, tx] = ESTADOS_SOP[t.estado] || ['', t.estado]; return `<tr class="click" data-caso="${t.id}" style="cursor:pointer">
+      <td><b>#${t.id}</b> <span class="badge ${t.tipo === 'problema' ? 'rojo' : 'azul'}">${t.tipo === 'problema' ? 'Problema' : 'Consulta'}</span></td>
+      <td><b>${esc(t.cliente || '—')}</b><div class="det">${esc(t.telefono)}</div></td>
+      <td>${esc(t.asunto)}${t.sin_leer_soporte ? ` <span class="burbuja">${t.sin_leer_soporte}</span>` : ''}</td>
+      <td><span class="badge ${cl}">${tx}</span></td><td style="white-space:nowrap">${fechaHora(t.actualizado)}</td></tr>`; }).join('')}</tbody></table></div>`
+    : '<div class="vacio">No hay casos de soporte. Cuando un cliente use el botón Soporte de MiPOS, aparecerá aquí.</div>'}`;
+  $$('[data-caso]').forEach(tr => tr.addEventListener('click', () => verCaso(+tr.dataset.caso)));
+}
+
+async function verCaso(id) {
+  let t;
+  try { t = await api('soporte/' + id); } catch (e) { return toast(e.message, 'error'); }
+  let diag = {};
+  try { diag = JSON.parse(t.diagnostico || '{}'); } catch (e) { /* nada */ }
+  const nombres = { version: 'Versión', negocio: 'Negocio', rut: 'RUT', licencia: 'Licencia', licencia_panel: 'Licencia (panel)', equipo: 'Equipo',
+    windows: 'Sistema', impresora: 'Impresora', balanza: 'Balanza', cajas: 'Cajas', productos: 'Productos', usuario: 'Reporta', pantalla: 'Pantalla', boleta: 'Boleta electrónica' };
+  const tel = String(t.telefono || '').replace(/\D/g, '');
+  const m = modal(`<h2>Caso #${t.id} · ${esc(t.cliente || 'cliente')}</h2>
+    <div class="t-cab"><span class="badge ${t.tipo === 'problema' ? 'rojo' : 'azul'}">${t.tipo === 'problema' ? 'Problema' : 'Consulta'}</span>
+      <span class="det">${esc(t.telefono)}${t.email ? ' · ' + esc(t.email) : ''} · abierto ${fechaHora(t.creado)}</span>
+      ${tel ? `<a class="btn chico verde" target="_blank" rel="noopener" href="https://wa.me/${tel}?text=${encodeURIComponent(`Hola ${t.cliente || ''}, te escribo por tu caso #${t.id} de MiPOS.`)}">WhatsApp</a>` : ''}</div>
+    <details><summary class="det" style="cursor:pointer">Datos del equipo (diagnóstico)</summary><div class="diag">
+      ${Object.entries(diag).filter(([k]) => k !== 'errores').map(([k, v]) => `<b>${esc(nombres[k] || k)}</b><span>${esc(typeof v === 'object' ? JSON.stringify(v) : v)}</span>`).join('')}
+      ${diag.errores ? `<pre>${esc(diag.errores)}</pre>` : ''}</div></details>
+    <div class="chat">${t.mensajes.map(x => `<div class="msg ${x.autor}">${esc(x.texto)}${x.adjunto ? `<img src="${x.adjunto}" alt="captura" data-zoom>` : ''}
+      <small>${x.autor === 'soporte' ? 'Tú' : esc(t.cliente || 'Cliente')} · ${fechaHora(x.creado)}</small></div>`).join('')}</div>
+    <form id="f-resp" style="display:grid;gap:8px"><textarea name="texto" rows="3" placeholder="Escribe tu respuesta (le llega en MiPOS${t.email ? ' y por correo' : ''})" required></textarea>
+      <div class="acciones" style="justify-content:flex-end">
+        <button type="button" class="btn" data-cerrar>Cerrar</button>
+        ${t.estado !== 'resuelto' ? '<button type="button" class="btn" id="cs-resuelto">Marcar resuelto sin responder</button>' : ''}
+        <button class="btn" name="resolver" value="1">Responder y marcar resuelto</button>
+        <button class="btn primario">Responder</button></div></form>`);
+  m.el.classList.add('ancho');
+  const chat = $('.chat', m.el); chat.scrollTop = chat.scrollHeight;
+  $$('[data-zoom]', m.el).forEach(img => img.addEventListener('click', () => window.open(img.src, '_blank')));
+  const r = $('#cs-resuelto', m.el);
+  if (r) r.addEventListener('click', async () => { try { await api(`soporte/${id}/estado`, { method: 'POST', body: { estado: 'resuelto' } }); m.cerrar(); toast('Caso resuelto'); cargar(); } catch (e) { toast(e.message, 'error'); } });
+  const f = $('#f-resp', m.el);
+  f.addEventListener('submit', async e => {
+    e.preventDefault();
+    const resolver = e.submitter && e.submitter.name === 'resolver';
+    try {
+      const x = await api(`soporte/${id}/responder`, { method: 'POST', body: { texto: f.texto.value, estado: resolver ? 'resuelto' : 'en_curso' } });
+      m.cerrar(); toast(`Respuesta enviada${x.correo === 'enviado' ? ' (también por correo)' : ''}`); await cargar();
+    } catch (err) { toast(err.message, 'error'); }
+  });
+}
+
 // ------------------------------------------------------------------ ventas en línea (Mercado Pago)
 const ESTADOS_COMPRA = { aprobada: ['verde', 'Pagada'], pendiente: ['amarillo', 'Pendiente'], procesando: ['amarillo', 'Procesando'], rechazada: ['rojo', 'Rechazada'] };
 function vistaVentas() {
@@ -444,7 +512,7 @@ function formPlan(p) {
 }
 
 const NOMBRES_EVENTO = { activacion: 'Activación', activacion_rechazada: 'Activación rechazada', prueba: 'Prueba iniciada', clave_creada: 'Clave creada',
-  clave_editada: 'Clave modificada', recordatorio: 'Recordatorio enviado', compra_pagada: 'Venta en línea', renovacion_pagada: 'Renovación pagada', plan: 'Plan', clave_eliminada: 'Clave eliminada', pc_liberado: 'PC liberado', prueba_reiniciada: 'Prueba reiniciada', codigo_sin_internet: 'Código sin internet' };
+  clave_editada: 'Clave modificada', soporte: 'Caso de soporte', recordatorio: 'Recordatorio enviado', compra_pagada: 'Venta en línea', renovacion_pagada: 'Renovación pagada', plan: 'Plan', clave_eliminada: 'Clave eliminada', pc_liberado: 'PC liberado', prueba_reiniciada: 'Prueba reiniciada', codigo_sin_internet: 'Código sin internet' };
 async function vistaHistorial() {
   const c = $('#contenido');
   c.innerHTML = '<div class="det">Cargando…</div>';
