@@ -6,10 +6,17 @@ const PUBLIC_PATHS = new Set(["/api/auth/login", "/api/auth/setup", "/api/me"]);
 // /api/public/* es la zona sin login: la página de seguimiento del cliente
 // y las fotos que ve ahí.
 const PUBLIC_PREFIX = "/api/public/";
+// Licencias de MiPOS: /api/mipos/* lo llama el programa del cliente (sin login del panel)
+// y /api/mipos-admin/* tiene su propia clave (MIPOS_ADMIN_CLAVE).
+const MIPOS_PREFIXES = ["/api/mipos/", "/api/mipos-admin/"];
 
 export async function onRequest(context) {
   const url = new URL(context.request.url);
-  if (PUBLIC_PATHS.has(url.pathname) || url.pathname.startsWith(PUBLIC_PREFIX)) {
+  if (
+    PUBLIC_PATHS.has(url.pathname) ||
+    url.pathname.startsWith(PUBLIC_PREFIX) ||
+    MIPOS_PREFIXES.some((p) => url.pathname.startsWith(p))
+  ) {
     return context.next();
   }
   const user = await getUserFromSession(context.env, context.request);
