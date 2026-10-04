@@ -1,0 +1,200 @@
+// /api/mivet-admin/*  — administración de licencias (la usa public/mivet-licencias.html).
+// Protegida con el secreto MIVET_ADMIN_CLAVE (encabezado Authorization: Bearer <clave>).
+import { anotar, asegurarTablasVenta, base, claveNueva, diasPrueba, diasSinInternet, error, firmarLicencia, hoy, json, leerCuerpo,
+  normalizarEquipo, recordatoriosDelDia, revisarPago, texto, ahora, asegurarTablasSoporte, adjuntoValido, correo, correoRespuesta } from '../../../mivet-lib/licencias.js';
+
+function igual(a, b) {
+  const x = new TextEncoder().encode(a), y = new TextEncoder().encode(b);
+  let dif = x.length ^ y.length;
+  for (let i = 0; i < Math.max(x.length, y.length); i++) dif |= (x[i] || 0) ^ (y[i] || 0);
+  return dif === 0;
+}
+
+function datosClave(d, actual = {}) {
+  const v = { ...actual };
+  if ('cliente' in d) v.cliente = texto(d.cliente, 100);
+  if ('contacto' in d) v.contacto = texto(d.contacto, 100);
+  if ('email' in d) v.email = texto(d.email, 120).toLowerCase();
+  if ('notas' in d) v.notas = texto(d.notas, 500);
+  if ('cajas' in d) v.cajas = Math.min(Math.max(parseInt(d.cajas, 10) || 1, 1), 50);
+  if ('max_equipos' in d) v.max_equipos = Math.min(Math.max(parseInt(d.max_equipos, 10) || 1, 1), 20);
+  if ('vence' in d) v.vence = /^\d{4}-\d{2}-\d{2}$/.test(d.vence || '') ? d.vence : null;
+  if ('estado' in d) v.estado = d.estado === 'bloqueada' ? 'bloqueada' : 'activa';
+  if (!v.cliente) throw Object.assign(new Error('Falta el nombre del cliente'), { status: 400 });
+  return v;
+}
+
+async function resumen(db, env) {
+  const claves = (await db.prepare('SELECT * FROM mivet_claves ORDER BY id DESC').all()).results;
+  const acts = (await db.prepare('SELECT * FROM mivet_activaciones ORDER BY id').all()).results;
+  const pruebas = (await db.prepare('SELECT * FROM mivet_pruebas ORDER BY inicio DESC').all()).results;
+  const planes = (await db.prepare('SELECT * FROM mivet_planes ORDER BY orden, precio').all()).results;
+  const soporte = await db.prepare("SELECT SUM(estado<>'resuelto') AS abiertos, SUM(sin_leer_soporte>0 AND estado<>'resuelto') AS sin_leer FROM mivet_tickets").first();
+  const compras = (await db.prepare('SELECT c.*, k.clave FROM mivet_compras c LEFT JOIN mivet_claves k ON k.id=c.clave_id ORDER BY c.id DESC LIMIT 300').all()).results;
+  for (const c of claves) c.equipos = acts.filter(a => a.clave_id === c.id);
+  let firma = 'ok';
+  try { await firmarLicencia(env, { prueba: 1 }); } catch (e) { firma = e.message; }
+  return { hoy: hoy(), claves, pruebas, planes, compras, soporte: { abiertos: soporte.abiertos || 0, sin_leer: soporte.sin_leer || 0 }, config: { dias_prueba: diasPrueba(env), dias_sin_internet: diasSinInternet(env), firma,
+    mercado_pago: env.MP_ACCESS_TOKEN ? (String(env.MP_ACCESS_TOKEN).startsWith('TEST-') ? 'prueba' : 'ok') : 'falta',
+    correo: env.RESEND_API_KEY && env.EMAIL_REMITENTE ? 'ok' : 'falta' } };
+}
+
+export async function onRequest({ request, env, params, waitUntil }) {
+  const token = (request.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '');
+  const claveAdmin = env.MIVET_ADMIN_CLAVE || env.MIPOS_ADMIN_CLAVE;  // la misma clave de tu página de MiPOS
+  if (!claveAdmin) return error(500, 'Falta configurar el secreto MIPOS_ADMIN_CLAVE en Cloudflare');
+  if (!igual(token, claveAdmin)) return error(401, 'Clave de administrador incorrecta');
+  try {
+    const db = base(env);
+    await asegurarTablasVenta(db);
+    await asegurarTablasSoporte(db);
+    const ruta = (params.ruta || []).join('/');
+    const m = request.method;
+    const d = m === 'GET' || m === 'DELETE' ? {} : await leerCuerpo(request);
+    let r;
+
+    if (m === 'GET' && ruta === 'resumen') {
+      if (waitUntil) waitUntil(recordatoriosDelDia(db, env, new URL(request.url).origin).catch(() => {}));
+      return json(await resumen(db, env));
+    }
+    if (m === 'POST' && ruta === 'recordatorios') return json(await recordatoriosDelDia(db, env, new URL(request.url).origin, { forzar: true }));
+
+    if (m === 'GET' && ruta === 'eventos') {
+      return json((await db.prepare('SELECT e.*, c.cliente FROM mivet_eventos e LEFT JOIN mivet_claves c ON c.id=e.clave_id ORDER BY e.id DESC LIMIT 300').all()).results);
+    }
+
+    if (m === 'POST' && ruta === 'claves') {
+      const v = datosClave(d, { cajas: 1, max_equipos: 1, vence: null, contacto: '', notas: '', email: '' });
+      for (let intento = 0; intento < 5; intento++) {
+        const clave = claveNueva();
+        try {
+          r = await db.prepare('INSERT INTO mivet_claves(clave, cliente, contacto, cajas, vence, max_equipos, notas, creado, email) VALUES(?,?,?,?,?,?,?,?,?)')
+            .bind(clave, v.cliente, v.contacto, v.cajas, v.vence, v.max_equipos, v.notas, ahora(), v.email || '').run();
+          const id = r.meta.last_row_id;
+          await anotar(db, 'clave_creada', { clave_id: id, detalle: `${v.cliente} · ${v.cajas} caja(s) · ${v.vence || 'sin vencimiento'}` });
+          return json(await db.prepare('SELECT * FROM mivet_claves WHERE id=?').bind(id).first());
+        } catch (e) { if (!/UNIQUE/i.test(e.message)) throw e; }
+      }
+      return error(500, 'No se pudo generar una clave única, intenta de nuevo');
+    }
+
+    let p = ruta.match(/^claves\/(\d+)$/);
+    if (p && m === 'PUT') {
+      const actual = await db.prepare('SELECT * FROM mivet_claves WHERE id=?').bind(+p[1]).first();
+      if (!actual) return error(404, 'Clave no encontrada');
+      const v = datosClave(d, actual);
+      await db.prepare('UPDATE mivet_claves SET cliente=?, contacto=?, cajas=?, vence=?, max_equipos=?, estado=?, notas=?, email=? WHERE id=?')
+        .bind(v.cliente, v.contacto, v.cajas, v.vence, v.max_equipos, v.estado, v.notas, v.email || '', actual.id).run();
+      const cambios = ['cajas', 'vence', 'max_equipos', 'estado', 'cliente'].filter(k => String(actual[k]) !== String(v[k]))
+        .map(k => `${k}: ${actual[k] ?? '—'} → ${v[k] ?? '—'}`).join(', ');
+      await anotar(db, 'clave_editada', { clave_id: actual.id, detalle: cambios || 'sin cambios' });
+      return json(await db.prepare('SELECT * FROM mivet_claves WHERE id=?').bind(actual.id).first());
+    }
+    if (p && m === 'DELETE') {
+      await db.batch([db.prepare('DELETE FROM mivet_activaciones WHERE clave_id=?').bind(+p[1]),
+                      db.prepare('DELETE FROM mivet_claves WHERE id=?').bind(+p[1])]);
+      await anotar(db, 'clave_eliminada', { clave_id: +p[1] });
+      return json({ ok: true });
+    }
+
+    p = ruta.match(/^claves\/(\d+)\/liberar$/);
+    if (p && m === 'POST') {
+      const equipo = normalizarEquipo(d.equipo);
+      r = await db.prepare("UPDATE mivet_activaciones SET estado='liberada' WHERE clave_id=? AND equipo=?").bind(+p[1], equipo).run();
+      if (!r.meta.changes) return error(404, 'Ese computador no está en esta clave');
+      await anotar(db, 'pc_liberado', { clave_id: +p[1], equipo });
+      return json({ ok: true });
+    }
+
+    p = ruta.match(/^pruebas\/([A-Z0-9-]+)$/);
+    if (p && m === 'DELETE') {
+      await db.prepare('DELETE FROM mivet_pruebas WHERE equipo=?').bind(p[1]).run();
+      await anotar(db, 'prueba_reiniciada', { equipo: p[1] });
+      return json({ ok: true });
+    }
+
+    // ---- planes a la venta (los ve la página de compra)
+    const datosPlan = x => {
+      const v = { nombre: texto(x.nombre, 60), descripcion: texto(x.descripcion, 200), meses: Math.min(Math.max(parseInt(x.meses, 10) || 1, 1), 120),
+                  cajas: Math.min(Math.max(parseInt(x.cajas, 10) || 1, 1), 50), precio: Math.max(parseInt(x.precio, 10) || 0, 0),
+                  destacado: x.destacado ? 1 : 0, activo: x.activo === false ? 0 : 1, orden: parseInt(x.orden, 10) || 0 };
+      if (!v.nombre) throw Object.assign(new Error('Falta el nombre del plan'), { status: 400 });
+      if (v.precio < 100) throw Object.assign(new Error('El precio debe ser de al menos $100'), { status: 400 });
+      return v;
+    };
+    if (m === 'POST' && ruta === 'planes') {
+      const v = datosPlan(d);
+      r = await db.prepare('INSERT INTO mivet_planes(nombre, descripcion, meses, cajas, precio, destacado, activo, orden, creado) VALUES(?,?,?,?,?,?,?,?,?)')
+        .bind(v.nombre, v.descripcion, v.meses, v.cajas, v.precio, v.destacado, v.activo, v.orden, ahora()).run();
+      await anotar(db, 'plan', { detalle: `Nuevo plan: ${v.nombre} · $${v.precio}` });
+      return json(await db.prepare('SELECT * FROM mivet_planes WHERE id=?').bind(r.meta.last_row_id).first());
+    }
+    p = ruta.match(/^planes\/(\d+)$/);
+    if (p && m === 'PUT') {
+      const v = datosPlan(d);
+      await db.prepare('UPDATE mivet_planes SET nombre=?, descripcion=?, meses=?, cajas=?, precio=?, destacado=?, activo=?, orden=? WHERE id=?')
+        .bind(v.nombre, v.descripcion, v.meses, v.cajas, v.precio, v.destacado, v.activo, v.orden, +p[1]).run();
+      await anotar(db, 'plan', { detalle: `Plan modificado: ${v.nombre} · $${v.precio}${v.activo ? '' : ' (pausado)'}` });
+      return json(await db.prepare('SELECT * FROM mivet_planes WHERE id=?').bind(+p[1]).first());
+    }
+    if (p && m === 'DELETE') {
+      await db.prepare('DELETE FROM mivet_planes WHERE id=?').bind(+p[1]).run();
+      return json({ ok: true });
+    }
+    p = ruta.match(/^compras\/(\d+)\/revisar$/);
+    if (p && m === 'POST') {  // vuelve a consultar el pago en Mercado Pago (por si el aviso no llegó)
+      const c = await db.prepare('SELECT * FROM mivet_compras WHERE id=?').bind(+p[1]).first();
+      if (!c) return error(404, 'Compra no encontrada');
+      return json(await revisarPago(db, env, { compra: c }));
+    }
+
+    // ---- soporte
+    if (m === 'GET' && ruta === 'soporte') {
+      return json((await db.prepare('SELECT t.id, t.cliente, t.telefono, t.email, t.tipo, t.asunto, t.estado, t.creado, t.actualizado, t.sin_leer_soporte, t.equipo, c.clave FROM mivet_tickets t LEFT JOIN mivet_claves c ON c.id=t.clave_id ORDER BY (t.estado=\'resuelto\'), t.actualizado DESC LIMIT 300').all()).results);
+    }
+    p = ruta.match(/^soporte\/(\d+)$/);
+    if (p && m === 'GET') {
+      const t = await db.prepare('SELECT * FROM mivet_tickets WHERE id=?').bind(+p[1]).first();
+      if (!t) return error(404, 'Caso no encontrado');
+      const msgs = (await db.prepare('SELECT * FROM mivet_ticket_msgs WHERE ticket_id=? ORDER BY id').bind(t.id).all()).results;
+      await db.prepare('UPDATE mivet_tickets SET sin_leer_soporte=0 WHERE id=?').bind(t.id).run();
+      return json({ ...t, mensajes: msgs });
+    }
+    p = ruta.match(/^soporte\/(\d+)\/responder$/);
+    if (p && m === 'POST') {
+      const t = await db.prepare('SELECT * FROM mivet_tickets WHERE id=?').bind(+p[1]).first();
+      if (!t) return error(404, 'Caso no encontrado');
+      const msg = texto(d.texto, 4000);
+      if (!msg) return error(400, 'Escribe la respuesta');
+      const estado = ['nuevo', 'en_curso', 'resuelto'].includes(d.estado) ? d.estado : 'en_curso';
+      await db.batch([
+        db.prepare("INSERT INTO mivet_ticket_msgs(ticket_id, autor, texto, adjunto, creado) VALUES(?, 'soporte', ?, ?, ?)").bind(t.id, msg, adjuntoValido(d.adjunto), ahora()),
+        db.prepare('UPDATE mivet_tickets SET estado=?, actualizado=?, sin_leer_cliente=sin_leer_cliente+1, sin_leer_soporte=0 WHERE id=?').bind(estado, ahora(), t.id),
+      ]);
+      const enviado = t.email ? await correo(env, t.email, `Respuesta a tu caso #${t.id} de MiVet`, correoRespuesta(t, msg)) : 'sin correo';
+      return json({ ok: true, correo: enviado });
+    }
+    p = ruta.match(/^soporte\/(\d+)\/estado$/);
+    if (p && m === 'POST') {
+      if (!['nuevo', 'en_curso', 'resuelto'].includes(d.estado)) return error(400, 'Estado inválido');
+      await db.prepare('UPDATE mivet_tickets SET estado=?, actualizado=? WHERE id=?').bind(d.estado, ahora(), +p[1]).run();
+      return json({ ok: true });
+    }
+
+    if (m === 'POST' && ruta === 'codigo') {
+      // Código de activación para un PC sin internet (el mismo formato que generar_licencia.bat)
+      const equipo = normalizarEquipo(d.equipo);
+      if (!equipo) return error(400, 'El código del equipo tiene 16 letras y números (ej: ABCD-EFGH-JKLM-NPQR)');
+      const cliente = texto(d.cliente, 100);
+      if (!cliente) return error(400, 'Falta el nombre del cliente');
+      const vence = /^\d{4}-\d{2}-\d{2}$/.test(d.vence || '') ? d.vence : null;
+      const lic = { v: 1, id: equipo, cliente, cajas: Math.min(Math.max(parseInt(d.cajas, 10) || 1, 1), 50), emitida: hoy(), vence };
+      await anotar(db, 'codigo_sin_internet', { equipo, detalle: `${cliente} · ${lic.cajas} caja(s) · ${vence || 'sin vencimiento'}` });
+      return json({ codigo: await firmarLicencia(env, lic) });
+    }
+
+    return error(404, 'Ruta no encontrada');
+  } catch (e) {
+    return error(e.status || 500, e.message);
+  }
+}

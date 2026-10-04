@@ -1,0 +1,532 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Licencias MiVet</title>
+<style>
+:root {
+  --bg: #f3f4f8; --panel: #fff; --panel-2: #f6f7fb; --texto: #161a2e; --suave: #5f6580; --borde: #e3e5ee;
+  --acento: #2f5bff; --acento-claro: #e8edff; --etiqueta: #ffd23f; --ok: #0a8f62; --ok-claro: #dff5ec;
+  --aviso: #b26b00; --aviso-claro: #fff1d6; --peligro: #d42a3c; --peligro-claro: #fde5e8;
+  --sombra: 0 1px 2px rgba(20, 24, 50, .06), 0 8px 24px rgba(20, 24, 50, .06); --radio: 16px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1220; --panel: #171b2e; --panel-2: #1e2338; --texto: #eef0fa; --suave: #9aa1bf; --borde: #2a3050;
+    --acento: #6b8bff; --acento-claro: #222a52; --ok: #3ccf98; --ok-claro: #12352a; --aviso: #ffbe55; --aviso-claro: #3a2c12;
+    --peligro: #ff6b7a; --peligro-claro: #3d1820; --sombra: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25); color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--texto); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+button, input, select, textarea { font: inherit; color: inherit; }
+.oculto { display: none !important; }
+.envoltura { max-width: 1120px; margin: 0 auto; padding: 20px 16px 60px; }
+header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
+.marca { display: flex; align-items: center; gap: 10px; margin-right: auto; }
+.marca svg { width: 38px; height: 38px; }
+.marca h1 { margin: 0; font-size: 1.35rem; letter-spacing: -.01em; }
+.marca small { display: block; color: var(--suave); font-weight: 500; font-size: .82rem; }
+.btn { border: 1px solid var(--borde); background: var(--panel); border-radius: 11px; padding: 8px 14px; cursor: pointer; font-weight: 650; white-space: nowrap; transition: transform .1s, box-shadow .15s, background .15s; }
+.btn:hover { box-shadow: var(--sombra); }
+.btn:active { transform: translateY(1px); }
+.btn:disabled { opacity: .55; cursor: default; }
+.btn.primario { background: var(--acento); border-color: var(--acento); color: #fff; }
+.btn.peligro { color: var(--peligro); }
+.btn.chico { padding: 4px 10px; font-size: .84rem; border-radius: 9px; }
+.btn.verde { background: #1faa59; border-color: #1faa59; color: #fff; }
+a.btn { text-decoration: none; display: inline-flex; align-items: center; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 16px; }
+.stat { background: var(--panel); border: 1px solid var(--borde); border-radius: var(--radio); padding: 12px 14px; box-shadow: var(--sombra); }
+.stat span { display: block; color: var(--suave); font-size: .8rem; font-weight: 700; }
+.stat strong { font-size: 1.6rem; font-variant-numeric: tabular-nums; }
+.tabs { display: flex; gap: 4px; background: var(--panel); border: 1px solid var(--borde); padding: 4px; border-radius: 13px; width: fit-content; max-width: 100%; overflow-x: auto; margin-bottom: 14px; }
+.tabs button { border: 0; display: inline-flex; align-items: center; background: none; padding: 7px 14px; border-radius: 10px; cursor: pointer; font-weight: 650; color: var(--suave); white-space: nowrap; }
+.tabs button.activo { background: var(--acento); color: #fff; }
+.burbuja { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: #ef5128; color: #fff; font-size: .75rem; font-weight: 800; margin-left: 4px; }
+.chat { display: grid; gap: 10px; max-height: 46vh; overflow: auto; padding: 4px; }
+.msg { max-width: 85%; padding: 10px 13px; border-radius: 14px; white-space: pre-wrap; line-height: 1.45; }
+.msg.cliente { background: var(--panel-2); justify-self: start; border-bottom-left-radius: 4px; }
+.msg.soporte { background: var(--acento-claro); justify-self: end; border-bottom-right-radius: 4px; }
+.msg small { display: block; color: var(--suave); font-size: .75rem; margin-top: 4px; }
+.msg img { display: block; max-width: 100%; max-height: 260px; border-radius: 8px; margin-top: 8px; cursor: zoom-in; }
+.diag { font-size: .82rem; background: var(--panel-2); border-radius: 12px; padding: 10px 12px; display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; }
+.diag b { color: var(--suave); font-weight: 600; }
+.diag pre { grid-column: 1 / -1; white-space: pre-wrap; margin: 6px 0 0; font-size: .76rem; max-height: 160px; overflow: auto; }
+.modal.ancho { width: min(820px, 100%); }
+.barra { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+input, select, textarea { width: 100%; border: 1px solid var(--borde); background: var(--panel); border-radius: 10px; padding: 9px 11px; }
+input:focus, select:focus, textarea:focus { outline: 2px solid color-mix(in srgb, var(--acento) 45%, transparent); border-color: var(--acento); }
+.barra input[type=search] { flex: 1; min-width: 180px; }
+label { display: grid; gap: 4px; font-size: .85rem; font-weight: 650; color: var(--suave); }
+.lista { display: grid; gap: 12px; }
+.tarjeta { background: var(--panel); border: 1px solid var(--borde); border-radius: var(--radio); padding: 14px 16px; box-shadow: var(--sombra); display: grid; gap: 10px; }
+.tarjeta.bloqueada { opacity: .75; border-style: dashed; }
+.t-cab { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.t-cab h3 { margin: 0; font-size: 1.08rem; margin-right: auto; }
+.clave { font-family: Consolas, "SFMono-Regular", monospace; font-size: 1.05rem; letter-spacing: .05em; background: var(--panel-2); border: 1px dashed var(--borde); padding: 4px 10px; border-radius: 9px; }
+.meta { display: flex; flex-wrap: wrap; gap: 8px 18px; color: var(--suave); font-size: .9rem; }
+.meta b { color: var(--texto); }
+.badge { display: inline-flex; align-items: center; gap: 4px; font-size: .76rem; font-weight: 750; padding: 2px 9px; border-radius: 999px; background: var(--panel-2); color: var(--suave); white-space: nowrap; }
+.badge.verde { background: var(--ok-claro); color: var(--ok); }
+.badge.amarillo { background: var(--aviso-claro); color: var(--aviso); }
+.badge.rojo { background: var(--peligro-claro); color: var(--peligro); }
+.badge.azul { background: var(--acento-claro); color: var(--acento); }
+.pcs { display: grid; gap: 6px; }
+.pc { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; background: var(--panel-2); border-radius: 10px; padding: 6px 10px; font-size: .88rem; }
+.pc code { font-size: .82rem; color: var(--suave); }
+.pc .det { color: var(--suave); margin-left: auto; }
+.acciones { display: flex; gap: 6px; flex-wrap: wrap; }
+.vacio { text-align: center; color: var(--suave); padding: 40px 10px; background: var(--panel); border: 1px dashed var(--borde); border-radius: var(--radio); }
+table { width: 100%; border-collapse: collapse; background: var(--panel); border-radius: var(--radio); overflow: hidden; box-shadow: var(--sombra); }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--borde); font-size: .9rem; vertical-align: top; }
+th { font-size: .78rem; color: var(--suave); background: var(--panel-2); }
+.tabla-wrap { overflow-x: auto; border-radius: var(--radio); }
+.aviso { padding: 10px 14px; border-radius: 12px; background: var(--aviso-claro); color: var(--aviso); font-weight: 600; margin-bottom: 14px; }
+.aviso.peligro { background: var(--peligro-claro); color: var(--peligro); }
+.login { min-height: 100vh; display: grid; place-items: center; padding: 16px; }
+.login form { width: min(380px, 100%); background: var(--panel); border: 1px solid var(--borde); border-radius: 22px; padding: 26px; box-shadow: var(--sombra); display: grid; gap: 14px; }
+.login h1 { margin: 0; font-size: 1.3rem; }
+.check { display: flex; align-items: center; gap: 8px; font-weight: 500; color: var(--texto); }
+.check input { width: auto; }
+.overlay { position: fixed; inset: 0; background: rgba(10, 12, 25, .45); display: grid; place-items: center; padding: 16px; z-index: 10; }
+.modal { width: min(520px, 100%); max-height: 92vh; overflow: auto; background: var(--panel); border-radius: 20px; padding: 22px; display: grid; gap: 12px; box-shadow: 0 20px 60px rgba(0,0,0,.3); }
+.modal h2 { margin: 0; font-size: 1.2rem; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.full { grid-column: 1 / -1; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chips button { border: 1px solid var(--borde); background: var(--panel-2); border-radius: 999px; padding: 4px 11px; cursor: pointer; font-size: .82rem; font-weight: 650; }
+.grande { font-family: Consolas, monospace; font-size: 1.5rem; letter-spacing: .06em; text-align: center; padding: 14px; background: var(--panel-2); border: 2px dashed var(--etiqueta); border-radius: 14px; word-break: break-all; }
+.codigo { font-family: Consolas, monospace; font-size: .8rem; word-break: break-all; background: var(--panel-2); padding: 10px; border-radius: 10px; }
+.toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--texto); color: var(--bg); padding: 10px 18px; border-radius: 12px; font-weight: 650; z-index: 20; box-shadow: var(--sombra); max-width: calc(100% - 32px); }
+.toast.error { background: var(--peligro); color: #fff; }
+.det { color: var(--suave); font-size: .85rem; }
+@media (max-width: 560px) { .grid2 { grid-template-columns: 1fr; } .t-cab h3 { width: 100%; } }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+'use strict';
+const API = '/api/mivet-admin/';
+const LOGO = '<svg viewBox="0 0 40 40" aria-hidden="true"><path d="M6 20 17 6h17v28H17z" fill="#ffd23f"/><circle cx="16" cy="20" r="3" fill="#161a2e"/><text x="27" y="26" text-anchor="middle" font-size="15" font-weight="800" fill="#161a2e" font-family="system-ui">$</text></svg>';
+const E = { token: null, datos: null, tab: 'claves', q: '' };
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const fecha = f => f ? new Date(f.length === 10 ? f + 'T12:00' : f).toLocaleDateString('es-CL') : '';
+const fechaHora = f => f ? new Date(f).toLocaleString('es-CL', { dateStyle: 'short', timeStyle: 'short' }) : '—';
+const diasHasta = f => f ? Math.round((new Date(f + 'T12:00') - new Date(E.datos.hoy + 'T12:00')) / 86400000) : null;
+function hace(f) {
+  if (!f) return 'nunca';
+  const m = Math.round((Date.now() - new Date(f)) / 60000);
+  if (m < 2) return 'recién'; if (m < 60) return `hace ${m} min`;
+  const h = Math.round(m / 60); if (h < 36) return `hace ${h} h`;
+  return `hace ${Math.round(h / 24)} días`;
+}
+function sumar(f, { dias = 0, meses = 0 }) {
+  const d = new Date((f && f > E.datos.hoy ? f : E.datos.hoy) + 'T12:00');
+  d.setMonth(d.getMonth() + meses); d.setDate(d.getDate() + dias);
+  return d.toISOString().slice(0, 10);
+}
+function guardarToken(t, recordar) {
+  E.token = t;
+  try { sessionStorage.setItem('mivet_admin', t); if (recordar) localStorage.setItem('mivet_admin', t); } catch (e) { /* sin almacenamiento */ }
+}
+function leerToken() { try { return sessionStorage.getItem('mivet_admin') || localStorage.getItem('mivet_admin'); } catch (e) { return null; } }
+function salir() { try { sessionStorage.removeItem('mivet_admin'); localStorage.removeItem('mivet_admin'); } catch (e) { /* nada */ } E.token = null; pintarLogin(); }
+
+function toast(msg, tipo = 'ok') {
+  const t = document.createElement('div');
+  t.className = 'toast ' + tipo; t.textContent = msg;
+  document.body.appendChild(t); setTimeout(() => t.remove(), tipo === 'error' ? 6000 : 2600);
+}
+async function api(ruta, { method = 'GET', body } = {}) {
+  const r = await fetch(API + ruta, { method, headers: { Authorization: 'Bearer ' + E.token, 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+  const d = await r.json().catch(() => ({}));
+  if (r.status === 401) { salir(); throw new Error(d.error || 'Sesión expirada'); }
+  if (!r.ok) throw new Error(d.error || 'Error ' + r.status);
+  return d;
+}
+function modal(html) {
+  const ov = document.createElement('div');
+  ov.className = 'overlay'; ov.innerHTML = `<div class="modal">${html}</div>`;
+  document.body.appendChild(ov);
+  const m = { el: ov.firstElementChild, cerrar: () => ov.remove() };
+  ov.addEventListener('mousedown', e => { if (e.target === ov) m.cerrar(); });
+  $$('[data-cerrar]', ov).forEach(b => b.addEventListener('click', m.cerrar));
+  setTimeout(() => { const f = $('[autofocus]', ov) || $('input', ov); if (f) f.focus(); }, 30);
+  return m;
+}
+async function copiar(t) {
+  try { await navigator.clipboard.writeText(t); toast('Copiado'); } catch (e) { prompt('Copia el texto:', t); }
+}
+function telefono(c) {
+  const d = String(c || '').replace(/\D/g, '');
+  return d.length === 9 && d[0] === '9' ? '56' + d : d.length >= 10 ? d : '';
+}
+function linkWhatsApp(k) {
+  const msg = `Hola ${k.cliente} 👋\nTu clave de MiVet es:\n*${k.clave}*\n\nAbre MiVet, escríbela donde dice «Clave de producto» y presiona Activar. Solo necesitas internet para activar.`;
+  return `https://wa.me/${telefono(k.contacto)}?text=${encodeURIComponent(msg)}`;
+}
+
+// ------------------------------------------------------------------ login
+function pintarLogin(error) {
+  $('#app').innerHTML = `<div class="login"><form id="f-login">
+    <div class="marca">${LOGO}<div><h1>Licencias MiVet</h1><small>Administración</small></div></div>
+    ${error ? `<div class="aviso peligro">${esc(error)}</div>` : ''}
+    <label>Clave de administrador<input type="password" name="t" autocomplete="current-password" autofocus></label>
+    <label class="check"><input type="checkbox" name="r"> Recordar en este equipo</label>
+    <button class="btn primario">Entrar</button></form></div>`;
+  $('#f-login').addEventListener('submit', async e => {
+    e.preventDefault();
+    guardarToken(e.target.t.value, e.target.r.checked);
+    try { await cargar(); } catch (err) { pintarLogin(err.message); }
+  });
+}
+
+// ------------------------------------------------------------------ principal
+async function cargar() {
+  E.datos = await api('resumen');
+  pintar();
+}
+function pintar() {
+  const d = E.datos;
+  const activas = d.claves.filter(k => k.estado === 'activa');
+  const pcs = d.claves.reduce((a, k) => a + k.equipos.filter(x => x.estado === 'activa').length, 0);
+  const pronto = activas.filter(k => k.vence && diasHasta(k.vence) <= 30).length;
+  const enPrueba = d.pruebas.filter(p => diasHasta(fin(p)) >= 0).length;
+  const mes = d.hoy.slice(0, 7);
+  const ventasMes = d.compras.filter(c => c.estado === 'aprobada' && String(c.pagado || '').slice(0, 7) === mes).reduce((a, c) => a + c.precio, 0);
+  $('#app').innerHTML = `<div class="envoltura">
+    <header><div class="marca">${LOGO}<div><h1>Licencias MiVet</h1><small>Claves de producto, pruebas y equipos</small></div></div>
+      <a href="mipos-licencias.html" style="font-size:13px;font-weight:700;margin-left:12px" title="Ir a las licencias de MiPOS">Producto: MiVet · cambiar a MiPOS →</a>
+      <button class="btn primario" id="b-nueva">+ Nueva clave</button><button class="btn" id="b-salir">Salir</button></header>
+    ${d.config.firma !== 'ok' ? `<div class="aviso peligro">El servidor no puede firmar licencias: ${esc(d.config.firma)}</div>` : ''}
+    ${d.config.mercado_pago === 'falta' && d.planes.length ? '<div class="aviso">Para vender en línea falta el secreto <b>MP_ACCESS_TOKEN</b> (tu Access Token de Mercado Pago) en Cloudflare.</div>' : ''}
+    ${d.config.mercado_pago === 'prueba' ? '<div class="aviso">Mercado Pago está en <b>modo de prueba</b> (token TEST-): los pagos no son reales.</div>' : ''}
+    ${d.config.correo === 'falta' && d.planes.length ? '<div class="aviso">Sin correo configurado (RESEND_API_KEY y EMAIL_REMITENTE): las licencias se activan igual, pero no se envía el correo.</div>' : ''}
+    <div class="stats">
+      <div class="stat"><span>Clientes activos</span><strong>${activas.length}</strong></div>
+      <div class="stat"><span>PCs activados</span><strong>${pcs}</strong></div>
+      <div class="stat"><span>Vencen en 30 días</span><strong style="color:${pronto ? 'var(--aviso)' : 'inherit'}">${pronto}</strong></div>
+      <div class="stat"><span>Pruebas en curso</span><strong>${enPrueba}</strong></div>
+      <div class="stat"><span>Ventas web este mes</span><strong>$${ventasMes.toLocaleString('es-CL')}</strong></div>
+    </div>
+    <div class="tabs">${[['claves', 'Clientes'], ['soporte', `Soporte${d.soporte && d.soporte.sin_leer ? ` <span class="burbuja">${d.soporte.sin_leer}</span>` : ''}`], ['ventas', 'Ventas'], ['planes', 'Planes y precios'], ['pruebas', 'Pruebas gratis'], ['codigo', 'Código sin internet'], ['historial', 'Historial']]
+      .map(([k, t]) => `<button data-tab="${k}" class="${E.tab === k ? 'activo' : ''}">${t}</button>`).join('')}</div>
+    <div id="contenido"></div></div>`;
+  $('#b-nueva').addEventListener('click', () => formClave());
+  $('#b-salir').addEventListener('click', salir);
+  $$('[data-tab]').forEach(b => b.addEventListener('click', () => { E.tab = b.dataset.tab; pintar(); }));
+  ({ claves: vistaClaves, soporte: vistaSoporte, ventas: vistaVentas, planes: vistaPlanes, pruebas: vistaPruebas, codigo: vistaCodigo, historial: vistaHistorial })[E.tab]();
+}
+
+function badgeVence(k) {
+  if (k.estado !== 'activa') return '<span class="badge rojo">Suspendida</span>';
+  if (!k.vence) return '<span class="badge verde">Sin vencimiento</span>';
+  const n = diasHasta(k.vence);
+  if (n < 0) return `<span class="badge rojo">Venció el ${fecha(k.vence)}</span>`;
+  return `<span class="badge ${n <= 30 ? 'amarillo' : 'verde'}">Vence ${fecha(k.vence)}${n <= 30 ? ` (${n} días)` : ''}</span>`;
+}
+
+function vistaClaves() {
+  const c = $('#contenido');
+  c.innerHTML = `<div class="barra"><input type="search" id="q" placeholder="Buscar cliente, clave o PC" value="${esc(E.q)}"></div><div class="lista" id="lista"></div>`;
+  const pintarLista = () => {
+    const q = E.q.toLowerCase();
+    const l = E.datos.claves.filter(k => !q || [k.cliente, k.clave, k.contacto, k.notas, ...k.equipos.map(x => x.nombre_pc + ' ' + x.equipo)].join(' ').toLowerCase().includes(q));
+    $('#lista').innerHTML = l.length ? l.map(k => {
+      const activos = k.equipos.filter(x => x.estado === 'activa');
+      return `<article class="tarjeta ${k.estado !== 'activa' ? 'bloqueada' : ''}" data-id="${k.id}">
+        <div class="t-cab"><h3>${esc(k.cliente)}</h3>${badgeVence(k)}<span class="badge azul">${k.cajas} equipo${k.cajas === 1 ? "" : "s"}</span></div>
+        <div class="t-cab"><span class="clave">${esc(k.clave)}</span>
+          <button class="btn chico" data-copiar="${esc(k.clave)}">Copiar</button>
+          <a class="btn chico verde" href="${linkWhatsApp(k)}" target="_blank" rel="noopener">Enviar por WhatsApp</a></div>
+        <div class="meta"><span>PCs: <b>${activos.length} de ${k.max_equipos}</b></span>${k.contacto ? `<span>Contacto: <b>${esc(k.contacto)}</b></span>` : ''}
+          <span>Creada: ${fecha(k.creado)}</span>${k.notas ? `<span>${esc(k.notas)}</span>` : ''}</div>
+        ${activos.length ? `<div class="pcs">${activos.map(x => `<div class="pc"><b>${esc(x.nombre_pc || 'PC')}</b><code>${esc(x.equipo)}</code>
+          <span class="badge">v${esc(x.version || '?')}</span><span class="det">conectado ${hace(x.ultimo_contacto)}</span>
+          <button class="btn chico" data-liberar="${esc(x.equipo)}" title="Para que la clave se pueda usar en otro PC">Liberar</button></div>`).join('')}</div>`
+          : '<div class="det">Aún no se activa en ningún PC.</div>'}
+        <div class="acciones">
+          <button class="btn chico" data-renovar="1">+1 mes</button><button class="btn chico" data-renovar="12">+1 año</button>
+          <button class="btn chico" data-editar>Editar</button>
+          <button class="btn chico ${k.estado === 'activa' ? 'peligro' : ''}" data-estado>${k.estado === 'activa' ? 'Suspender' : 'Reactivar'}</button>
+          <button class="btn chico peligro" data-borrar style="margin-left:auto">Eliminar</button></div></article>`;
+    }).join('') : `<div class="vacio">${E.datos.claves.length ? 'Nada coincide con la búsqueda.' : 'Aún no hay claves. Crea la primera con “+ Nueva clave”.'}</div>`;
+    $$('#lista .tarjeta').forEach(t => {
+      const k = E.datos.claves.find(x => x.id === +t.dataset.id);
+      const accion = (sel, fn) => $$(sel, t).forEach(b => b.addEventListener('click', async () => {
+        b.disabled = true;
+        try { await fn(b); } catch (e) { toast(e.message, 'error'); }
+        b.disabled = false;
+      }));
+      accion('[data-copiar]', b => copiar(b.dataset.copiar));
+      accion('[data-editar]', () => formClave(k));
+      accion('[data-renovar]', async b => {
+        const vence = sumar(k.vence, { meses: +b.dataset.renovar });
+        await api('claves/' + k.id, { method: 'PUT', body: { vence } });
+        toast(`${k.cliente}: ahora vence el ${fecha(vence)}. Se actualiza sola en su PC.`); await cargar();
+      });
+      accion('[data-estado]', async () => {
+        const suspender = k.estado === 'activa';
+        if (suspender && !confirm(`¿Suspender a ${k.cliente}? MiVet se bloqueará en su PC la próxima vez que se conecte.`)) return;
+        await api('claves/' + k.id, { method: 'PUT', body: { estado: suspender ? 'bloqueada' : 'activa' } });
+        toast(suspender ? 'Clave suspendida' : 'Clave reactivada'); await cargar();
+      });
+      accion('[data-liberar]', async b => {
+        if (!confirm('¿Liberar este PC? Dejará de funcionar ahí y la clave quedará libre para activarla en otro computador.')) return;
+        await api(`claves/${k.id}/liberar`, { method: 'POST', body: { equipo: b.dataset.liberar } });
+        toast('PC liberado'); await cargar();
+      });
+      accion('[data-borrar]', async () => {
+        if (!confirm(`¿Eliminar la clave de ${k.cliente}? Sus PCs quedarán sin licencia. Si solo dejó de pagar, mejor usa Suspender.`)) return;
+        await api('claves/' + k.id, { method: 'DELETE' });
+        toast('Clave eliminada'); await cargar();
+      });
+    });
+  };
+  $('#q').addEventListener('input', e => { E.q = e.target.value; pintarLista(); });
+  pintarLista();
+}
+
+function formClave(k) {
+  const m = modal(`<form id="f-clave"><h2>${k ? 'Editar ' + esc(k.cliente) : 'Nueva clave de producto'}</h2>
+    <div class="grid2" style="margin-top:12px">
+      <label class="full">Cliente / negocio<input name="cliente" value="${esc(k?.cliente || '')}" required autofocus placeholder="Ej: Almacén Rosita"></label>
+      <label>WhatsApp o contacto<input name="contacto" value="${esc(k?.contacto || '')}" placeholder="+56912345678"></label>
+      <label>Correo (para recordatorios de renovación)<input name="email" type="email" value="${esc(k?.email || '')}" placeholder="cliente@gmail.com"></label>
+      <label>Equipos (PC) permitidos<input name="cajas" type="number" min="1" max="50" value="${k?.cajas || 1}"></label>
+      <label>Vence<input name="vence" type="date" value="${esc(k?.vence || '')}"></label>
+      <label>PCs donde se puede activar<input name="max_equipos" type="number" min="1" max="20" value="${k?.max_equipos || 1}"></label>
+      <div class="full chips">${[['1 mes', 1], ['3 meses', 3], ['6 meses', 6], ['1 año', 12]].map(([t, n]) => `<button type="button" data-meses="${n}">${t}</button>`).join('')}
+        <button type="button" data-meses="0">Sin vencimiento</button></div>
+      <label class="full">Notas<input name="notas" value="${esc(k?.notas || '')}" placeholder="Ej: paga los 5 de cada mes"></label>
+    </div>
+    <div class="det" style="margin:10px 0">“PCs donde se puede activar” es el servidor de MiVet de ese local (los otros computadores de la clínica entran por la red y no cuentan aquí; el límite de equipos lo controla “Equipos”).</div>
+    <div class="acciones" style="justify-content:flex-end"><button type="button" class="btn" data-cerrar>Cancelar</button><button class="btn primario">${k ? 'Guardar' : 'Crear clave'}</button></div></form>`);
+  const f = $('#f-clave', m.el);
+  $$('[data-meses]', f).forEach(b => b.addEventListener('click', () => { f.vence.value = +b.dataset.meses ? sumar(null, { meses: +b.dataset.meses }) : ''; }));
+  f.addEventListener('submit', async e => {
+    e.preventDefault();
+    const body = { cliente: f.cliente.value, contacto: f.contacto.value, email: f.email.value, cajas: +f.cajas.value, vence: f.vence.value || null, max_equipos: +f.max_equipos.value, notas: f.notas.value };
+    try {
+      const r = await api(k ? 'claves/' + k.id : 'claves', { method: k ? 'PUT' : 'POST', body });
+      m.cerrar(); await cargar();
+      if (!k) claveCreada(r); else toast('Guardado. Su PC se actualiza solo en las próximas horas.');
+    } catch (err) { toast(err.message, 'error'); }
+  });
+}
+
+function claveCreada(k) {
+  const m = modal(`<h2>Clave creada para ${esc(k.cliente)}</h2>
+    <div class="grande">${esc(k.clave)}</div>
+    <div class="det">Envíasela al cliente. En MiVet la escribe donde dice “Clave de producto” y se activa solo.</div>
+    <div class="acciones" style="justify-content:flex-end"><button class="btn" id="c-copiar">Copiar</button>
+      <a class="btn verde" href="${linkWhatsApp(k)}" target="_blank" rel="noopener">Enviar por WhatsApp</a><button class="btn primario" data-cerrar>Listo</button></div>`);
+  $('#c-copiar', m.el).addEventListener('click', () => copiar(k.clave));
+}
+
+const fin = p => { const d = new Date(p.inicio + 'T12:00'); d.setDate(d.getDate() + E.datos.config.dias_prueba - 1); return d.toISOString().slice(0, 10); };
+function vistaPruebas() {
+  const l = E.datos.pruebas;
+  $('#contenido').innerHTML = `<div class="det" style="margin-bottom:10px">Cada PC puede probar MiVet gratis ${E.datos.config.dias_prueba} días una sola vez (reinstalar no la reinicia).</div>
+    ${l.length ? `<div class="tabla-wrap"><table><thead><tr><th>PC</th><th>Código de equipo</th><th>Empezó</th><th>Estado</th><th>Último contacto</th><th></th></tr></thead><tbody>
+    ${l.map(p => { const n = diasHasta(fin(p)); return `<tr><td><b>${esc(p.nombre_pc || '—')}</b></td><td><code>${esc(p.equipo)}</code></td><td>${fecha(p.inicio)}</td>
+      <td>${n >= 0 ? `<span class="badge azul">quedan ${n + 1} días</span>` : '<span class="badge">terminada</span>'}</td><td>${hace(p.ultimo_contacto)}</td>
+      <td><button class="btn chico" data-otra="${esc(p.equipo)}">Dar otra prueba</button></td></tr>`; }).join('')}</tbody></table></div>`
+    : '<div class="vacio">Nadie ha pedido la prueba gratis todavía.</div>'}`;
+  $$('[data-otra]').forEach(b => b.addEventListener('click', async () => {
+    if (!confirm('¿Permitir que este PC empiece otra prueba gratis desde hoy?')) return;
+    try { await api('pruebas/' + encodeURIComponent(b.dataset.otra), { method: 'DELETE' }); toast('Listo: en ese PC puede volver a presionar “Probar gratis”'); await cargar(); }
+    catch (e) { toast(e.message, 'error'); }
+  }));
+}
+
+function vistaCodigo() {
+  $('#contenido').innerHTML = `<div class="tarjeta" style="max-width:620px">
+    <h3 style="margin:0">Código de activación para un PC sin internet</h3>
+    <div class="det">El cliente te envía el “Código de este equipo” que aparece en MiVet (en “¿Este PC no tiene internet?”). Este código no se renueva solo.</div>
+    <form id="f-cod" class="grid2">
+      <label class="full">Código del equipo<input name="equipo" placeholder="ABCD-EFGH-JKLM-NPQR" required></label>
+      <label class="full">Cliente<input name="cliente" required></label>
+      <label>Equipos<input name="cajas" type="number" min="1" value="1"></label>
+      <label>Vence (vacío = nunca)<input name="vence" type="date"></label>
+      <div class="full"><button class="btn primario">Generar código</button></div>
+    </form><div id="cod-res"></div></div>`;
+  $('#f-cod').addEventListener('submit', async e => {
+    e.preventDefault();
+    const f = e.target;
+    try {
+      const r = await api('codigo', { method: 'POST', body: { equipo: f.equipo.value, cliente: f.cliente.value, cajas: +f.cajas.value, vence: f.vence.value || null } });
+      $('#cod-res').innerHTML = `<div class="codigo">${esc(r.codigo)}</div><div class="acciones" style="margin-top:8px"><button class="btn" id="cod-copiar">Copiar código</button></div>`;
+      $('#cod-copiar').addEventListener('click', () => copiar(r.codigo));
+    } catch (err) { toast(err.message, 'error'); }
+  });
+}
+
+// ------------------------------------------------------------------ soporte
+const ESTADOS_SOP = { nuevo: ['rojo', 'Nuevo'], en_curso: ['amarillo', 'En curso'], resuelto: ['verde', 'Resuelto'] };
+async function vistaSoporte() {
+  const c = $('#contenido');
+  c.innerHTML = '<div class="det">Cargando…</div>';
+  let l;
+  try { l = await api('soporte'); } catch (e) { c.innerHTML = `<div class="aviso peligro">${esc(e.message)}</div>`; return; }
+  c.innerHTML = `<div class="det" style="margin-bottom:10px">Casos que tus clientes abren con el botón <b>Soporte</b> de MiVet. Cada uno trae su versión, licencia, respaldos y últimos errores. Te llega un correo con cada caso nuevo y cada mensaje.</div>
+    ${l.length ? `<div class="tabla-wrap"><table><thead><tr><th>Caso</th><th>Cliente</th><th>Asunto</th><th>Estado</th><th>Actualizado</th></tr></thead><tbody>
+    ${l.map(t => { const [cl, tx] = ESTADOS_SOP[t.estado] || ['', t.estado]; return `<tr class="click" data-caso="${t.id}" style="cursor:pointer">
+      <td><b>#${t.id}</b> <span class="badge ${t.tipo === 'problema' ? 'rojo' : 'azul'}">${t.tipo === 'problema' ? 'Problema' : 'Consulta'}</span></td>
+      <td><b>${esc(t.cliente || '—')}</b><div class="det">${esc(t.email || t.telefono || '')}</div></td>
+      <td>${esc(t.asunto)}${t.sin_leer_soporte ? ` <span class="burbuja">${t.sin_leer_soporte}</span>` : ''}</td>
+      <td><span class="badge ${cl}">${tx}</span></td><td style="white-space:nowrap">${fechaHora(t.actualizado)}</td></tr>`; }).join('')}</tbody></table></div>`
+    : '<div class="vacio">No hay casos de soporte. Cuando un cliente use el botón Soporte de MiVet, aparecerá aquí.</div>'}`;
+  $$('[data-caso]').forEach(tr => tr.addEventListener('click', () => verCaso(+tr.dataset.caso)));
+}
+
+async function verCaso(id) {
+  let t;
+  try { t = await api('soporte/' + id); } catch (e) { return toast(e.message, 'error'); }
+  let diag = {};
+  try { diag = JSON.parse(t.diagnostico || '{}'); } catch (e) { /* nada */ }
+  const nombres = { version: 'Versión', negocio: 'Negocio', rut: 'RUT', licencia: 'Licencia', licencia_panel: 'Licencia (panel)', equipo: 'Equipo',
+    windows: 'Sistema', impresora: 'Impresora', balanza: 'Balanza', equipos: 'Equipos', pacientes: 'Pacientes', respaldo: 'Respaldo', nube: 'Nube', usuario: 'Reporta', pantalla: 'Pantalla', boleta: 'Boleta electrónica' };
+  const m = modal(`<h2>Caso #${t.id} · ${esc(t.cliente || 'cliente')}</h2>
+    <div class="t-cab"><span class="badge ${t.tipo === 'problema' ? 'rojo' : 'azul'}">${t.tipo === 'problema' ? 'Problema' : 'Consulta'}</span>
+      <span class="det">${esc(t.email || t.telefono || 'sin correo')} · abierto ${fechaHora(t.creado)}</span>
+      </div>
+    <details><summary class="det" style="cursor:pointer">Datos del equipo (diagnóstico)</summary><div class="diag">
+      ${Object.entries(diag).filter(([k]) => k !== 'errores').map(([k, v]) => `<b>${esc(nombres[k] || k)}</b><span>${esc(typeof v === 'object' ? JSON.stringify(v) : v)}</span>`).join('')}
+      ${diag.errores ? `<pre>${esc(diag.errores)}</pre>` : ''}</div></details>
+    <div class="chat">${t.mensajes.map(x => `<div class="msg ${x.autor}">${esc(x.texto)}${x.adjunto ? `<img src="${x.adjunto}" alt="captura" data-zoom>` : ''}
+      <small>${x.autor === 'soporte' ? 'Tú' : esc(t.cliente || 'Cliente')} · ${fechaHora(x.creado)}</small></div>`).join('')}</div>
+    <form id="f-resp" style="display:grid;gap:8px"><textarea name="texto" rows="3" placeholder="Escribe tu respuesta (le llega en MiVet${t.email ? ' y por correo' : ''})" required></textarea>
+      <div class="acciones" style="justify-content:flex-end">
+        <button type="button" class="btn" data-cerrar>Cerrar</button>
+        ${t.estado !== 'resuelto' ? '<button type="button" class="btn" id="cs-resuelto">Marcar resuelto sin responder</button>' : ''}
+        <button class="btn" name="resolver" value="1">Responder y marcar resuelto</button>
+        <button class="btn primario">Responder</button></div></form>`);
+  m.el.classList.add('ancho');
+  const chat = $('.chat', m.el); chat.scrollTop = chat.scrollHeight;
+  $$('[data-zoom]', m.el).forEach(img => img.addEventListener('click', () => window.open(img.src, '_blank')));
+  const r = $('#cs-resuelto', m.el);
+  if (r) r.addEventListener('click', async () => { try { await api(`soporte/${id}/estado`, { method: 'POST', body: { estado: 'resuelto' } }); m.cerrar(); toast('Caso resuelto'); cargar(); } catch (e) { toast(e.message, 'error'); } });
+  const f = $('#f-resp', m.el);
+  f.addEventListener('submit', async e => {
+    e.preventDefault();
+    const resolver = e.submitter && e.submitter.name === 'resolver';
+    try {
+      const x = await api(`soporte/${id}/responder`, { method: 'POST', body: { texto: f.texto.value, estado: resolver ? 'resuelto' : 'en_curso' } });
+      m.cerrar(); toast(`Respuesta enviada${x.correo === 'enviado' ? ' (también por correo)' : ''}`); await cargar();
+    } catch (err) { toast(err.message, 'error'); }
+  });
+}
+
+// ------------------------------------------------------------------ ventas en línea (Mercado Pago)
+const ESTADOS_COMPRA = { aprobada: ['verde', 'Pagada'], pendiente: ['amarillo', 'Pendiente'], procesando: ['amarillo', 'Procesando'], rechazada: ['rojo', 'Rechazada'] };
+function vistaVentas() {
+  const l = E.datos.compras;
+  $('#contenido').innerHTML = `<div class="det" style="margin-bottom:10px">Cada pago aprobado crea o renueva la clave del cliente y le envía el correo, sin que hagas nada. “Pendiente” = abrió el pago y no lo terminó (o una transferencia en proceso).</div>
+    ${l.length ? `<div class="tabla-wrap"><table><thead><tr><th>Fecha</th><th>Cliente</th><th>Plan</th><th>Monto</th><th>Estado</th><th>Clave</th><th></th></tr></thead><tbody>
+    ${l.map(c => { const [cl, t] = ESTADOS_COMPRA[c.estado] || ['', c.estado]; return `<tr>
+      <td style="white-space:nowrap">${fechaHora(c.pagado || c.creado)}</td>
+      <td><b>${esc(c.nombre)}</b><div class="det">${esc(c.email)}${c.telefono ? ' · ' + esc(c.telefono) : ''}</div></td>
+      <td>${esc(c.plan_nombre)}${c.renovacion ? ' <span class="badge azul">renovación</span>' : ''}${c.equipo ? ' <span class="badge">desde MiVet</span>' : ''}</td>
+      <td style="white-space:nowrap">$${Number(c.precio).toLocaleString('es-CL')}</td>
+      <td><span class="badge ${cl}">${t}</span>${c.mp_detalle ? `<div class="det">${esc(c.mp_detalle)}</div>` : ''}${c.estado === 'aprobada' && c.correo && c.correo !== 'enviado' ? `<div class="det">correo: ${esc(c.correo)}</div>` : ''}</td>
+      <td>${c.clave ? `<code>${esc(c.clave)}</code>` : ''}</td>
+      <td>${c.estado === 'pendiente' ? `<button class="btn chico" data-revisar="${c.id}">Revisar pago</button>` : ''}</td></tr>`; }).join('')}</tbody></table></div>`
+    : '<div class="vacio">Aún no hay ventas en línea. Cuando alguien compre desde MiVet o desde tu página de compra, aparecerá aquí.</div>'}
+    <div class="barra" style="margin-top:12px"><div class="det" style="flex:1">Recordatorios por correo: se envían solos 7 días antes, 1 día antes y al día siguiente de vencer (una vez al día, con el enlace para renovar).</div>
+      <button class="btn chico" id="rec-ahora">Revisar recordatorios ahora</button></div>
+    <div class="det" style="margin-top:10px">Página de compra para compartir: <a href="mivet-comprar.html" target="_blank" rel="noopener">${location.origin}/mivet-comprar.html</a>. Recuerda emitir la boleta o factura de cada venta.</div>`;
+  $('#rec-ahora').addEventListener('click', async e => {
+    e.target.disabled = true;
+    try {
+      const r = await api('recordatorios', { method: 'POST' });
+      toast(`${r.enviados} recordatorio(s) enviado(s)${r.sin_correo.length ? ' · sin correo: ' + r.sin_correo.join(', ') : ''}`);
+    } catch (err) { toast(err.message, 'error'); }
+    e.target.disabled = false;
+  });
+  $$('[data-revisar]').forEach(b => b.addEventListener('click', async () => {
+    b.disabled = true;
+    try { const r = await api(`compras/${b.dataset.revisar}/revisar`, { method: 'POST' }); toast(r.estado === 'aprobada' ? 'Pago confirmado: licencia entregada' : 'Mercado Pago aún no lo muestra pagado'); await cargar(); }
+    catch (e) { toast(e.message, 'error'); b.disabled = false; }
+  }));
+}
+
+function vistaPlanes() {
+  const l = E.datos.planes;
+  $('#contenido').innerHTML = `<div class="barra"><div class="det" style="flex:1">Estos planes aparecen en tu página de compra y en el botón “Comprar” de MiVet. El precio cobrado sale siempre de aquí.</div>
+      <button class="btn primario" id="pl-nuevo">+ Nuevo plan</button></div>
+    ${l.length ? `<div class="tabla-wrap"><table><thead><tr><th>Plan</th><th>Precio</th><th>Duración</th><th>Equipos</th><th>Estado</th><th></th></tr></thead><tbody>
+    ${l.map(p => `<tr><td><b>${esc(p.nombre)}</b>${p.destacado ? ' <span class="badge amarillo">destacado</span>' : ''}${p.descripcion ? `<div class="det">${esc(p.descripcion)}</div>` : ''}</td>
+      <td>$${Number(p.precio).toLocaleString('es-CL')}</td><td>${p.meses} mes${p.meses === 1 ? '' : 'es'}</td><td>${p.cajas}</td>
+      <td>${p.activo ? '<span class="badge verde">a la venta</span>' : '<span class="badge">pausado</span>'}</td>
+      <td class="acciones"><button class="btn chico" data-editar-plan="${p.id}">Editar</button><button class="btn chico peligro" data-borrar-plan="${p.id}">Eliminar</button></td></tr>`).join('')}</tbody></table></div>`
+    : `<div class="vacio">Aún no hay planes. Crea por ejemplo “Mensual” (1 mes), “Semestral” (6 meses) y “Anual” (12 meses).
+        <div style="margin-top:10px"><button class="btn" id="pl-ejemplo">Crear 3 planes de ejemplo</button></div></div>`}`;
+  $('#pl-nuevo').addEventListener('click', () => formPlan());
+  const ej = $('#pl-ejemplo');
+  if (ej) ej.addEventListener('click', async () => {
+    ej.disabled = true;
+    try {
+      for (const p of [{ nombre: 'Mensual', meses: 1, cajas: 1, precio: 9990, orden: 1 }, { nombre: 'Semestral', meses: 6, cajas: 1, precio: 49990, orden: 2 },
+        { nombre: 'Anual', meses: 12, cajas: 1, precio: 89990, orden: 3, destacado: true }]) await api('planes', { method: 'POST', body: p });
+      toast('Planes de ejemplo creados: ajusta los precios'); await cargar();
+    } catch (e) { toast(e.message, 'error'); ej.disabled = false; }
+  });
+  $$('[data-editar-plan]').forEach(b => b.addEventListener('click', () => formPlan(l.find(p => p.id === +b.dataset.editarPlan))));
+  $$('[data-borrar-plan]').forEach(b => b.addEventListener('click', async () => {
+    const p = l.find(x => x.id === +b.dataset.borrarPlan);
+    if (!confirm(`¿Eliminar el plan “${p.nombre}”? Las ventas ya hechas no cambian. Para dejar de venderlo sin borrarlo, mejor edítalo y desmarca “A la venta”.`)) return;
+    try { await api('planes/' + p.id, { method: 'DELETE' }); toast('Plan eliminado'); await cargar(); } catch (e) { toast(e.message, 'error'); }
+  }));
+}
+
+function formPlan(p) {
+  const m = modal(`<form id="f-plan"><h2>${p ? 'Editar plan' : 'Nuevo plan'}</h2>
+    <div class="grid2" style="margin-top:12px">
+      <label class="full">Nombre (lo ve el cliente)<input name="nombre" value="${esc(p?.nombre || '')}" required autofocus placeholder="Ej: Anual"></label>
+      <label>Precio (pesos)<input name="precio" type="number" min="100" step="1" value="${p?.precio || ''}" required></label>
+      <label>Duración (meses)<input name="meses" type="number" min="1" max="120" value="${p?.meses || 1}" required></label>
+      <label>Equipos incluidos<input name="cajas" type="number" min="1" max="50" value="${p?.cajas || 1}" required></label>
+      <label>Orden en la página<input name="orden" type="number" value="${p?.orden || 0}"></label>
+      <label class="full">Detalle (opcional)<input name="descripcion" value="${esc(p?.descripcion || '')}" placeholder="Ej: Ideal para empezar"></label>
+      <label class="check"><input type="checkbox" name="destacado" ${p?.destacado ? 'checked' : ''}> Destacarlo (“Más conveniente”)</label>
+      <label class="check"><input type="checkbox" name="activo" ${!p || p.activo ? 'checked' : ''}> A la venta</label>
+    </div>
+    <div class="det" style="margin:10px 0">Al renovar, el cliente queda con los equipos de este plan y los meses se suman desde su fecha de vencimiento.</div>
+    <div class="acciones" style="justify-content:flex-end"><button type="button" class="btn" data-cerrar>Cancelar</button><button class="btn primario">Guardar</button></div></form>`);
+  const f = $('#f-plan', m.el);
+  f.addEventListener('submit', async e => {
+    e.preventDefault();
+    const body = { nombre: f.nombre.value, precio: +f.precio.value, meses: +f.meses.value, cajas: +f.cajas.value, orden: +f.orden.value,
+                   descripcion: f.descripcion.value, destacado: f.destacado.checked, activo: f.activo.checked };
+    try { await api(p ? 'planes/' + p.id : 'planes', { method: p ? 'PUT' : 'POST', body }); m.cerrar(); toast('Plan guardado'); await cargar(); }
+    catch (err) { toast(err.message, 'error'); }
+  });
+}
+
+const NOMBRES_EVENTO = { activacion: 'Activación', activacion_rechazada: 'Activación rechazada', prueba: 'Prueba iniciada', clave_creada: 'Clave creada',
+  clave_editada: 'Clave modificada', soporte: 'Caso de soporte', recordatorio: 'Recordatorio enviado', compra_pagada: 'Venta en línea', renovacion_pagada: 'Renovación pagada', plan: 'Plan', clave_eliminada: 'Clave eliminada', pc_liberado: 'PC liberado', prueba_reiniciada: 'Prueba reiniciada', codigo_sin_internet: 'Código sin internet' };
+async function vistaHistorial() {
+  const c = $('#contenido');
+  c.innerHTML = '<div class="det">Cargando…</div>';
+  try {
+    const l = await api('eventos');
+    c.innerHTML = l.length ? `<div class="tabla-wrap"><table><thead><tr><th>Fecha</th><th>Qué pasó</th><th>Cliente</th><th>Detalle</th></tr></thead><tbody>
+      ${l.map(ev => `<tr><td style="white-space:nowrap">${fechaHora(ev.fecha)}</td><td><span class="badge ${/rechazada/.test(ev.tipo) ? 'rojo' : ev.tipo === 'activacion' ? 'verde' : ''}">${esc(NOMBRES_EVENTO[ev.tipo] || ev.tipo)}</span></td>
+        <td>${esc(ev.cliente || '')}</td><td>${esc(ev.detalle)}${ev.equipo ? ` <code class="det">${esc(ev.equipo)}</code>` : ''}</td></tr>`).join('')}</tbody></table></div>`
+      : '<div class="vacio">Sin movimientos todavía.</div>';
+  } catch (e) { c.innerHTML = `<div class="aviso peligro">${esc(e.message)}</div>`; }
+}
+
+E.token = leerToken();
+if (E.token) cargar().catch(e => pintarLogin(e.message)); else pintarLogin();
+</script>
+</body>
+</html>

@@ -7,8 +7,10 @@ const PUBLIC_PATHS = new Set(["/api/auth/login", "/api/auth/setup", "/api/me"]);
 // y las fotos que ve ahí.
 const PUBLIC_PREFIX = "/api/public/";
 // Licencias de MiPOS: /api/mipos/* lo llama el programa del cliente (sin login del panel)
+// Licencias de MiVet: /api/mivet/* lo llama el programa del cliente (sin login del panel)
 // y /api/mipos-admin/* tiene su propia clave (MIPOS_ADMIN_CLAVE).
-const MIPOS_PREFIXES = ["/api/mipos/", "/api/mipos-admin/"];
+// y /api/mivet-admin/* tiene su propia clave (MIVET_ADMIN_CLAVE).
+const MIPOS_PREFIXES = ["/api/mipos/", "/api/mivet/", "/api/mipos-admin/", "/api/mivet-admin/"];
 
 export async function onRequest(context) {
   const url = new URL(context.request.url);
