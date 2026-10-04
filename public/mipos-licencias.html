@@ -105,6 +105,7 @@ th { font-size: .78rem; color: var(--suave); background: var(--panel-2); }
 .toast.error { background: var(--peligro); color: #fff; }
 .det { color: var(--suave); font-size: .85rem; }
 @media (max-width: 560px) { .grid2 { grid-template-columns: 1fr; } .t-cab h3 { width: 100%; } }
+.fila-sospechosa td { background: #fff1f0; }
 </style>
 </head>
 <body>
@@ -333,15 +334,26 @@ function claveCreada(k) {
 const fin = p => { const d = new Date(p.inicio + 'T12:00'); d.setDate(d.getDate() + E.datos.config.dias_prueba - 1); return d.toISOString().slice(0, 10); };
 function vistaPruebas() {
   const l = E.datos.pruebas;
-  $('#contenido').innerHTML = `<div class="det" style="margin-bottom:10px">Cada PC puede probar MiPOS gratis ${E.datos.config.dias_prueba} días una sola vez (reinstalar no la reinicia).</div>
-    ${l.length ? `<div class="tabla-wrap"><table><thead><tr><th>PC</th><th>Código de equipo</th><th>Empezó</th><th>Estado</th><th>Último contacto</th><th></th></tr></thead><tbody>
-    ${l.map(p => { const n = diasHasta(fin(p)); return `<tr><td><b>${esc(p.nombre_pc || '—')}</b></td><td><code>${esc(p.equipo)}</code></td><td>${fecha(p.inicio)}</td>
+  const bl = E.datos.pruebas_bloqueadas || [];
+  const max = E.datos.config.pruebas_por_ip;
+  const sosp = l.filter(p => p.sospechosa).length;
+  $('#contenido').innerHTML = `<div class="det" style="margin-bottom:10px">Cada PC puede probar MiPOS gratis ${E.datos.config.dias_prueba} días una sola vez (reinstalar no la reinicia).
+      ${max ? `Además, desde una misma conexión a internet se permiten <b>${max} pruebas nuevas cada 30 días</b>; las demás se rechazan y aparecen abajo.` : 'Sin límite de pruebas por conexión.'}</div>
+    ${sosp ? `<div class="aviso" style="margin-bottom:10px"><b>${sosp} prueba${sosp === 1 ? '' : 's'} sospechosa${sosp === 1 ? '' : 's'}</b>: varias pruebas desde la misma conexión a internet. Puede ser alguien sacando pruebas en distintos PCs (o un local con varios computadores probando).</div>` : ''}
+    ${l.length ? `<div class="tabla-wrap"><table><thead><tr><th>PC</th><th>Código de equipo</th><th>Conexión (IP)</th><th>Empezó</th><th>Estado</th><th>Último contacto</th><th></th></tr></thead><tbody>
+    ${l.map(p => { const n = diasHasta(fin(p)); return `<tr${p.sospechosa ? ' class="fila-sospechosa"' : ''}><td><b>${esc(p.nombre_pc || '—')}</b></td><td><code>${esc(p.equipo)}</code></td>
+      <td>${p.ip ? `<code>${esc(p.ip)}</code>` : '—'}${p.sospechosa ? `<br><span class="badge rojo" title="Pruebas desde esta conexión: ${p.misma_ip}. Intentos bloqueados: ${p.bloqueos_ip}">Sospechosa · ${p.misma_ip} prueba${p.misma_ip === 1 ? '' : 's'}${p.bloqueos_ip ? ` + ${p.bloqueos_ip} bloqueada${p.bloqueos_ip === 1 ? '' : 's'}` : ''}</span>` : ''}</td>
+      <td>${fecha(p.inicio)}</td>
       <td>${n >= 0 ? `<span class="badge azul">quedan ${n + 1} días</span>` : '<span class="badge">terminada</span>'}</td><td>${hace(p.ultimo_contacto)}</td>
       <td><button class="btn chico" data-otra="${esc(p.equipo)}">Dar otra prueba</button></td></tr>`; }).join('')}</tbody></table></div>`
-    : '<div class="vacio">Nadie ha pedido la prueba gratis todavía.</div>'}`;
+    : '<div class="vacio">Nadie ha pedido la prueba gratis todavía.</div>'}
+    ${bl.length ? `<h3 style="margin:18px 0 8px">Intentos bloqueados (últimos 60 días)</h3>
+      <div class="tabla-wrap"><table><thead><tr><th>Fecha</th><th>PC</th><th>Código de equipo</th><th>Conexión (IP)</th></tr></thead><tbody>
+      ${bl.map(x => `<tr class="fila-sospechosa"><td>${fechaHora(x.fecha)}</td><td><b>${esc(x.nombre_pc || '—')}</b></td><td><code>${esc(x.equipo)}</code></td><td><code>${esc(x.ip)}</code></td></tr>`).join('')}
+      </tbody></table></div>` : ''}`;
   $$('[data-otra]').forEach(b => b.addEventListener('click', async () => {
-    if (!confirm('¿Permitir que este PC empiece otra prueba gratis desde hoy?')) return;
-    try { await api('pruebas/' + encodeURIComponent(b.dataset.otra), { method: 'DELETE' }); toast('Listo: en ese PC puede volver a presionar “Probar gratis”'); await cargar(); }
+    if (!confirm('¿Dar a este PC otra prueba gratis, desde hoy? (No cuenta para el límite por conexión)')) return;
+    try { await api('pruebas/' + encodeURIComponent(b.dataset.otra), { method: 'DELETE' }); toast('Listo: ese PC tiene otra prueba desde hoy. Que presione "Reintentar" o vuelva a abrir MiPOS.'); await cargar(); }
     catch (e) { toast(e.message, 'error'); }
   }));
 }
@@ -511,7 +523,7 @@ function formPlan(p) {
 }
 
 const NOMBRES_EVENTO = { activacion: 'Activación', activacion_rechazada: 'Activación rechazada', prueba: 'Prueba iniciada', clave_creada: 'Clave creada',
-  clave_editada: 'Clave modificada', soporte: 'Caso de soporte', recordatorio: 'Recordatorio enviado', compra_pagada: 'Venta en línea', renovacion_pagada: 'Renovación pagada', plan: 'Plan', clave_eliminada: 'Clave eliminada', pc_liberado: 'PC liberado', prueba_reiniciada: 'Prueba reiniciada', codigo_sin_internet: 'Código sin internet' };
+  clave_editada: 'Clave modificada', soporte: 'Caso de soporte', recordatorio: 'Recordatorio enviado', compra_pagada: 'Venta en línea', renovacion_pagada: 'Renovación pagada', plan: 'Plan', clave_eliminada: 'Clave eliminada', pc_liberado: 'PC liberado', prueba_reiniciada: 'Prueba reiniciada', prueba_bloqueada: 'Prueba rechazada (límite por conexión)', codigo_sin_internet: 'Código sin internet' };
 async function vistaHistorial() {
   const c = $('#contenido');
   c.innerHTML = '<div class="det">Cargando…</div>';

@@ -15,6 +15,12 @@ export const error = (status, mensaje, extra = {}) => json({ error: mensaje, ...
 export function hoy() {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santiago', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 }
+// Pruebas gratis nuevas permitidas por conexión a internet (IP) en 30 días. 0 = sin límite.
+export function pruebasPorConexion(env) {
+  const n = parseInt(env.MIPOS_PRUEBAS_POR_IP ?? '2', 10);
+  return Number.isFinite(n) && n >= 0 ? n : 2;
+}
+
 export function sumarDias(fecha, n) {
   const d = new Date(fecha + 'T12:00:00Z');
   d.setUTCDate(d.getUTCDate() + n);
@@ -55,7 +61,11 @@ export async function asegurarTablas(db) {
     db.prepare("CREATE TABLE IF NOT EXISTS mipos_activaciones (id INTEGER PRIMARY KEY AUTOINCREMENT, clave_id INTEGER NOT NULL, equipo TEXT NOT NULL, nombre_pc TEXT NOT NULL DEFAULT '', version TEXT NOT NULL DEFAULT '', estado TEXT NOT NULL DEFAULT 'activa', creado TEXT NOT NULL, ultimo_contacto TEXT, UNIQUE(clave_id, equipo))"),
     db.prepare("CREATE TABLE IF NOT EXISTS mipos_pruebas (equipo TEXT PRIMARY KEY, inicio TEXT NOT NULL, nombre_pc TEXT NOT NULL DEFAULT '', version TEXT NOT NULL DEFAULT '', ultimo_contacto TEXT)"),
     db.prepare("CREATE TABLE IF NOT EXISTS mipos_eventos (id INTEGER PRIMARY KEY AUTOINCREMENT, fecha TEXT NOT NULL, tipo TEXT NOT NULL, clave_id INTEGER, equipo TEXT, detalle TEXT NOT NULL DEFAULT '')"),
+    // intentos de prueba gratis rechazados por venir de una conexión que ya usó sus pruebas del mes
+    db.prepare("CREATE TABLE IF NOT EXISTS mipos_pruebas_bloqueadas (id INTEGER PRIMARY KEY AUTOINCREMENT, fecha TEXT NOT NULL, ip TEXT NOT NULL, equipo TEXT NOT NULL, nombre_pc TEXT NOT NULL DEFAULT '')"),
   ]);
+  // conexión (IP) desde la que se pidió cada prueba
+  try { await db.prepare("ALTER TABLE mipos_pruebas ADD COLUMN ip TEXT NOT NULL DEFAULT ''").run(); } catch (e) { /* ya existe */ }
   tablasListas = true;
 }
 export function anotar(db, tipo, { clave_id = null, equipo = null, detalle = '' } = {}) {
