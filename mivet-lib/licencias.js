@@ -91,6 +91,15 @@ async function clavePrivada(env) {
   llaveDe = semilla;
   return llave;
 }
+// Clave pública que corresponde al secreto (no es secreta): sirve para revisar que el instalador y el servidor usen el mismo par
+export async function clavePublicaHex(env) {
+  const semilla = String(env.MIVET_CLAVE_PRIVADA || env.MIPOS_CLAVE_PRIVADA || '').trim().split(/\s+/)[0].toLowerCase();
+  if (!/^[0-9a-f]{64}$/.test(semilla)) return '';
+  const k = await crypto.subtle.importKey('pkcs8', hexABytes('302e020100300506032b657004220420' + semilla), { name: 'Ed25519' }, true, ['sign']);
+  const jwk = await crypto.subtle.exportKey('jwk', k);
+  const bin = atob(jwk.x.replace(/-/g, '+').replace(/_/g, '/'));
+  return [...bin].map(c => c.charCodeAt(0).toString(16).padStart(2, '0')).join('');
+}
 export async function firmarLicencia(env, lic) {
   lic = { ...lic, p: 'mivet' };  // marca de producto: una licencia de MiVet no sirve en MiPOS ni al revés
   const datos = enc.encode(JSON.stringify(ordenar(lic)));
