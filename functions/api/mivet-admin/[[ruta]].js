@@ -110,6 +110,17 @@ export async function onRequest({ request, env, params, waitUntil }) {
       return json({ ok: true });
     }
 
+    p = ruta.match(/^pruebas\/([A-Z0-9-]+)\/eliminar$/);
+    if (p && m === 'DELETE') {
+      const prueba = await db.prepare('SELECT * FROM mivet_pruebas WHERE equipo=?').bind(p[1]).first();
+      if (!prueba) return error(404, 'Prueba no encontrada');
+      const activa = await db.prepare("SELECT 1 FROM mivet_activaciones a JOIN mivet_claves c ON c.id=a.clave_id WHERE a.equipo=? AND a.estado='activa' AND c.estado='activa' AND (c.vence IS NULL OR c.vence>=?) LIMIT 1")
+        .bind(p[1], hoy()).first();
+      if (activa) return error(409, 'No se puede eliminar una prueba asociada a una activación activa');
+      await db.prepare('DELETE FROM mivet_pruebas WHERE equipo=?').bind(p[1]).run();
+      await anotar(db, 'prueba_eliminada', { equipo: p[1], detalle: 'Eliminada desde administración' });
+      return json({ ok: true });
+    }
     p = ruta.match(/^pruebas\/([A-Z0-9-]+)$/);
     if (p && m === 'DELETE') {
       const reinicio = await db.prepare("UPDATE mivet_pruebas SET inicio=?, ultimo_contacto=?, estado='activa' WHERE equipo=?")

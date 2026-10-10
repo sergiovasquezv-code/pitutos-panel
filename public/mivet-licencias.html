@@ -370,7 +370,8 @@ function vistaPruebas() {
       ${visibles.map(p => { const n = diasHasta(fin(p)); const sinContacto = pruebaSinContacto(p); return `<tr><td><b>${esc(p.nombre_pc || '—')}</b></td><td><code>${esc(p.equipo)}</code></td><td>${fecha(p.inicio)}</td>
         <td>${p.licencia_vigente ? `<span class="badge verde">Convertida a licencia · ${esc(p.licencia_vigente.cliente)}</span>` : p.estado === 'bloqueada' ? '<span class="badge rojo">Suspendida</span>' : n < 0 ? '<span class="badge">Demo vencida</span>' : sinContacto ? '<span class="badge amarillo">Sin contacto 30+ días</span>' : `<span class="badge azul">quedan ${n + 1} días</span>`}</td><td>${hace(p.ultimo_contacto)}</td>
         <td>${p.licencia_vigente ? '' : `<div class="acciones"><button class="btn chico ${p.estado === 'bloqueada' ? '' : 'peligro'}" data-estado="${p.estado === 'bloqueada' ? 'activa' : 'bloqueada'}">${p.estado === 'bloqueada' ? 'Reactivar' : 'Suspender'}</button>
-          <button class="btn chico" data-otra="${esc(p.equipo)}">Reiniciar demo</button></div>`}</td></tr>`; }).join('')}</tbody></table></div>`
+          <button class="btn chico" data-otra="${esc(p.equipo)}">Reiniciar demo</button>
+          <button class="btn chico peligro" data-eliminar-prueba="${esc(p.equipo)}">Eliminar demo</button></div>`}</td></tr>`; }).join('')}</tbody></table></div>`
       : `<div class="vacio">${l.length ? (mostrarArchivadas ? 'No hay pruebas archivadas.' : 'No hay pruebas vigentes.') : 'Nadie ha pedido la prueba gratis todavía.'}</div>`}`;
     $('#b-pruebas-vigentes').addEventListener('click', () => { mostrarArchivadas = false; render(); });
     $('#b-pruebas-archivadas').addEventListener('click', () => { mostrarArchivadas = true; render(); });
@@ -388,6 +389,12 @@ function vistaPruebas() {
       if (!confirm('¿Reiniciar esta demo desde hoy? Se conservará el registro del equipo.')) return;
       try { await api('pruebas/' + encodeURIComponent(b.dataset.otra), { method: 'DELETE' }); toast('Demo reiniciada desde hoy. MiVet debe volver a conectarse para renovarla.'); await cargar(); }
       catch (e) { toast(e.message, 'error'); }
+    }));
+    $$('[data-eliminar-prueba]').forEach(b => b.addEventListener('click', async () => {
+      if (!confirm('¿Eliminar definitivamente esta demo? No se borrará ninguna licencia; el PC podrá solicitar otra prueba.')) return;
+      b.disabled = true;
+      try { await api(`pruebas/${encodeURIComponent(b.dataset.eliminarPrueba)}/eliminar`, { method: 'DELETE' }); toast('Demo eliminada'); await cargar(); }
+      catch (e) { toast(e.message, 'error'); b.disabled = false; }
     }));
   };
   render();
@@ -568,7 +575,7 @@ function formPlan(p) {
 }
 
 const NOMBRES_EVENTO = { activacion: 'Activación', activacion_rechazada: 'Activación rechazada', prueba: 'Prueba iniciada', clave_creada: 'Clave creada',
-  clave_editada: 'Clave modificada', soporte: 'Caso de soporte', recordatorio: 'Recordatorio enviado', compra_pagada: 'Venta en línea', renovacion_pagada: 'Renovación pagada', plan: 'Plan', clave_eliminada: 'Clave eliminada', pc_liberado: 'PC liberado', prueba_reiniciada: 'Prueba reiniciada', prueba_suspendida: 'Prueba suspendida', prueba_reactivada: 'Prueba reactivada', codigo_sin_internet: 'Código sin internet' };
+  clave_editada: 'Clave modificada', soporte: 'Caso de soporte', recordatorio: 'Recordatorio enviado', compra_pagada: 'Venta en línea', renovacion_pagada: 'Renovación pagada', plan: 'Plan', clave_eliminada: 'Clave eliminada', pc_liberado: 'PC liberado', prueba_reiniciada: 'Prueba reiniciada', prueba_eliminada: 'Prueba eliminada', prueba_suspendida: 'Prueba suspendida', prueba_reactivada: 'Prueba reactivada', codigo_sin_internet: 'Código sin internet' };
 async function vistaHistorial() {
   const c = $('#contenido');
   c.innerHTML = '<div class="det">Cargando…</div>';
