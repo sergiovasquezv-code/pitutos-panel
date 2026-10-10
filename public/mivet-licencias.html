@@ -216,6 +216,7 @@ function pintar() {
       <div class="stat"><span>Pruebas en curso</span><strong>${enPrueba}</strong></div>
       <div class="stat"><span>Ventas web este mes</span><strong>$${ventasMes.toLocaleString('es-CL')}</strong></div>
     </div>
+    <p class="det" style="margin:-8px 0 14px">Este contador muestra servidores MiVet activados con clave. Los PC cliente que se conectan por red no cuentan como servidores; el acceso simultáneo se limita por los puestos de cada licencia.</p>
     <div class="tabs">${[['claves', 'Clientes'], ['soporte', `Soporte${d.soporte && d.soporte.sin_leer ? ` <span class="burbuja">${d.soporte.sin_leer}</span>` : ''}`], ['ventas', 'Ventas'], ['planes', 'Planes y precios'], ['pruebas', 'Pruebas gratis'], ['codigo', 'Código sin internet'], ['historial', 'Historial']]
       .map(([k, t]) => `<button data-tab="${k}" class="${E.tab === k ? 'activo' : ''}">${t}</button>`).join('')}</div>
     <div id="contenido"></div></div>`;
