@@ -69,6 +69,7 @@ export async function asegurarTablas(db) {
     db.prepare("CREATE TABLE IF NOT EXISTS mivet_eventos (id INTEGER PRIMARY KEY AUTOINCREMENT, fecha TEXT NOT NULL, tipo TEXT NOT NULL, clave_id INTEGER, equipo TEXT, detalle TEXT NOT NULL DEFAULT '')"),
   ]);
   try { await db.prepare("ALTER TABLE mivet_pruebas ADD COLUMN estado TEXT NOT NULL DEFAULT 'activa'").run(); } catch (e) { /* ya existe */ }
+  try { await db.prepare("ALTER TABLE mivet_pruebas ADD COLUMN ip TEXT NOT NULL DEFAULT ''").run(); } catch (e) { /* ya existe */ }
   tablasListas = true;
 }
 export function anotar(db, tipo, { clave_id = null, equipo = null, detalle = '' } = {}) {
