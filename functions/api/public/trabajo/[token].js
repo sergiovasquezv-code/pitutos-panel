@@ -7,7 +7,7 @@ export async function onRequestGet({ env, params }) {
   const trabajo = await db
     .prepare(
       `SELECT trabajos.id, trabajos.tipo, trabajos.descripcion, trabajos.estado, trabajos.monto,
-              trabajos.fecha_creacion, trabajos.fecha_cierre, trabajos.mostrar_detalle_cliente,
+              trabajos.fecha_creacion, trabajos.fecha_cierre, trabajos.fecha_entrega, trabajos.mostrar_detalle_cliente,
               clientes.nombre AS cliente_nombre
        FROM trabajos JOIN clientes ON clientes.id = trabajos.cliente_id
        WHERE trabajos.public_token = ?`

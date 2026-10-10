@@ -75,6 +75,14 @@ input:focus { outline: 2px solid color-mix(in srgb, var(--acento) 45%, transpare
 .det { color: var(--suave); font-size: .9rem; }
 .oculto { display: none !important; }
 footer { text-align: center; color: var(--suave); font-size: .85rem; padding: 0 16px 30px; }
+.contacto-web { max-width: 640px; margin: 0 auto; padding: 0 16px 34px; text-align: left; }
+.contacto-web h2 { margin: 0 0 4px; font-size: 1.2rem; }
+.contacto-web > p { margin: 0 0 14px; color: var(--suave); font-size: .9rem; }
+.contacto-web form { background: var(--panel); border: 1px solid var(--borde); border-radius: 14px; padding: 16px; }
+.contacto-web textarea { font: inherit; color: inherit; width: 100%; min-height: 100px; resize: vertical; padding: 11px 13px; border: 1px solid var(--borde); border-radius: 12px; background: var(--panel); }
+.contacto-web textarea:focus { outline: 2px solid color-mix(in srgb, var(--acento) 45%, transparent); border-color: var(--acento); }
+.contacto-estado { min-height: 0; color: var(--ok); font-size: .9rem; }
+.contacto-estado.error { color: var(--peligro); }
 @media (max-width: 600px) { .grid2 { grid-template-columns: 1fr; } .caja { padding: 18px 16px; } }
 @media (prefers-reduced-motion: reduce) { .anillo { animation-duration: 3s; } .plan:hover { transform: none; } }
 </style>
@@ -88,12 +96,20 @@ footer { text-align: center; color: var(--suave); font-size: .85rem; padding: 0 
 </div></header>
 
 <main><div class="caja" id="contenido"><div class="resultado"><div class="anillo"></div><div class="det">Cargando…</div></div></div></main>
-<footer>¿Dudas? Escríbenos por <a id="wa" href="#" target="_blank" rel="noopener">WhatsApp</a> o a <a href="mailto:contacto@mispitutosinformaticos.cl">contacto@mispitutosinformaticos.cl</a>
+<footer class="contacto-web" aria-labelledby="contacto-titulo">
+  <h2 id="contacto-titulo">¿Tienes una consulta?</h2>
+  <p>Déjanos tus datos y tu mensaje. Lo recibimos en el panel de soporte.</p>
+  <form id="form-contacto">
+    <div class="grid2"><label>Nombre<input name="nombre" maxlength="100" autocomplete="name" required></label>
+      <label>Correo<input name="email" type="email" maxlength="120" autocomplete="email" required></label></div>
+    <label>Mensaje<textarea name="texto" minlength="5" maxlength="4000" rows="4" required></textarea></label>
+    <div id="contacto-estado" class="contacto-estado" role="status" aria-live="polite"></div>
+    <button class="pagar" type="submit">Enviar consulta</button>
+  </form>
 </footer>
 
 <script>
 'use strict';
-const WHATSAPP = '56993189534';
 const API = '/api/mivet/';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -101,7 +117,6 @@ const clp = n => '$' + Math.round(Number(n) || 0).toLocaleString('es-CL');
 const fecha = f => f ? new Date(f + 'T12:00').toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric' }) : 'sin vencimiento';
 const q = new URLSearchParams(location.search);
 const EQUIPO = q.get('equipo') || '';
-$('#wa').href = `https://wa.me/${WHATSAPP}?text=${encodeURIComponent('Hola, tengo una consulta sobre la licencia de MiVet' + (EQUIPO ? ` (equipo ${EQUIPO})` : ''))}`;
 
 async function llamar(ruta, body) {
   const r = await fetch(API + ruta, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {});
@@ -123,7 +138,7 @@ async function pintarCompra() {
   if (renovando) { $('#titulo').textContent = 'Renueva tu licencia'; $('#bajada').textContent = 'Elige cuánto tiempo quieres sumar. Se aplica sola en tu computador apenas se confirme el pago.'; }
   if (!datos.venta_activa || !datos.planes.length) {
     c.innerHTML = `<div class="aviso amarillo">La compra en línea no está disponible en este momento.</div>
-      <p>Escríbenos y te ayudamos al tiro: <a class="btn" href="${$('#wa').href}" target="_blank" rel="noopener">WhatsApp +${WHATSAPP}</a></p>`;
+      <p>Escríbenos y te ayudamos al tiro: <a class="btn" href="mailto:contacto@mispitutosinformaticos.cl">contacto@mispitutosinformaticos.cl</a></p>`;
     return;
   }
   const planes = datos.planes;
@@ -218,6 +233,17 @@ async function pintarResultado(ref) {
 }
 
 const ref = q.get('ref') || q.get('external_reference');
+$('#form-contacto').addEventListener('submit', async e => {
+  e.preventDefault();
+  const f = e.currentTarget, boton = f.querySelector('button[type="submit"]'), estado = $('#contacto-estado');
+  boton.disabled = true; estado.classList.remove('error'); estado.textContent = 'Enviando…';
+  try {
+    const caso = await llamar('soporte', { accion: 'crear', tipo: 'consulta', nombre: f.nombre.value, email: f.email.value,
+      texto: f.texto.value, equipo: EQUIPO || undefined, diagnostico: { origen: 'pagina_compra' } });
+    f.reset(); estado.textContent = `Consulta recibida. Número de caso: #${caso.numero}.`;
+  } catch (err) { estado.classList.add('error'); estado.textContent = err.message; }
+  finally { boton.disabled = false; }
+});
 if (ref) pintarResultado(ref); else pintarCompra();
 </script>
 </body>

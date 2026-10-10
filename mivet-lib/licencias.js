@@ -15,6 +15,17 @@ export const error = (status, mensaje, extra = {}) => json({ error: mensaje, ...
 export function hoy() {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santiago', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 }
+export function asociarLicenciasVigentesAPruebas(pruebas, claves, activaciones, fecha = hoy()) {
+  const porEquipo = new Map();
+  for (const clave of claves) {
+    if (clave.estado !== 'activa' || (clave.vence && clave.vence < fecha)) continue;
+    for (const activacion of activaciones) {
+      if (activacion.clave_id !== clave.id || activacion.estado !== 'activa' || porEquipo.has(activacion.equipo)) continue;
+      porEquipo.set(activacion.equipo, { cliente: clave.cliente });
+    }
+  }
+  return pruebas.map(prueba => ({ ...prueba, licencia_vigente: porEquipo.get(prueba.equipo) || null }));
+}
 export function sumarDias(fecha, n) {
   const d = new Date(fecha + 'T12:00:00Z');
   d.setUTCDate(d.getUTCDate() + n);
@@ -53,10 +64,11 @@ export async function asegurarTablas(db) {
   await db.batch([
     db.prepare("CREATE TABLE IF NOT EXISTS mivet_claves (id INTEGER PRIMARY KEY AUTOINCREMENT, clave TEXT NOT NULL UNIQUE, cliente TEXT NOT NULL, contacto TEXT NOT NULL DEFAULT '', cajas INTEGER NOT NULL DEFAULT 1, vence TEXT, max_equipos INTEGER NOT NULL DEFAULT 1, estado TEXT NOT NULL DEFAULT 'activa', notas TEXT NOT NULL DEFAULT '', creado TEXT NOT NULL)"),
     db.prepare("CREATE TABLE IF NOT EXISTS mivet_activaciones (id INTEGER PRIMARY KEY AUTOINCREMENT, clave_id INTEGER NOT NULL, equipo TEXT NOT NULL, nombre_pc TEXT NOT NULL DEFAULT '', version TEXT NOT NULL DEFAULT '', estado TEXT NOT NULL DEFAULT 'activa', creado TEXT NOT NULL, ultimo_contacto TEXT, UNIQUE(clave_id, equipo))"),
-    db.prepare("CREATE TABLE IF NOT EXISTS mivet_pruebas (equipo TEXT PRIMARY KEY, inicio TEXT NOT NULL, nombre_pc TEXT NOT NULL DEFAULT '', version TEXT NOT NULL DEFAULT '', ultimo_contacto TEXT)"),
+    db.prepare("CREATE TABLE IF NOT EXISTS mivet_puestos_reportados (clave_id INTEGER NOT NULL, servidor_equipo TEXT NOT NULL, cliente_id TEXT NOT NULL, nombre TEXT NOT NULL DEFAULT '', usuario TEXT NOT NULL DEFAULT '', ultimo_contacto TEXT NOT NULL, PRIMARY KEY(clave_id, servidor_equipo, cliente_id))"),
+    db.prepare("CREATE TABLE IF NOT EXISTS mivet_pruebas (equipo TEXT PRIMARY KEY, inicio TEXT NOT NULL, nombre_pc TEXT NOT NULL DEFAULT '', version TEXT NOT NULL DEFAULT '', ultimo_contacto TEXT, estado TEXT NOT NULL DEFAULT 'activa')"),
     db.prepare("CREATE TABLE IF NOT EXISTS mivet_eventos (id INTEGER PRIMARY KEY AUTOINCREMENT, fecha TEXT NOT NULL, tipo TEXT NOT NULL, clave_id INTEGER, equipo TEXT, detalle TEXT NOT NULL DEFAULT '')"),
   ]);
-  try { await db.prepare("ALTER TABLE mivet_pruebas ADD COLUMN ip TEXT NOT NULL DEFAULT ''").run(); } catch (e) { /* ya existe */ }
+  try { await db.prepare("ALTER TABLE mivet_pruebas ADD COLUMN estado TEXT NOT NULL DEFAULT 'activa'").run(); } catch (e) { /* ya existe */ }
   tablasListas = true;
 }
 export function anotar(db, tipo, { clave_id = null, equipo = null, detalle = '' } = {}) {

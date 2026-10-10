@@ -1,7 +1,8 @@
 // /api/mipos-admin/*  — administración de licencias (la usa public/mipos-licencias.html).
 // Protegida con el secreto MIPOS_ADMIN_CLAVE (encabezado Authorization: Bearer <clave>).
 import { anotar, asegurarTablasVenta, base, claveNueva, diasPrueba, diasSinInternet, error, firmarLicencia, hoy, json, leerCuerpo,
-  normalizarEquipo, pruebasPorConexion, sumarDias, recordatoriosDelDia, revisarPago, texto, ahora, asegurarTablasSoporte, adjuntoValido, correo, correoRespuesta } from '../../../mipos-lib/licencias.js';
+  normalizarEquipo, pruebasPorConexion, sumarDias, recordatoriosDelDia, revisarPago, texto, ahora, asegurarTablasSoporte, adjuntoValido, correo, correoRespuesta,
+  asociarLicenciasVigentesAPruebas } from '../../../mipos-lib/licencias.js';
 
 function igual(a, b) {
   const x = new TextEncoder().encode(a), y = new TextEncoder().encode(b);
@@ -27,6 +28,7 @@ function datosClave(d, actual = {}) {
 async function resumen(db, env) {
   const claves = (await db.prepare('SELECT * FROM mipos_claves ORDER BY id DESC').all()).results;
   const acts = (await db.prepare('SELECT * FROM mipos_activaciones ORDER BY id').all()).results;
+  const puestos = (await db.prepare('SELECT * FROM mipos_puestos_reportados ORDER BY clave_id, servidor_equipo, nombre').all()).results;
   const pruebas = (await db.prepare('SELECT * FROM mipos_pruebas ORDER BY inicio DESC').all()).results;
   // sospechosas: varias pruebas desde la misma conexión, o intentos bloqueados desde ella
   const bloqueadas = (await db.prepare('SELECT * FROM mipos_pruebas_bloqueadas WHERE fecha >= ? ORDER BY id DESC LIMIT 200').bind(sumarDias(hoy(), -60)).all()).results;
@@ -38,10 +40,12 @@ async function resumen(db, env) {
   const planes = (await db.prepare('SELECT * FROM mipos_planes ORDER BY orden, precio').all()).results;
   const soporte = await db.prepare("SELECT SUM(estado<>'resuelto') AS abiertos, SUM(sin_leer_soporte>0 AND estado<>'resuelto') AS sin_leer FROM mipos_tickets").first();
   const compras = (await db.prepare('SELECT c.*, k.clave FROM mipos_compras c LEFT JOIN mipos_claves k ON k.id=c.clave_id ORDER BY c.id DESC LIMIT 300').all()).results;
+  for (const a of acts) a.puestos = puestos.filter(p => p.clave_id === a.clave_id && p.servidor_equipo === a.equipo);
   for (const c of claves) c.equipos = acts.filter(a => a.clave_id === c.id);
+  const pruebasConLicencia = asociarLicenciasVigentesAPruebas(pruebas, claves, acts, hoy());
   let firma = 'ok';
   try { await firmarLicencia(env, { prueba: 1 }); } catch (e) { firma = e.message; }
-  return { hoy: hoy(), claves, pruebas, pruebas_bloqueadas: bloqueadas, planes, compras, soporte: { abiertos: soporte.abiertos || 0, sin_leer: soporte.sin_leer || 0 }, config: { dias_prueba: diasPrueba(env), pruebas_por_ip: pruebasPorConexion(env), dias_sin_internet: diasSinInternet(env), firma,
+  return { hoy: hoy(), claves, pruebas: pruebasConLicencia, pruebas_bloqueadas: bloqueadas, planes, compras, soporte: { abiertos: soporte.abiertos || 0, sin_leer: soporte.sin_leer || 0 }, config: { dias_prueba: diasPrueba(env), pruebas_por_ip: pruebasPorConexion(env), dias_sin_internet: diasSinInternet(env), firma,
     mercado_pago: env.MP_ACCESS_TOKEN ? (String(env.MP_ACCESS_TOKEN).startsWith('TEST-') ? 'prueba' : 'ok') : 'falta',
     correo: env.RESEND_API_KEY && env.EMAIL_REMITENTE ? 'ok' : 'falta' } };
 }
@@ -91,8 +95,8 @@ export async function onRequest({ request, env, params, waitUntil }) {
       const v = datosClave(d, actual);
       await db.prepare('UPDATE mipos_claves SET cliente=?, contacto=?, cajas=?, vence=?, max_equipos=?, estado=?, notas=?, email=? WHERE id=?')
         .bind(v.cliente, v.contacto, v.cajas, v.vence, v.max_equipos, v.estado, v.notas, v.email || '', actual.id).run();
-      const cambios = ['cajas', 'vence', 'max_equipos', 'estado', 'cliente'].filter(k => String(actual[k]) !== String(v[k]))
-        .map(k => `${k}: ${actual[k] ?? '—'} → ${v[k] ?? '—'}`).join(', ');
+      const cambios = ['cajas', 'vence', 'max_equipos', 'estado', 'cliente', 'notas'].filter(k => String(actual[k] ?? '') !== String(v[k] ?? ''))
+        .map(k => k === 'notas' ? 'nota interna actualizada' : `${k}: ${actual[k] ?? '—'} → ${v[k] ?? '—'}`).join(', ');
       await anotar(db, 'clave_editada', { clave_id: actual.id, detalle: cambios || 'sin cambios' });
       return json(await db.prepare('SELECT * FROM mipos_claves WHERE id=?').bind(actual.id).first());
     }
@@ -115,16 +119,29 @@ export async function onRequest({ request, env, params, waitUntil }) {
     p = ruta.match(/^pruebas\/([A-Z0-9-]+)$/);
     if (p && m === 'DELETE') {
       // "Dar otra prueba": empieza de nuevo desde hoy (decisión tuya, no cuenta para el límite por conexión)
-      await db.prepare('UPDATE mipos_pruebas SET inicio=? WHERE equipo=?').bind(hoy(), p[1]).run();
+      const reinicio = await db.prepare("UPDATE mipos_pruebas SET inicio=?, ultimo_contacto=?, estado='activa' WHERE equipo=?")
+        .bind(hoy(), ahora(), p[1]).run();
+      if (!reinicio.meta.changes) return error(404, 'Prueba no encontrada');
       await anotar(db, 'prueba_reiniciada', { equipo: p[1] });
       return json({ ok: true });
+    }
+    p = ruta.match(/^pruebas\/([A-Z0-9-]+)\/estado$/);
+    if (p && m === 'POST') {
+      if (!['activa', 'bloqueada'].includes(d.estado)) return error(400, 'Estado de prueba inválido');
+      const cambio = await db.prepare('UPDATE mipos_pruebas SET estado=? WHERE equipo=?').bind(d.estado, p[1]).run();
+      if (!cambio.meta.changes) return error(404, 'Prueba no encontrada');
+      await anotar(db, d.estado === 'bloqueada' ? 'prueba_suspendida' : 'prueba_reactivada', { equipo: p[1] });
+      return json({ ok: true, estado: d.estado });
     }
 
     // ---- planes a la venta (los ve la página de compra)
     const datosPlan = x => {
+      const meses = x.meses === undefined ? 1 : Number(x.meses);
+      if (!Number.isInteger(meses) || meses < 0 || meses > 120) throw Object.assign(new Error('La duración debe ser 0 (perpetua) o entre 1 y 120 meses'), { status: 400 });
       const v = { nombre: texto(x.nombre, 60), descripcion: texto(x.descripcion, 200), meses: Math.min(Math.max(parseInt(x.meses, 10) || 1, 1), 120),
                   cajas: Math.min(Math.max(parseInt(x.cajas, 10) || 1, 1), 50), precio: Math.max(parseInt(x.precio, 10) || 0, 0),
                   destacado: x.destacado ? 1 : 0, activo: x.activo === false ? 0 : 1, orden: parseInt(x.orden, 10) || 0 };
+      v.meses = meses;
       if (!v.nombre) throw Object.assign(new Error('Falta el nombre del plan'), { status: 400 });
       if (v.precio < 100) throw Object.assign(new Error('El precio debe ser de al menos $100'), { status: 400 });
       return v;

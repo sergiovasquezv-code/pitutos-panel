@@ -12,6 +12,7 @@ export async function onRequestPost({ request, env }) {
     const equipo = normalizarEquipo(d.equipo);
     if (!equipo) return error(400, 'Código de equipo inválido');
     let p = await db.prepare('SELECT * FROM mipos_pruebas WHERE equipo=?').bind(equipo).first();
+    if (p?.estado === 'bloqueada') return error(403, 'La prueba gratis de este computador fue suspendida desde el panel.');
     if (!p) {
       // Prueba nueva: máximo N por conexión a internet cada 30 días (evita sacar pruebas infinitas
       // cambiando la identidad del PC o usando máquinas virtuales)

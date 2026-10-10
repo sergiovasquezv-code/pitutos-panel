@@ -1,0 +1,2 @@
+npx wrangler login
+npx wrangler pages deploy public --project-name pitutos-panel-git

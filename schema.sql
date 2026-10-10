@@ -111,6 +111,8 @@ CREATE TABLE IF NOT EXISTS trabajos (
     monto INTEGER DEFAULT 0,
     fecha_creacion TEXT NOT NULL,
     fecha_cierre TEXT,
+    -- Fecha (y hora opcional) fijada para entregar el equipo, "YYYY-MM-DD" o "YYYY-MM-DDTHH:MM".
+    fecha_entrega TEXT,
     notas TEXT,
     public_token TEXT,
     -- Recién en 0 (oculto): el "Detalle y pago" (repuestos/servicios,

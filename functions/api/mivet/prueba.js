@@ -12,6 +12,7 @@ export async function onRequestPost({ request, env }) {
     const equipo = normalizarEquipo(d.equipo);
     if (!equipo) return error(400, 'Código de equipo inválido');
     let p = await db.prepare('SELECT * FROM mivet_pruebas WHERE equipo=?').bind(equipo).first();
+    if (p?.estado === 'bloqueada') return error(403, 'La prueba gratis de este computador fue suspendida desde el panel.');
     if (!p) {
       // Contra la "prueba infinita" (cambiar la identidad del PC para pedir otra): desde la misma conexión a internet,
       // el mismo PC (mismo nombre) sigue con la prueba que ya tenía, y solo se dan unas pocas pruebas nuevas al mes.
