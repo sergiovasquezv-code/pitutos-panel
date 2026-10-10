@@ -27,10 +27,12 @@ function datosClave(d, actual = {}) {
 async function resumen(db, env) {
   const claves = (await db.prepare('SELECT * FROM mivet_claves ORDER BY id DESC').all()).results;
   const acts = (await db.prepare('SELECT * FROM mivet_activaciones ORDER BY id').all()).results;
+  const puestos = (await db.prepare('SELECT * FROM mivet_puestos_reportados ORDER BY clave_id, servidor_equipo, nombre').all()).results;
   const pruebas = (await db.prepare('SELECT * FROM mivet_pruebas ORDER BY inicio DESC').all()).results;
   const planes = (await db.prepare('SELECT * FROM mivet_planes ORDER BY orden, precio').all()).results;
   const soporte = await db.prepare("SELECT SUM(estado<>'resuelto') AS abiertos, SUM(sin_leer_soporte>0 AND estado<>'resuelto') AS sin_leer FROM mivet_tickets").first();
   const compras = (await db.prepare('SELECT c.*, k.clave FROM mivet_compras c LEFT JOIN mivet_claves k ON k.id=c.clave_id ORDER BY c.id DESC LIMIT 300').all()).results;
+  for (const a of acts) a.puestos = puestos.filter(p => p.clave_id === a.clave_id && p.servidor_equipo === a.equipo);
   for (const c of claves) c.equipos = acts.filter(a => a.clave_id === c.id);
   let firma = 'ok';
   try { await firmarLicencia(env, { prueba: 1 }); } catch (e) { firma = e.message; }

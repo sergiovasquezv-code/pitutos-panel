@@ -54,6 +54,7 @@ export async function asegurarTablas(db) {
     db.prepare("CREATE TABLE IF NOT EXISTS mivet_claves (id INTEGER PRIMARY KEY AUTOINCREMENT, clave TEXT NOT NULL UNIQUE, cliente TEXT NOT NULL, contacto TEXT NOT NULL DEFAULT '', cajas INTEGER NOT NULL DEFAULT 1, vence TEXT, max_equipos INTEGER NOT NULL DEFAULT 1, estado TEXT NOT NULL DEFAULT 'activa', notas TEXT NOT NULL DEFAULT '', creado TEXT NOT NULL)"),
     db.prepare("CREATE TABLE IF NOT EXISTS mivet_activaciones (id INTEGER PRIMARY KEY AUTOINCREMENT, clave_id INTEGER NOT NULL, equipo TEXT NOT NULL, nombre_pc TEXT NOT NULL DEFAULT '', version TEXT NOT NULL DEFAULT '', estado TEXT NOT NULL DEFAULT 'activa', creado TEXT NOT NULL, ultimo_contacto TEXT, UNIQUE(clave_id, equipo))"),
     db.prepare("CREATE TABLE IF NOT EXISTS mivet_pruebas (equipo TEXT PRIMARY KEY, inicio TEXT NOT NULL, nombre_pc TEXT NOT NULL DEFAULT '', version TEXT NOT NULL DEFAULT '', ultimo_contacto TEXT)"),
+    db.prepare("CREATE TABLE IF NOT EXISTS mivet_puestos_reportados (clave_id INTEGER NOT NULL, servidor_equipo TEXT NOT NULL, cliente_id TEXT NOT NULL, nombre TEXT NOT NULL DEFAULT '', usuario TEXT NOT NULL DEFAULT '', ultimo_contacto TEXT NOT NULL, PRIMARY KEY(clave_id, servidor_equipo, cliente_id))"),
     db.prepare("CREATE TABLE IF NOT EXISTS mivet_eventos (id INTEGER PRIMARY KEY AUTOINCREMENT, fecha TEXT NOT NULL, tipo TEXT NOT NULL, clave_id INTEGER, equipo TEXT, detalle TEXT NOT NULL DEFAULT '')"),
   ]);
   tablasListas = true;

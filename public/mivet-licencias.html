@@ -195,6 +195,11 @@ async function cargar() {
 }
 function pintar() {
   const d = E.datos;
+  if (!E.timerEstados) E.timerEstados = setInterval(async () => {
+    if (!E.token || E.tab !== 'claves' || $('.overlay') || document.activeElement?.id === 'q') return;
+    const scroll = window.scrollY;
+    try { E.datos = await api('resumen'); vistaClaves(); window.scrollTo(0, scroll); } catch (e) { /* sesión cerrada o sin conexión */ }
+  }, 60_000);
   const activas = d.claves.filter(k => k.estado === 'activa');
   const pcs = d.claves.reduce((a, k) => a + k.equipos.filter(x => x.estado === 'activa').length, 0);
   const pronto = activas.filter(k => k.vence && diasHasta(k.vence) <= 30).length;
@@ -234,6 +239,13 @@ function badgeVence(k) {
   return `<span class="badge ${n <= 30 ? 'amarillo' : 'verde'}">Vence ${fecha(k.vence)}${n <= 30 ? ` (${n} días)` : ''}</span>`;
 }
 
+function luzConexion(ultimo) {
+  const instante = Date.parse(ultimo || '');
+  const delta = Date.now() - instante;
+  const conectado = Number.isFinite(instante) && delta >= -60000 && delta < 5 * 60 * 1000;
+  return `<span class="badge ${conectado ? 'verde' : 'rojo'}"><i style="display:inline-block;width:8px;height:8px;border-radius:50%;background:currentColor"></i>${conectado ? 'Conectado' : 'Sin contacto'}</span>`;
+}
+
 function vistaClaves() {
   const c = $('#contenido');
   c.innerHTML = `<div class="barra"><input type="search" id="q" placeholder="Buscar cliente, clave o PC" value="${esc(E.q)}"></div><div class="lista" id="lista"></div>`;
@@ -249,9 +261,11 @@ function vistaClaves() {
           <a class="btn chico verde" href="${linkWhatsApp(k)}" target="_blank" rel="noopener">Enviar por WhatsApp</a></div>
         <div class="meta"><span>Servidores activados: <b>${activos.length} de ${k.max_equipos}</b></span>${k.contacto ? `<span>Contacto: <b>${esc(k.contacto)}</b></span>` : ''}
           <span>Creada: ${fecha(k.creado)}</span>${k.notas ? `<span><b>Nota interna:</b> ${esc(k.notas)}</span>` : ''}</div>
-        ${activos.length ? `<div class="pcs">${activos.map(x => `<div class="pc"><b>${esc(x.nombre_pc || 'PC')}</b><code>${esc(x.equipo)}</code>
-          <span class="badge">v${esc(x.version || '?')}</span><span class="det">conectado ${hace(x.ultimo_contacto)}</span>
-          <button class="btn chico" data-liberar="${esc(x.equipo)}" title="Para que la clave se pueda usar en otro PC">Liberar</button></div>`).join('')}</div>`
+        ${activos.length ? `<div class="pcs">${activos.map(x => `<div class="pc"><b>Servidor: ${esc(x.nombre_pc || 'PC')}</b><code>${esc(x.equipo)}</code>
+          <span class="badge">v${esc(x.version || '?')}</span>${luzConexion(x.ultimo_contacto)}<span class="det">último contacto ${hace(x.ultimo_contacto)}</span>
+          <button class="btn chico" data-liberar="${esc(x.equipo)}" title="Para que la clave se pueda usar en otro PC">Liberar</button></div>
+          ${(x.puestos || []).map(p => `<div class="pc" style="margin-left:18px"><b>${esc(p.nombre || 'Computador')}</b>${p.usuario ? `<span>${esc(p.usuario)}</span>` : ''}
+            ${luzConexion(p.ultimo_contacto)}<span class="det">último reporte ${hace(p.ultimo_contacto)}</span></div>`).join('') || '<div class="det" style="margin-left:18px">Sin puestos cliente reportados todavía.</div>'}
           : '<div class="det">Aún no se activa en ningún PC.</div>'}
         <div class="acciones">
           <button class="btn chico" data-renovar="1">+1 mes</button><button class="btn chico" data-renovar="12">+1 año</button>
