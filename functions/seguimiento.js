@@ -567,7 +567,15 @@ const PAGINA_BASE = `<!DOCTYPE html>
       return \`https://wa.me/\${telefono}?text=\${encodeURIComponent(mensaje)}\`;
     }
 
-    const ESTADOS = ["Pendiente", "En curso", "Esperando cliente", "Terminado"];
+    const ESTADOS = ["Recibido", "En preparación", "Equipo listo", "Entrega fijada", "Entregado"];
+
+    function textoEntrega(valor) {
+      const [fecha, hora] = String(valor).split("T");
+      const [y, m, d] = fecha.split("-").map(Number);
+      if (!y || !m || !d) return valor;
+      const f = new Date(y, m - 1, d).toLocaleDateString("es-CL", { dateStyle: "full" });
+      return hora ? \`\${f}, \${hora} hrs\` : f;
+    }
 
     function renderEstadoSteps(estadoActual) {
       const idxActual = ESTADOS.indexOf(estadoActual);
@@ -688,7 +696,8 @@ const PAGINA_BASE = `<!DOCTYPE html>
           <div class="cliente">Para \${escapeHtml(trabajo.cliente_nombre)} · Iniciado el \${fechaLarga(trabajo.fecha_creacion)}</div>
           \${trabajo.descripcion ? \`<p style="margin:0 0 14px;">\${escapeHtml(trabajo.descripcion)}</p>\` : ""}
           <div class="estado-steps">\${renderEstadoSteps(trabajo.estado)}</div>
-          \${trabajo.estado === "Terminado" && trabajo.fecha_cierre ? \`<div class="text-muted" style="font-size:12.5px;text-align:center;margin-top:4px;">Terminado el \${fechaLarga(trabajo.fecha_cierre)}</div>\` : ""}
+          \${trabajo.estado === "Entregado" && trabajo.fecha_cierre ? \`<div class="text-muted" style="font-size:12.5px;text-align:center;margin-top:4px;">Entregado el \${fechaLarga(trabajo.fecha_cierre)}</div>\` : ""}
+          \${trabajo.fecha_entrega && trabajo.estado !== "Entregado" ? \`<div style="font-size:14px;text-align:center;margin-top:8px;">Entrega programada: <strong>\${escapeHtml(textoEntrega(trabajo.fecha_entrega))}</strong></div>\` : ""}
           \${
             trabajo.estado === "Esperando cliente"
               ? \`<div class="banner-espera"><div class="ic">&#9203;</div><div><p class="titulo">Necesitamos tu respuesta</p><p class="detalle">Este trabajo está esperando algo de tu parte para poder seguir avanzando.</p></div></div>\`

@@ -27,6 +27,7 @@ export async function onRequestPost({ request, env }) {
     } else if (equipo) {
       clave = await claveDeEquipo(db, equipo);
     }
+    if (clave && !clave.vence && plan.meses > 0) return error(400, 'Esta licencia es perpetua y no necesita renovación. Elige un plan perpetuo para mantenerla sin vencimiento.');
     const ref = crypto.randomUUID();
     const origen = new URL(request.url).origin;
     const pagina = env.MIPOS_URL_PAGINA || `${origen}/mipos-comprar.html`;
@@ -35,7 +36,7 @@ export async function onRequestPost({ request, env }) {
             TERMINOS_VERSION, ahora(), request.headers.get('CF-Connecting-IP') || '', ahora()).run();
     const pref = await mp(env, 'POST', '/checkout/preferences', {
       items: [{ id: `plan-${plan.id}`, title: `MiPOS · ${plan.nombre}${clave ? ' (renovación)' : ''}`,
-                description: `${plan.cajas} caja(s) · ${plan.meses} mes(es)`, quantity: 1, currency_id: 'CLP', unit_price: plan.precio }],
+                description: `${plan.cajas} caja(s) · ${plan.meses === 0 ? 'Licencia perpetua · pago único' : `${plan.meses} mes(es)`}`, quantity: 1, currency_id: 'CLP', unit_price: plan.precio }],
       payer: { email, name: nombre },
       external_reference: ref,
       back_urls: { success: `${pagina}?ref=${ref}`, pending: `${pagina}?ref=${ref}`, failure: `${pagina}?ref=${ref}` },

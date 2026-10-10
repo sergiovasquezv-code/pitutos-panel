@@ -203,7 +203,7 @@ function pintar() {
   const activas = d.claves.filter(k => k.estado === 'activa');
   const pcs = d.claves.reduce((a, k) => a + k.equipos.filter(x => x.estado === 'activa').length, 0);
   const pronto = activas.filter(k => k.vence && diasHasta(k.vence) <= 30).length;
-  const enPrueba = d.pruebas.filter(p => diasHasta(fin(p)) >= 0).length;
+  const enPrueba = d.pruebas.filter(p => p.estado !== 'bloqueada' && !p.licencia_vigente && !pruebaArchivada(p)).length;
   const mes = d.hoy.slice(0, 7);
   const ventasMes = d.compras.filter(c => c.estado === 'aprobada' && String(c.pagado || '').slice(0, 7) === mes).reduce((a, c) => a + c.precio, 0);
   $('#app').innerHTML = `<div class="envoltura">
@@ -316,14 +316,14 @@ function formClave(k) {
       <label class="full">Cliente / negocio<input name="cliente" value="${esc(k?.cliente || '')}" required autofocus placeholder="Ej: Almacén Rosita"></label>
       <label>WhatsApp o contacto<input name="contacto" value="${esc(k?.contacto || '')}" placeholder="+56912345678"></label>
       <label>Correo (para recordatorios de renovación)<input name="email" type="email" value="${esc(k?.email || '')}" placeholder="cliente@gmail.com"></label>
-      <label>Equipos (PC) permitidos<input name="cajas" type="number" min="1" max="50" value="${k?.cajas || 1}"></label>
+      <label>Puestos simultáneos permitidos<input name="cajas" type="number" min="1" max="50" value="${k?.cajas || 1}"></label>
       <label>Vence<input name="vence" type="date" value="${esc(k?.vence || '')}"></label>
-      <label>PCs donde se puede activar<input name="max_equipos" type="number" min="1" max="20" value="${k?.max_equipos || 1}"></label>
+      <label>Instalaciones de servidor autorizadas<input name="max_equipos" type="number" min="1" max="20" value="${k?.max_equipos || 1}"></label>
       <div class="full chips">${[['1 mes', 1], ['3 meses', 3], ['6 meses', 6], ['1 año', 12]].map(([t, n]) => `<button type="button" data-meses="${n}">${t}</button>`).join('')}
         <button type="button" data-meses="0">Sin vencimiento</button></div>
-      <label class="full">Notas<input name="notas" value="${esc(k?.notas || '')}" placeholder="Ej: paga los 5 de cada mes"></label>
+      <label class="full">Nota interna (solo visible en este panel)<textarea name="notas" rows="3" maxlength="500" placeholder="Motivo de asignación, activación manual, acuerdo, seguimiento…">${esc(k?.notas || '')}</textarea></label>
     </div>
-    <div class="det" style="margin:10px 0">“PCs donde se puede activar” es el servidor de MiVet de ese local (los otros computadores de la clínica entran por la red y no cuentan aquí; el límite de equipos lo controla “Equipos”).</div>
+    <div class="det" style="margin:10px 0">Los puestos simultáneos son los computadores que pueden usar MiVet a la vez. Las instalaciones de servidor autorizadas limitan en cuántos MiVet principales se puede activar la clave; los terminales conectados por red cuentan como puestos simultáneos.</div>
     <div class="acciones" style="justify-content:flex-end"><button type="button" class="btn" data-cerrar>Cancelar</button><button class="btn primario">${k ? 'Guardar' : 'Crear clave'}</button></div></form>`);
   const f = $('#f-clave', m.el);
   $$('[data-meses]', f).forEach(b => b.addEventListener('click', () => { f.vence.value = +b.dataset.meses ? sumar(null, { meses: +b.dataset.meses }) : ''; }));
@@ -348,19 +348,49 @@ function claveCreada(k) {
 }
 
 const fin = p => { const d = new Date(p.inicio + 'T12:00'); d.setDate(d.getDate() + E.datos.config.dias_prueba - 1); return d.toISOString().slice(0, 10); };
+const DIAS_SIN_CONTACTO_ARCHIVO = 30;
+function pruebaSinContacto(p) {
+  const ultimo = p.ultimo_contacto ? Date.parse(p.ultimo_contacto) : new Date(p.inicio + 'T12:00').getTime();
+  return Number.isFinite(ultimo) && Date.now() - ultimo >= DIAS_SIN_CONTACTO_ARCHIVO * 86400000;
+}
+function pruebaArchivada(p) {
+  return Boolean(p.licencia_vigente) || diasHasta(fin(p)) < 0 || pruebaSinContacto(p);
+}
 function vistaPruebas() {
   const l = E.datos.pruebas;
-  $('#contenido').innerHTML = `<div class="det" style="margin-bottom:10px">Cada PC puede probar MiVet gratis ${E.datos.config.dias_prueba} días una sola vez (reinstalar no la reinicia).</div>
-    ${l.length ? `<div class="tabla-wrap"><table><thead><tr><th>PC</th><th>Código de equipo</th><th>Empezó</th><th>Estado</th><th>Último contacto</th><th></th></tr></thead><tbody>
-    ${l.map(p => { const n = diasHasta(fin(p)); return `<tr><td><b>${esc(p.nombre_pc || '—')}</b></td><td><code>${esc(p.equipo)}</code></td><td>${fecha(p.inicio)}</td>
-      <td>${n >= 0 ? `<span class="badge azul">quedan ${n + 1} días</span>` : '<span class="badge">terminada</span>'}</td><td>${hace(p.ultimo_contacto)}</td>
-      <td><button class="btn chico" data-otra="${esc(p.equipo)}">Dar otra prueba</button></td></tr>`; }).join('')}</tbody></table></div>`
-    : '<div class="vacio">Nadie ha pedido la prueba gratis todavía.</div>'}`;
-  $$('[data-otra]').forEach(b => b.addEventListener('click', async () => {
-    if (!confirm('¿Permitir que este PC empiece otra prueba gratis desde hoy?')) return;
-    try { await api('pruebas/' + encodeURIComponent(b.dataset.otra), { method: 'DELETE' }); toast('Listo: en ese PC puede volver a presionar “Probar gratis”'); await cargar(); }
-    catch (e) { toast(e.message, 'error'); }
-  }));
+  const archivadas = l.filter(pruebaArchivada);
+  let mostrarArchivadas = false;
+  const render = () => {
+    const visibles = l.filter(p => pruebaArchivada(p) === mostrarArchivadas);
+    $('#contenido').innerHTML = `<div class="det" style="margin-bottom:10px">Cada PC puede probar MiVet gratis ${E.datos.config.dias_prueba} días una sola vez (reinstalar no la reinicia). Suspender requiere que el PC vuelva a conectarse; MiVet verifica cada 6 horas.</div>
+      <div class="barra"><button class="btn ${mostrarArchivadas ? '' : 'primario'}" id="b-pruebas-vigentes">Vigentes (${l.length - archivadas.length})</button>
+        <button class="btn ${mostrarArchivadas ? 'primario' : ''}" id="b-pruebas-archivadas">Archivadas (${archivadas.length})</button>
+        <span class="det">Se archivan al activar una licencia, vencer o tras ${DIAS_SIN_CONTACTO_ARCHIVO} días sin contacto; no se borran.</span></div>
+      ${visibles.length ? `<div class="tabla-wrap"><table><thead><tr><th>PC</th><th>Código de equipo</th><th>Empezó</th><th>Estado</th><th>Último contacto</th><th>Acciones</th></tr></thead><tbody>
+      ${visibles.map(p => { const n = diasHasta(fin(p)); const sinContacto = pruebaSinContacto(p); return `<tr><td><b>${esc(p.nombre_pc || '—')}</b></td><td><code>${esc(p.equipo)}</code></td><td>${fecha(p.inicio)}</td>
+        <td>${p.licencia_vigente ? `<span class="badge verde">Convertida a licencia · ${esc(p.licencia_vigente.cliente)}</span>` : p.estado === 'bloqueada' ? '<span class="badge rojo">Suspendida</span>' : n < 0 ? '<span class="badge">Demo vencida</span>' : sinContacto ? '<span class="badge amarillo">Sin contacto 30+ días</span>' : `<span class="badge azul">quedan ${n + 1} días</span>`}</td><td>${hace(p.ultimo_contacto)}</td>
+        <td>${p.licencia_vigente ? '' : `<div class="acciones"><button class="btn chico ${p.estado === 'bloqueada' ? '' : 'peligro'}" data-estado="${p.estado === 'bloqueada' ? 'activa' : 'bloqueada'}">${p.estado === 'bloqueada' ? 'Reactivar' : 'Suspender'}</button>
+          <button class="btn chico" data-otra="${esc(p.equipo)}">Reiniciar demo</button></div>`}</td></tr>`; }).join('')}</tbody></table></div>`
+      : `<div class="vacio">${l.length ? (mostrarArchivadas ? 'No hay pruebas archivadas.' : 'No hay pruebas vigentes.') : 'Nadie ha pedido la prueba gratis todavía.'}</div>`}`;
+    $('#b-pruebas-vigentes').addEventListener('click', () => { mostrarArchivadas = false; render(); });
+    $('#b-pruebas-archivadas').addEventListener('click', () => { mostrarArchivadas = true; render(); });
+    $$('[data-estado]').forEach(b => b.addEventListener('click', async () => {
+      const equipo = b.closest('tr').querySelector('td code').textContent;
+      const suspender = b.dataset.estado === 'bloqueada';
+      if (!confirm(suspender ? '¿Suspender esta demo? Se revocará cuando MiVet vuelva a conectarse al servidor.' : '¿Reactivar esta demo? Mantendrá su fecha de vencimiento actual.')) return;
+      b.disabled = true;
+      try {
+        await api(`pruebas/${encodeURIComponent(equipo)}/estado`, { method: 'POST', body: { estado: b.dataset.estado } });
+        toast(suspender ? 'Demo suspendida. El cambio se aplica al próximo contacto.' : 'Demo reactivada'); await cargar();
+      } catch (e) { toast(e.message, 'error'); b.disabled = false; }
+    }));
+    $$('[data-otra]').forEach(b => b.addEventListener('click', async () => {
+      if (!confirm('¿Reiniciar esta demo desde hoy? Se conservará el registro del equipo.')) return;
+      try { await api('pruebas/' + encodeURIComponent(b.dataset.otra), { method: 'DELETE' }); toast('Demo reiniciada desde hoy. MiVet debe volver a conectarse para renovarla.'); await cargar(); }
+      catch (e) { toast(e.message, 'error'); }
+    }));
+  };
+  render();
 }
 
 function vistaCodigo() {
@@ -480,7 +510,7 @@ function vistaPlanes() {
       <button class="btn primario" id="pl-nuevo">+ Nuevo plan</button></div>
     ${l.length ? `<div class="tabla-wrap"><table><thead><tr><th>Plan</th><th>Precio</th><th>Duración</th><th>Equipos</th><th>Estado</th><th></th></tr></thead><tbody>
     ${l.map(p => `<tr><td><b>${esc(p.nombre)}</b>${p.destacado ? ' <span class="badge amarillo">destacado</span>' : ''}${p.descripcion ? `<div class="det">${esc(p.descripcion)}</div>` : ''}</td>
-      <td>$${Number(p.precio).toLocaleString('es-CL')}</td><td>${p.meses} mes${p.meses === 1 ? '' : 'es'}</td><td>${p.cajas}</td>
+      <td>$${Number(p.precio).toLocaleString('es-CL')}</td><td>${p.meses === 0 ? 'Perpetua · pago único' : `${p.meses} mes${p.meses === 1 ? '' : 'es'}`}</td><td>${p.cajas}</td>
       <td>${p.activo ? '<span class="badge verde">a la venta</span>' : '<span class="badge">pausado</span>'}</td>
       <td class="acciones"><button class="btn chico" data-editar-plan="${p.id}">Editar</button><button class="btn chico peligro" data-borrar-plan="${p.id}">Eliminar</button></td></tr>`).join('')}</tbody></table></div>`
     : `<div class="vacio">Aún no hay planes. Crea por ejemplo “Mensual” (1 mes), “Semestral” (6 meses) y “Anual” (12 meses).
@@ -508,19 +538,29 @@ function formPlan(p) {
     <div class="grid2" style="margin-top:12px">
       <label class="full">Nombre (lo ve el cliente)<input name="nombre" value="${esc(p?.nombre || '')}" required autofocus placeholder="Ej: Anual"></label>
       <label>Precio (pesos)<input name="precio" type="number" min="100" step="1" value="${p?.precio || ''}" required></label>
-      <label>Duración (meses)<input name="meses" type="number" min="1" max="120" value="${p?.meses || 1}" required></label>
+      <label id="pl-meses-label">Duración (meses)<input name="meses" type="number" min="1" max="120" value="${p?.meses || 12}" required></label>
+      <label class="check full"><input type="checkbox" id="pl-perpetuo" ${p?.meses === 0 ? 'checked' : ''}> Licencia perpetua · pago único, sin vencimiento</label>
       <label>Equipos incluidos<input name="cajas" type="number" min="1" max="50" value="${p?.cajas || 1}" required></label>
       <label>Orden en la página<input name="orden" type="number" value="${p?.orden || 0}"></label>
       <label class="full">Detalle (opcional)<input name="descripcion" value="${esc(p?.descripcion || '')}" placeholder="Ej: Ideal para empezar"></label>
       <label class="check"><input type="checkbox" name="destacado" ${p?.destacado ? 'checked' : ''}> Destacarlo (“Más conveniente”)</label>
       <label class="check"><input type="checkbox" name="activo" ${!p || p.activo ? 'checked' : ''}> A la venta</label>
     </div>
-    <div class="det" style="margin:10px 0">Al renovar, el cliente queda con los equipos de este plan y los meses se suman desde su fecha de vencimiento.</div>
+    <div class="det" id="pl-ayuda" style="margin:10px 0">Al renovar, el cliente queda con los equipos de este plan y los meses se suman desde su fecha de vencimiento.</div>
     <div class="acciones" style="justify-content:flex-end"><button type="button" class="btn" data-cerrar>Cancelar</button><button class="btn primario">Guardar</button></div></form>`);
   const f = $('#f-plan', m.el);
+  const perpetuo = $('#pl-perpetuo', m.el);
+  const actualizarDuracion = () => {
+    $('#pl-meses-label', m.el).classList.toggle('oculto', perpetuo.checked);
+    $('#pl-ayuda', m.el).textContent = perpetuo.checked
+      ? 'El cliente paga una vez. La licencia queda activa sin fecha de vencimiento.'
+      : 'Al renovar, el cliente queda con los equipos de este plan y los meses se suman desde su fecha de vencimiento.';
+  };
+  perpetuo.addEventListener('change', actualizarDuracion);
+  actualizarDuracion();
   f.addEventListener('submit', async e => {
     e.preventDefault();
-    const body = { nombre: f.nombre.value, precio: +f.precio.value, meses: +f.meses.value, cajas: +f.cajas.value, orden: +f.orden.value,
+    const body = { nombre: f.nombre.value, precio: +f.precio.value, meses: perpetuo.checked ? 0 : +f.meses.value, cajas: +f.cajas.value, orden: +f.orden.value,
                    descripcion: f.descripcion.value, destacado: f.destacado.checked, activo: f.activo.checked };
     try { await api(p ? 'planes/' + p.id : 'planes', { method: p ? 'PUT' : 'POST', body }); m.cerrar(); toast('Plan guardado'); await cargar(); }
     catch (err) { toast(err.message, 'error'); }
@@ -528,7 +568,7 @@ function formPlan(p) {
 }
 
 const NOMBRES_EVENTO = { activacion: 'Activación', activacion_rechazada: 'Activación rechazada', prueba: 'Prueba iniciada', clave_creada: 'Clave creada',
-  clave_editada: 'Clave modificada', soporte: 'Caso de soporte', recordatorio: 'Recordatorio enviado', compra_pagada: 'Venta en línea', renovacion_pagada: 'Renovación pagada', plan: 'Plan', clave_eliminada: 'Clave eliminada', pc_liberado: 'PC liberado', prueba_reiniciada: 'Prueba reiniciada', codigo_sin_internet: 'Código sin internet' };
+  clave_editada: 'Clave modificada', soporte: 'Caso de soporte', recordatorio: 'Recordatorio enviado', compra_pagada: 'Venta en línea', renovacion_pagada: 'Renovación pagada', plan: 'Plan', clave_eliminada: 'Clave eliminada', pc_liberado: 'PC liberado', prueba_reiniciada: 'Prueba reiniciada', prueba_suspendida: 'Prueba suspendida', prueba_reactivada: 'Prueba reactivada', codigo_sin_internet: 'Código sin internet' };
 async function vistaHistorial() {
   const c = $('#contenido');
   c.innerHTML = '<div class="det">Cargando…</div>';

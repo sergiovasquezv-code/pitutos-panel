@@ -15,6 +15,17 @@ export const error = (status, mensaje, extra = {}) => json({ error: mensaje, ...
 export function hoy() {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santiago', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 }
+export function asociarLicenciasVigentesAPruebas(pruebas, claves, activaciones, fecha = hoy()) {
+  const porEquipo = new Map();
+  for (const clave of claves) {
+    if (clave.estado !== 'activa' || (clave.vence && clave.vence < fecha)) continue;
+    for (const activacion of activaciones) {
+      if (activacion.clave_id !== clave.id || activacion.estado !== 'activa' || porEquipo.has(activacion.equipo)) continue;
+      porEquipo.set(activacion.equipo, { cliente: clave.cliente });
+    }
+  }
+  return pruebas.map(prueba => ({ ...prueba, licencia_vigente: porEquipo.get(prueba.equipo) || null }));
+}
 export function sumarDias(fecha, n) {
   const d = new Date(fecha + 'T12:00:00Z');
   d.setUTCDate(d.getUTCDate() + n);
@@ -53,10 +64,11 @@ export async function asegurarTablas(db) {
   await db.batch([
     db.prepare("CREATE TABLE IF NOT EXISTS mivet_claves (id INTEGER PRIMARY KEY AUTOINCREMENT, clave TEXT NOT NULL UNIQUE, cliente TEXT NOT NULL, contacto TEXT NOT NULL DEFAULT '', cajas INTEGER NOT NULL DEFAULT 1, vence TEXT, max_equipos INTEGER NOT NULL DEFAULT 1, estado TEXT NOT NULL DEFAULT 'activa', notas TEXT NOT NULL DEFAULT '', creado TEXT NOT NULL)"),
     db.prepare("CREATE TABLE IF NOT EXISTS mivet_activaciones (id INTEGER PRIMARY KEY AUTOINCREMENT, clave_id INTEGER NOT NULL, equipo TEXT NOT NULL, nombre_pc TEXT NOT NULL DEFAULT '', version TEXT NOT NULL DEFAULT '', estado TEXT NOT NULL DEFAULT 'activa', creado TEXT NOT NULL, ultimo_contacto TEXT, UNIQUE(clave_id, equipo))"),
-    db.prepare("CREATE TABLE IF NOT EXISTS mivet_pruebas (equipo TEXT PRIMARY KEY, inicio TEXT NOT NULL, nombre_pc TEXT NOT NULL DEFAULT '', version TEXT NOT NULL DEFAULT '', ultimo_contacto TEXT)"),
     db.prepare("CREATE TABLE IF NOT EXISTS mivet_puestos_reportados (clave_id INTEGER NOT NULL, servidor_equipo TEXT NOT NULL, cliente_id TEXT NOT NULL, nombre TEXT NOT NULL DEFAULT '', usuario TEXT NOT NULL DEFAULT '', ultimo_contacto TEXT NOT NULL, PRIMARY KEY(clave_id, servidor_equipo, cliente_id))"),
+    db.prepare("CREATE TABLE IF NOT EXISTS mivet_pruebas (equipo TEXT PRIMARY KEY, inicio TEXT NOT NULL, nombre_pc TEXT NOT NULL DEFAULT '', version TEXT NOT NULL DEFAULT '', ultimo_contacto TEXT, estado TEXT NOT NULL DEFAULT 'activa')"),
     db.prepare("CREATE TABLE IF NOT EXISTS mivet_eventos (id INTEGER PRIMARY KEY AUTOINCREMENT, fecha TEXT NOT NULL, tipo TEXT NOT NULL, clave_id INTEGER, equipo TEXT, detalle TEXT NOT NULL DEFAULT '')"),
   ]);
+  try { await db.prepare("ALTER TABLE mivet_pruebas ADD COLUMN estado TEXT NOT NULL DEFAULT 'activa'").run(); } catch (e) { /* ya existe */ }
   tablasListas = true;
 }
 export function anotar(db, tipo, { clave_id = null, equipo = null, detalle = '' } = {}) {
@@ -198,10 +210,11 @@ export async function cumplirCompra(db, env, compra, pago) {
   let clave = compra.clave_id ? await db.prepare('SELECT * FROM mivet_claves WHERE id=?').bind(compra.clave_id).first() : null;
   if (!clave && compra.equipo) clave = await claveDeEquipo(db, compra.equipo);
   const base = clave && clave.vence && clave.vence > hoy() ? clave.vence : hoy();
-  const vence = sumarMeses(base, compra.meses);
+  const vence = compra.meses === 0 ? null : sumarMeses(base, compra.meses);
+  const vigencia = vence ? fechaCL(vence) : 'perpetua · sin vencimiento';
   if (clave) {
     await db.prepare("UPDATE mivet_claves SET vence=?, cajas=?, estado='activa', email=CASE WHEN email='' THEN ? ELSE email END WHERE id=?").bind(vence, compra.cajas, compra.email, clave.id).run();
-    await anotar(db, 'renovacion_pagada', { clave_id: clave.id, equipo: compra.equipo, detalle: `${compra.plan_nombre} · ${clp(compra.precio)} · vence ${fechaCL(vence)}` });
+    await anotar(db, 'renovacion_pagada', { clave_id: clave.id, equipo: compra.equipo, detalle: `${compra.plan_nombre} · ${clp(compra.precio)} · ${vigencia}` });
   } else {
     let id = null;
     for (let i = 0; i < 5 && !id; i++) {
@@ -224,7 +237,7 @@ export async function cumplirCompra(db, env, compra, pago) {
   const estadoCorreo = await correo(env, compra.email, compra.renovacion ? 'Tu licencia de MiVet fue renovada' : 'Tu licencia de MiVet', correoCliente(final, clave));
   await correo(env, env.EMAIL_NOTIFICACIONES, `Venta MiVet: ${compra.nombre} · ${clp(compra.precio)}`,
     `<p><b>${escH(compra.nombre)}</b> (${escH(compra.email)}${compra.telefono ? ' · ' + escH(compra.telefono) : ''}) pagó <b>${clp(compra.precio)}</b> por ${escH(compra.plan_nombre)}.</p>
-     <p>Clave ${escH(clave.clave)} · ${clave.cajas} caja(s) · vence ${fechaCL(vence)}${compra.renovacion ? ' (renovación)' : ''} · pago MP ${escH(pago.id)}.</p>
+    <p>Clave ${escH(clave.clave)} · ${clave.cajas} caja(s) · ${vigencia}${compra.renovacion ? ' (renovación)' : ''} · pago MP ${escH(pago.id)}.</p>
      <p>Recuerda emitir la boleta o factura de esta venta.</p>`);
   await db.prepare('UPDATE mivet_compras SET correo=? WHERE id=?').bind(estadoCorreo, compra.id).run();
   return { ...final, correo: estadoCorreo };
@@ -236,11 +249,11 @@ function correoCliente(compra, clave) {
   <p>${compra.renovacion ? 'Tu licencia de MiVet quedó renovada.' : 'Esta es tu licencia de MiVet.'}</p>
   <div style="font-family:Consolas,monospace;font-size:22px;letter-spacing:2px;text-align:center;padding:14px;border:2px dashed #ffd23f;border-radius:12px;background:#fffbea">${escH(clave.clave)}</div>
   <table style="margin:14px 0;font-size:14px"><tr><td style="color:#5f6580;padding-right:12px">Plan</td><td>${escH(compra.plan_nombre)}</td></tr>
-    <tr><td style="color:#5f6580">Cajas</td><td>${clave.cajas}</td></tr><tr><td style="color:#5f6580">Válida hasta</td><td><b>${fechaCL(clave.vence)}</b></td></tr>
+    <tr><td style="color:#5f6580">Cajas</td><td>${clave.cajas}</td></tr><tr><td style="color:#5f6580">Vigencia</td><td><b>${clave.vence ? fechaCL(clave.vence) : 'Perpetua · sin vencimiento'}</b></td></tr>
     <tr><td style="color:#5f6580">Pagado</td><td>${clp(compra.precio)} · pago Mercado Pago N° ${escH(compra.mp_pago)}</td></tr></table>
   ${compra.equipo ? '<p>Compraste desde MiVet, así que <b>se activa solo</b> en ese computador (en unos segundos).</p>' : ''}
   <p><b>Para activarla en otro momento o en un PC nuevo:</b> abre MiVet, escribe la clave donde dice “Clave de producto” y presiona <b>Activar</b>.</p>
-  <p>Unos días antes del vencimiento MiVet te avisará para renovar. Guarda este correo.</p>
+  <p>${clave.vence ? 'Unos días antes del vencimiento MiVet te avisará para renovar.' : 'Esta licencia no tiene fecha de vencimiento.'} Guarda este correo.</p>
 </div>`;
 }
 

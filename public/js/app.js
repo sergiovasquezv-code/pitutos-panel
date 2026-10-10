@@ -4,7 +4,9 @@ import { apiGet, apiPost, apiPut, apiDelete, apiPostForm } from "./api.js";
 import { clp, escapeHtml, telefonoWhatsapp, soloDigitosTelefono, formatearRut } from "./format.js";
 
 const TIPOS_TRABAJO = ["Programación", "Soporte técnico", "Instalación", "Mantención", "Otro"];
-const ESTADOS_TRABAJO = ["Pendiente", "En curso", "Esperando cliente", "Cliente no ubicado", "Demostración", "Terminado"];
+// Flujo natural de un trabajo, en orden; las demás son pausas o casos aparte.
+const FLUJO_TRABAJO = ["Recibido", "En preparación", "Equipo listo", "Entrega fijada", "Entregado"];
+const ESTADOS_TRABAJO = [...FLUJO_TRABAJO, "Esperando cliente", "Cliente no ubicado", "Demostración"];
 
 const els = {
   content: document.getElementById("content"),
@@ -206,8 +208,8 @@ async function wireCatalogoProductoPicker() {
 
 function badgeTrabajo(estado) {
   let cls = "neutral";
-  if (estado === "Terminado") cls = "ok";
-  else if (estado === "En curso") cls = "warn";
+  if (estado === "Entregado") cls = "ok";
+  else if (estado === "En preparación" || estado === "Equipo listo" || estado === "Entrega fijada") cls = "warn";
   else if (estado === "Esperando cliente") cls = "danger";
   else if (estado === "Cliente no ubicado") cls = "danger";
   else if (estado === "Demostración") cls = "accent";
@@ -321,7 +323,7 @@ async function viewDashboard() {
         <div class="value ${d.garantias_por_vencer.length ? "danger" : "ok"}">${d.garantias_por_vencer.length}</div></div>
       <div class="stat-card" data-goto="#/trabajos?estado=abiertos" style="cursor:pointer;"><div class="label">Trabajos abiertos</div>
         <div class="value ${d.trabajos_abiertos.length ? "warn" : "ok"}">${d.trabajos_abiertos.length}</div></div>
-      <div class="stat-card" data-goto="#/trabajos?estado=Terminado" style="cursor:pointer;"><div class="label">Trabajos cerrados este mes</div>
+      <div class="stat-card" data-goto="#/trabajos?estado=Entregado" style="cursor:pointer;"><div class="label">Trabajos cerrados este mes</div>
         <div class="value ok">${d.trabajos_terminados_mes.length}</div></div>
       <div class="stat-card"><div class="label">Mensualidades por cobrar</div>
         <div class="value ${d.mensualidades_pendientes.length ? "warn" : "ok"}">${d.mensualidades_pendientes.length} / ${d.total_mensualidades_activas}</div></div>
@@ -355,9 +357,9 @@ async function viewDashboard() {
       </div>
     </div>
 
-    <div class="panel" data-goto="#/trabajos?estado=Terminado" style="cursor:pointer;">
+    <div class="panel" data-goto="#/trabajos?estado=Entregado" style="cursor:pointer;">
       <div class="panel-header"><h2>Trabajos cerrados este mes</h2>
-        <a class="btn btn-outline btn-sm" data-goto="#/trabajos?estado=Terminado">Ver todos</a></div>
+        <a class="btn btn-outline btn-sm" data-goto="#/trabajos?estado=Entregado">Ver todos</a></div>
       <div class="panel-body">
         ${
           trabajosTerminadosRows
@@ -1047,9 +1049,40 @@ async function cargarTrabajoInline(trabajoId, clienteId, containerId = "trabajo-
     ? `<span class="badge neutral">Oculto ahora · se mostró desde ${fechaCortaHora(trabajo.detalle_visible_desde)}</span>`
     : `<span class="badge neutral">Oculto para el cliente</span>`;
 
+  const idxFlujo = FLUJO_TRABAJO.indexOf(trabajo.estado);
+  const siguienteEstado = idxFlujo < 0 ? "En preparación" : FLUJO_TRABAJO[idxFlujo + 1] || null;
+  const textoSiguiente = idxFlujo < 0 ? `Retomar: ${siguienteEstado}` : siguienteEstado ? `Siguiente: ${siguienteEstado}` : "";
+  const pasosHtml = FLUJO_TRABAJO.map((e, i) => {
+    const hecho = idxFlujo >= 0 && i < idxFlujo;
+    const actual = i === idxFlujo;
+    return `<span class="badge ${actual ? "accent" : hecho ? "ok" : "neutral"}">${hecho ? "&#10003; " : ""}${e}</span>`;
+  }).join(' <span class="text-muted">&rarr;</span> ');
+
   wrapper.innerHTML = `
     <div class="panel" style="margin-top:22px;border-color:var(--accent-dark);">
-      <div class="panel-header"><h2>Trabajo: ${escapeHtml(trabajo.tipo)}</h2></div>
+      <div class="panel-header"><h2>Trabajo: ${escapeHtml(trabajo.tipo)}</h2>${badgeTrabajo(trabajo.estado)}</div>
+      <div class="panel-body padded">
+        <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">${pasosHtml}</div>
+        ${trabajo.fecha_entrega ? `<p style="margin:10px 0 0;">Entrega: <strong>${escapeHtml(fechaEntregaTexto(trabajo.fecha_entrega))}</strong></p>` : ""}
+        <div class="actions-row" style="margin-top:12px;" data-paso-botones>
+          ${siguienteEstado ? `<button type="button" class="btn btn-accent" data-paso="${siguienteEstado}">${textoSiguiente}</button>` : ""}
+          ${trabajo.estado === "Entrega fijada" ? `<button type="button" class="btn btn-outline btn-sm" data-paso="Entrega fijada">Cambiar fecha de entrega</button>` : ""}
+        </div>
+        <div data-paso-form style="display:none;margin-top:12px;">
+          <div class="field" data-paso-fecha style="display:none;"><label>Fecha y hora de entrega *</label>
+            <input type="datetime-local" data-paso-fecha-input value="${escapeHtml(trabajo.fecha_entrega && trabajo.fecha_entrega.includes("T") ? trabajo.fecha_entrega : "")}"></div>
+          <div class="field"><label>Nota para el cliente (opcional)</label>
+            <textarea data-paso-nota placeholder="Ej: Se cambió el disco y se reinstaló el sistema"></textarea></div>
+          <div class="actions-row">
+            <button type="button" class="btn btn-accent btn-sm" data-paso-confirmar>Confirmar</button>
+            <button type="button" class="btn btn-outline btn-sm" data-paso-cancelar>Cancelar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:14px;">
+      <div class="panel-header"><h2>Datos del trabajo</h2></div>
       <div class="panel-body padded">
         <form id="trabajo-form-${trabajo.id}">
           <div class="form-grid">
@@ -1078,6 +1111,7 @@ async function cargarTrabajoInline(trabajoId, clienteId, containerId = "trabajo-
       </div>
     </div>
 
+    <div id="items-trabajo-${trabajo.id}" style="margin-top:14px;"></div>
     <div class="panel" style="margin-top:14px;">
       <div class="panel-header"><h2>Equipos y garantía de este trabajo</h2>
         <button class="btn btn-accent btn-sm" data-goto="#/equipos/nuevo?cliente_id=${clienteId}&trabajo_id=${trabajo.id}">+ Agregar equipo/producto en garantía</button></div>
@@ -1089,9 +1123,12 @@ async function cargarTrabajoInline(trabajoId, clienteId, containerId = "trabajo-
         }
       </div>
     </div>
-    <div id="items-trabajo-${trabajo.id}" style="margin-top:14px;"></div>
-    <div id="seguimiento-${trabajo.id}" style="margin-top:14px;"></div>
     <div id="abonos-trabajo-${trabajo.id}" style="margin-top:14px;"></div>
+    <div id="informe-${trabajo.id}" style="margin-top:14px;"></div>
+    <details style="margin-top:14px;">
+      <summary style="cursor:pointer;font-weight:650;padding:8px 0;">Notas, fotos y enlaces del seguimiento (avanzado)</summary>
+      <div id="seguimiento-${trabajo.id}" style="margin-top:8px;"></div>
+    </details>
   `;
 
   // Como ahora TODOS los trabajos del cliente están desplegados a la vez en
@@ -1099,8 +1136,9 @@ async function cargarTrabajoInline(trabajoId, clienteId, containerId = "trabajo-
   // dentro de este wrapper específico (no con document.getElementById a
   // secas), para no chocar con los mismos ids repetidos en los demás
   // trabajos/equipos ya abiertos en la página.
-  renderItemsTrabajo(trabajo, `items-trabajo-${trabajo.id}`);
+  renderItemsTrabajo(trabajo, `items-trabajo-${trabajo.id}`, () => cargarTrabajoInline(trabajoId, clienteId, containerId));
   renderSeguimiento(trabajo, `seguimiento-${trabajo.id}`);
+  renderInformeCliente(trabajo, equiposVinculados, `informe-${trabajo.id}`);
   renderAbonosPanel(`abonos-trabajo-${trabajo.id}`, {
     categoria: "trabajo",
     referenciaId: trabajo.id,
@@ -1112,11 +1150,47 @@ async function cargarTrabajoInline(trabajoId, clienteId, containerId = "trabajo-
         const data = await apiGet(`/api/trabajos/${trabajoId}`);
         trabajo = data.trabajo;
         renderSeguimiento(trabajo, `seguimiento-${trabajo.id}`);
+        renderInformeCliente(trabajo, equiposVinculados, `informe-${trabajo.id}`);
       } catch {
         // igual que en equipos: si falla, el mensaje de WhatsApp de
         // seguimiento queda con el saldo anterior hasta recargar.
       }
     },
+  });
+
+  const pasoForm = wrapper.querySelector("[data-paso-form]");
+  let pasoDestino = null;
+  wrapper.querySelectorAll("[data-paso]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      pasoDestino = btn.dataset.paso;
+      pasoForm.style.display = "block";
+      wrapper.querySelector("[data-paso-botones]").style.display = "none";
+      wrapper.querySelector("[data-paso-fecha]").style.display = pasoDestino === "Entrega fijada" ? "block" : "none";
+    });
+  });
+  wrapper.querySelector("[data-paso-cancelar]").addEventListener("click", () => {
+    pasoForm.style.display = "none";
+    wrapper.querySelector("[data-paso-botones]").style.display = "";
+  });
+  wrapper.querySelector("[data-paso-confirmar]").addEventListener("click", async () => {
+    const fecha = wrapper.querySelector("[data-paso-fecha-input]").value;
+    if (pasoDestino === "Entrega fijada" && !fecha) {
+      flash("Indica la fecha y hora de entrega.", "error");
+      return;
+    }
+    try {
+      await apiPut(`/api/trabajos/${trabajo.id}`, {
+        estado: pasoDestino,
+        fecha_entrega: pasoDestino === "Entrega fijada" ? fecha : undefined,
+        nota_paso: wrapper.querySelector("[data-paso-nota]").value,
+        mostrar_detalle_cliente: !!trabajo.mostrar_detalle_cliente,
+      });
+      flash(`Trabajo en estado "${pasoDestino}".`);
+      viewClienteDetalle(clienteId, { openTrabajoId: trabajoId });
+    } catch (err) {
+      if (await handleAuthError(err)) return;
+      flash(err.message, "error");
+    }
   });
 
   wrapper.querySelector(`#trabajo-form-${trabajo.id}`).addEventListener("submit", async (e) => {
@@ -1938,59 +2012,180 @@ function ultimaActividad(trabajo, avances) {
   return ultima;
 }
 
-// Describe en una línea de texto plano (para el WhatsApp) qué es el
-// avance más reciente, según su tipo. Así, aunque el cliente no abra el
-// link de seguimiento, el mensaje de WhatsApp ya le cuenta la novedad.
-function contenidoAvanceWhatsapp(avance) {
-  if (!avance) return "";
-  const texto = (avance.texto || "").trim();
-  switch (avance.tipo) {
-    case "nota":
-      return texto;
-    case "url":
-      return texto ? `${texto}: ${avance.valor}` : avance.valor;
-    case "foto":
-      return texto ? `Se subió una foto: ${texto}` : "Se subió una foto del trabajo.";
-    case "estado":
-      // El hito de estado ya trae la frase completa (ej: 'Estado
-      // actualizado a "Terminado"'), no hay que envolverla de nuevo.
-      return texto;
-    default:
-      return texto;
-  }
+function fechaEntregaTexto(valor) {
+  if (!valor) return "";
+  const [fecha, hora] = String(valor).split("T");
+  return hora ? `${fechaLarga(fecha)} a las ${hora} hrs` : fechaLarga(fecha);
 }
 
-function mensajeSeguimientoWhatsapp(trabajo, linkUrl, ultima, ultimoAvance) {
-  const estadoTexto = trabajo.estado ? trabajo.estado.toLowerCase() : "";
-  const lineaEstado = estadoTexto ? `, actualmente en estado "${trabajo.estado}"` : "";
-  const contenidoAvance = contenidoAvanceWhatsapp(ultimoAvance);
-  // Si ya hay avances, la novedad más reciente es más útil que la
-  // descripción fija del trabajo (que ya le mandamos la primera vez).
-  const lineaNovedad = contenidoAvance
-    ? `\n\nÚltima novedad: ${contenidoAvance}`
-    : trabajo.descripcion && trabajo.descripcion.trim()
-    ? `\n\nDetalle: ${trabajo.descripcion.trim()}`
-    : "";
-  const lineaUltima = ultima ? `\n\nÚltima actualización: ${fechaCortaHora(ultima)}` : "";
+// Cada hito es un tramo del informe al cliente que se puede incluir o no.
+// `activo` es lo que viene marcado por defecto según la etapa del trabajo;
+// `disponible` es false cuando todavía no hay datos para ese tramo.
+function hitosInforme(trabajo, items, equipos) {
+  const monto = Number(trabajo.monto) || 0;
+  const sumaItems = items.reduce((s, i) => s + i.valor, 0);
+  const total = monto > 0 ? monto : sumaItems;
+  const conGarantia = equipos.filter((e) => e.estado_garantia !== "sin_garantia" && e.vence);
 
-  // El estado del pago solo se avisa en el mensaje final (trabajo
-  // Terminado) — mientras el trabajo sigue abierto no aporta y puede
-  // confundir (ej: todavía no se le ha cobrado nada).
-  let lineaPago = "";
-  if (trabajo.estado === "Terminado" && trabajo.monto > 0) {
-    if (trabajo.pagado_completo) lineaPago = `\n\nEl pago de este trabajo ya quedó completo ${EMOJI_CHECK}`;
+  const lineasItems = items.map((i) => `- ${i.descripcion}: ${clp(i.valor)}`);
+  const textoRepuestos = items.length
+    ? `Detalle del trabajo:\n${lineasItems.join("\n")}\nTotal: ${clp(total)}`
+    : `El total del trabajo es ${clp(total)}.`;
+
+  let textoPago = "";
+  if (total > 0) {
+    if (trabajo.pagado_completo) textoPago = `El pago de este trabajo ya quedó completo ${EMOJI_CHECK}`;
     else if (trabajo.abonado > 0)
-      lineaPago = `\n\nLlevas abonado ${clp(trabajo.abonado)} de ${clp(trabajo.monto)} (saldo: ${clp(trabajo.saldo)}).`;
-    else lineaPago = `\n\nEl total de este trabajo es ${clp(trabajo.monto)}, todavía pendiente de pago.`;
+      textoPago = `Pago: total ${clp(total)}, abonado ${clp(trabajo.abonado)}, saldo pendiente ${clp(trabajo.saldo)}.`;
+    else textoPago = `Pago: total ${clp(total)}, pendiente de pago.`;
   }
 
-  return `Hola ${trabajo.cliente_nombre}, soy de ${currentNombreNegocio}.
+  const textoGarantia = `Garantía:\n${conGarantia
+    .map((e) => `- ${e.tipo_equipo}${e.marca_modelo ? ` (${e.marca_modelo})` : ""}: ${e.meses_garantia} meses, vigente hasta el ${fechaLarga(e.vence)}`)
+    .join("\n")}`;
 
-Te comparto el link de seguimiento de tu trabajo (${trabajo.tipo})${lineaEstado}:
-${linkUrl}${lineaNovedad}${lineaUltima}${lineaPago}
+  const estado = trabajo.estado;
+  const porDefecto = {
+    inicio: estado === "Recibido" || estado === "En preparación" || !FLUJO_TRABAJO.includes(estado),
+    listo: estado === "Equipo listo" || estado === "Entrega fijada",
+    entrega: estado === "Entrega fijada",
+    repuestos: estado === "Equipo listo" || estado === "Entregado",
+    garantia: estado === "Entregado",
+    pago: estado === "Equipo listo" || estado === "Entrega fijada" || estado === "Entregado",
+  };
 
-Ahí vas a poder ver cada avance a medida que lo vamos subiendo. Cualquier consulta, escríbeme por acá. Y si quieres conocer nuestros servicios: ${SITIO_WEB_NEGOCIO}`;
+  return [
+    {
+      id: "inicio",
+      titulo: "Inicio del trabajo",
+      disponible: true,
+      activo: porDefecto.inicio,
+      texto: `Ya comenzamos con tu ${trabajo.tipo.toLowerCase()}${trabajo.descripcion ? `: ${trabajo.descripcion.trim()}` : "."}`,
+    },
+    {
+      id: "listo",
+      titulo: "Equipo listo",
+      disponible: true,
+      activo: porDefecto.listo,
+      texto: `Tenemos buenas noticias: tu equipo ya está listo ${EMOJI_CHECK}`,
+    },
+    {
+      id: "entrega",
+      titulo: "Entrega fijada",
+      disponible: !!trabajo.fecha_entrega,
+      activo: porDefecto.entrega,
+      texto: `La entrega quedó fijada para el ${fechaEntregaTexto(trabajo.fecha_entrega)}.`,
+    },
+    {
+      id: "repuestos",
+      titulo: "Repuestos y valores",
+      disponible: items.length > 0 || total > 0,
+      activo: porDefecto.repuestos,
+      texto: textoRepuestos,
+    },
+    { id: "garantia", titulo: "Garantía", disponible: conGarantia.length > 0, activo: porDefecto.garantia, texto: textoGarantia },
+    { id: "pago", titulo: "Pago y saldo", disponible: total > 0, activo: porDefecto.pago, texto: textoPago },
+  ].map((h) => ({ ...h, activo: h.activo && h.disponible }));
 }
+
+function armarInforme(trabajo, hitos, linkUrl) {
+  const cuerpo = hitos.filter((h) => h.marcado).map((h) => h.texto);
+  const nombre = (trabajo.cliente_nombre || "").trim().split(/\s+/)[0] || "";
+  return [
+    `Hola${nombre ? ` ${nombre}` : ""}, te escribimos de ${currentNombreNegocio}.`,
+    ...cuerpo,
+    `Puedes ver el avance cuando quieras en este link:\n${linkUrl}`,
+    `Cualquier duda, escríbenos por este medio. Gracias por confiar en nosotros. ${SITIO_WEB_NEGOCIO}`,
+  ].join("\n\n");
+}
+
+// Panel único para avisar al cliente por WhatsApp: se marcan los tramos
+// que se quieren incluir (uno, varios o todos) y el mensaje se arma solo.
+async function renderInformeCliente(trabajo, equipos, containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  container.innerHTML = `<div class="panel"><div class="panel-body padded"><div class="empty-state">Preparando informe…</div></div></div>`;
+
+  let items = [];
+  let envios = [];
+  try {
+    if (!trabajo.public_token) {
+      const res = await apiPost(`/api/trabajos/${trabajo.id}/link`, {});
+      trabajo.public_token = res.token;
+    }
+    items = (await apiGet(`/api/trabajos/${trabajo.id}/items`)).items;
+    envios = (await apiGet(`/api/trabajos/${trabajo.id}/envios`)).envios;
+  } catch (err) {
+    if (await handleAuthError(err)) return;
+    container.innerHTML = `<div class="panel"><div class="panel-body padded">No se pudo preparar el informe.</div></div>`;
+    return;
+  }
+
+  const linkUrl = `${window.location.origin}/seguimiento?t=${trabajo.public_token}`;
+  const hitos = hitosInforme(trabajo, items, equipos).map((h) => ({ ...h, marcado: h.activo }));
+  const numero = telefonoWhatsapp(trabajo.cliente_telefono);
+  const ultimoEnvio = envios.length ? fechaCortaHora(envios[0].creado_en) : null;
+
+  container.innerHTML = `
+    <div class="panel">
+      <div class="panel-header"><h2>Informe al cliente por WhatsApp</h2></div>
+      <div class="panel-body padded">
+        <span class="hint" style="display:block;margin-bottom:8px;">Marca los tramos que quieres incluir en este mensaje. Puedes mandar uno solo, varios o todo junto.</span>
+        <div id="informe-hitos" style="display:flex;flex-wrap:wrap;gap:6px 18px;margin-bottom:12px;">
+          ${hitos
+            .map(
+              (h) => `<label style="display:flex;align-items:center;gap:6px;${h.disponible ? "" : "opacity:.45;"}">
+                <input type="checkbox" data-hito="${h.id}" ${h.marcado ? "checked" : ""} ${h.disponible ? "" : "disabled"}> ${h.titulo}</label>`
+            )
+            .join("")}
+        </div>
+        <div class="field"><label for="informe-texto-${trabajo.id}">Mensaje (puedes editarlo antes de enviar)</label>
+          <textarea id="informe-texto-${trabajo.id}" rows="12"></textarea></div>
+        <div class="actions-row">
+          <button type="button" class="btn btn-outline btn-sm" id="informe-copiar">Copiar mensaje</button>
+          <a class="btn btn-accent btn-sm" id="informe-whatsapp" target="_blank" rel="noopener">Enviar por WhatsApp</a>
+        </div>
+        <span class="hint">${ultimoEnvio ? `Último envío: ${ultimoEnvio}. ` : "Todavía no le has enviado nada. "}${
+    numero ? "" : "Este cliente no tiene teléfono registrado: WhatsApp te pedirá elegir el contacto. "
+  }Los repuestos, la garantía y el pago solo se ven en su link si activas "Mostrar al cliente" en el detalle y pago del trabajo.</span>
+      </div>
+    </div>`;
+
+  const textarea = container.querySelector("textarea");
+  const btnWhatsapp = container.querySelector("#informe-whatsapp");
+  const actualizarHref = () => {
+    btnWhatsapp.href = `https://wa.me/${numero}?text=${encodeURIComponent(textarea.value)}`;
+  };
+  const regenerar = () => {
+    textarea.value = armarInforme(trabajo, hitos, linkUrl);
+    actualizarHref();
+  };
+  regenerar();
+
+  container.querySelectorAll("[data-hito]").forEach((cb) => {
+    cb.addEventListener("change", () => {
+      hitos.find((h) => h.id === cb.dataset.hito).marcado = cb.checked;
+      regenerar();
+    });
+  });
+  textarea.addEventListener("input", actualizarHref);
+
+  container.querySelector("#informe-copiar").addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(textarea.value);
+      flash("Mensaje copiado.");
+    } catch {
+      textarea.select();
+      flash("Selecciona y copia el mensaje manualmente.", "error");
+    }
+  });
+
+  // Queda registro de lo que se mandó (WhatsApp se abre en otra pestaña, así que se guarda al apretar).
+  btnWhatsapp.addEventListener("click", () => {
+    apiPost(`/api/trabajos/${trabajo.id}/envios`, { mensaje: textarea.value }).catch(() => {});
+  });
+}
+
 
 function badgeItemTipo(tipo) {
   if (tipo === "repuesto") return '<span class="badge accent">Repuesto</span>';
@@ -2004,16 +2199,19 @@ function badgeItemTipo(tipo) {
 // cliente en qué se compone ese total (ej: disco $20.000 + formateo
 // $15.000 = $35.000), tanto acá en el panel como en la página pública de
 // seguimiento y en el mensaje de WhatsApp.
-async function renderItemsTrabajo(trabajo, containerId = "items-trabajo-container") {
+async function renderItemsTrabajo(trabajo, containerId = "items-trabajo-container", onCambio = null) {
   const container = document.getElementById(containerId);
   if (!container) return;
+  const recargar = () => (onCambio ? onCambio() : renderItemsTrabajo(trabajo, containerId));
 
   container.innerHTML = `<div class="panel"><div class="panel-body padded"><div class="empty-state">Cargando…</div></div></div>`;
 
   let items = [];
+  let productos = [];
   try {
     const data = await apiGet(`/api/trabajos/${trabajo.id}/items`);
     items = data.items;
+    productos = (await apiGet("/api/catalogo/productos").catch(() => ({ productos: [] }))).productos || [];
   } catch (err) {
     if (await handleAuthError(err)) return;
     container.innerHTML = `<div class="panel"><div class="panel-body padded">No se pudo cargar el desglose.</div></div>`;
@@ -2038,7 +2236,8 @@ async function renderItemsTrabajo(trabajo, containerId = "items-trabajo-containe
     items.length && diferencia !== 0
       ? `<span class="hint" style="color:var(--warn,#b45309);">El desglose suma ${clp(total)}, pero el "Monto (CLP)" del trabajo es ${clp(
           trabajo.monto
-        )} (diferencia de ${clp(Math.abs(diferencia))}). Puede que quieras ajustar uno de los dos.</span>`
+        )} (diferencia de ${clp(Math.abs(diferencia))}).</span>
+         <button type="button" class="btn btn-outline btn-sm" data-usar-total="${total}">Usar ${clp(total)} como monto del trabajo</button>`
       : "";
 
   container.innerHTML = `
@@ -2055,6 +2254,14 @@ async function renderItemsTrabajo(trabajo, containerId = "items-trabajo-containe
         }
         ${lineaComparacion}
         <form id="item-trabajo-form" class="form-grid" style="margin-top:14px;">
+          ${
+            productos.length
+              ? `<div class="field"><label for="item-inventario">Del inventario</label>
+                  <select id="item-inventario"><option value="">— Elegir producto —</option>${productos
+                    .map((p) => `<option value="${p.id}" data-nombre="${escapeHtml(p.nombre)}" data-precio="${p.precio}">${escapeHtml(p.nombre)} — stock ${p.stock} — ${clp(p.precio)}</option>`)
+                    .join("")}</select></div>`
+              : ""
+          }
           <div class="field"><label for="item-tipo">Tipo</label>
             <select id="item-tipo">
               <option value="repuesto">Repuesto</option>
@@ -2067,7 +2274,7 @@ async function renderItemsTrabajo(trabajo, containerId = "items-trabajo-containe
             <input type="number" id="item-valor" min="0" step="1" value="0"></div>
           <div class="field" style="align-self:flex-end;"><button type="submit" class="btn btn-outline btn-sm">Agregar ítem</button></div>
         </form>
-        <span class="hint">Este desglose es solo para que quede claro en qué se compone el cobro — el monto que realmente se le cobra al cliente sigue siendo el campo "Monto (CLP)" de arriba.</span>
+        <span class="hint">Este desglose es solo para que quede claro en qué se compone el cobro — el monto que realmente se le cobra al cliente es el campo "Monto (CLP)" de "Datos del trabajo" (puedes escribirlo a mano o usar el total del desglose).</span>
       </div>
     </div>
   `;
@@ -2086,7 +2293,7 @@ async function renderItemsTrabajo(trabajo, containerId = "items-trabajo-containe
         valor: container.querySelector("#item-valor").value,
       });
       flash("Ítem agregado.");
-      renderItemsTrabajo(trabajo, containerId);
+      recargar();
     } catch (err) {
       if (await handleAuthError(err)) return;
       flash(err.message, "error");
@@ -2098,13 +2305,38 @@ async function renderItemsTrabajo(trabajo, containerId = "items-trabajo-containe
       if (!confirm("¿Eliminar este ítem del desglose?")) return;
       try {
         await apiDelete(`/api/trabajos/${trabajo.id}/items/${btn.dataset.delItem}`);
-        renderItemsTrabajo(trabajo, containerId);
+        recargar();
       } catch (err) {
         if (await handleAuthError(err)) return;
         flash(err.message, "error");
       }
     });
   });
+
+  const selInventario = container.querySelector("#item-inventario");
+  if (selInventario) {
+    selInventario.addEventListener("change", () => {
+      const opt = selInventario.selectedOptions[0];
+      if (!selInventario.value) return;
+      container.querySelector("#item-tipo").value = "repuesto";
+      container.querySelector("#item-descripcion").value = opt.dataset.nombre;
+      container.querySelector("#item-valor").value = opt.dataset.precio;
+    });
+  }
+
+  const btnUsarTotal = container.querySelector("[data-usar-total]");
+  if (btnUsarTotal) {
+    btnUsarTotal.addEventListener("click", async () => {
+      try {
+        await apiPut(`/api/trabajos/${trabajo.id}`, { solo_monto: Number(btnUsarTotal.dataset.usarTotal) });
+        flash("Monto del trabajo actualizado.");
+        recargar();
+      } catch (err) {
+        if (await handleAuthError(err)) return;
+        flash(err.message, "error");
+      }
+    });
+  }
 }
 
 async function renderSeguimiento(trabajo, containerId = "seguimiento-container") {
@@ -2133,17 +2365,7 @@ async function renderSeguimiento(trabajo, containerId = "seguimiento-container")
   // oculto (en borrador), no corresponde adelantárselo por WhatsApp.
   const avancesVisibles = avances.filter((a) => a.visible_cliente);
   const ultimaParaMensaje = ultimaActividad(trabajo, avancesVisibles);
-  // El endpoint trae los avances del más nuevo al más antiguo, así que el
-  // primero de la lista es el más reciente (la "novedad" a contarle al
-  // cliente por WhatsApp).
-  const ultimoAvance = avancesVisibles.length ? avancesVisibles[0] : null;
-  const mensajeWhatsapp = linkUrl
-    ? mensajeSeguimientoWhatsapp(trabajo, linkUrl, ultimaParaMensaje, ultimoAvance)
-    : "";
   const numeroWhatsapp = telefonoWhatsapp(trabajo.cliente_telefono);
-  const hrefWhatsapp = numeroWhatsapp
-    ? `https://wa.me/${numeroWhatsapp}?text=${encodeURIComponent(mensajeWhatsapp)}`
-    : `https://wa.me/?text=${encodeURIComponent(mensajeWhatsapp)}`;
 
   const ultima = ultimaParaMensaje;
 
@@ -2239,7 +2461,6 @@ async function renderSeguimiento(trabajo, containerId = "seguimiento-container")
               ? `<div class="actions-row">
                    <input type="text" readonly value="${escapeHtml(linkUrl)}" id="link-seguimiento" style="flex:1;">
                    <button type="button" class="btn btn-outline btn-sm" id="btn-copiar-link">Copiar</button>
-                   <a class="btn btn-accent btn-sm" id="btn-whatsapp-link" href="${hrefWhatsapp}" target="_blank" rel="noopener">Enviar por WhatsApp</a>
                  </div>`
               : `<button type="button" class="btn btn-accent btn-sm" id="btn-generar-link">Generar link</button>`
           }
@@ -2363,19 +2584,6 @@ async function renderSeguimiento(trabajo, containerId = "seguimiento-container")
         input.select();
         flash("Selecciona y copia el link manualmente.", "error");
       }
-    });
-  }
-
-  // Queda registro de qué se mandó por WhatsApp y cuándo, para que si el
-  // cliente pregunta algo más adelante, puedas volver atrás a revisarlo. No
-  // podemos saber si realmente lo envió (WhatsApp se abre en otra pestaña),
-  // así que se guarda al momento de apretar el botón.
-  const btnWhatsapp = container.querySelector("#btn-whatsapp-link");
-  if (btnWhatsapp && mensajeWhatsapp) {
-    btnWhatsapp.addEventListener("click", () => {
-      apiPost(`/api/trabajos/${trabajo.id}/envios`, { mensaje: mensajeWhatsapp }).catch(() => {
-        /* si falla el registro, igual dejamos que el link a WhatsApp funcione */
-      });
     });
   }
 

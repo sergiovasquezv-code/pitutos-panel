@@ -11,7 +11,7 @@ export async function onRequestGet({ request, env }) {
                 FROM trabajos JOIN clientes ON clientes.id = trabajos.cliente_id`;
   let stmt;
   if (estado === "abiertos") {
-    stmt = db.prepare(base + " WHERE trabajos.estado NOT IN ('Terminado', 'Demostración') ORDER BY fecha_creacion DESC");
+    stmt = db.prepare(base + " WHERE trabajos.estado NOT IN ('Entregado', 'Demostración') ORDER BY fecha_creacion DESC");
   } else if (estado) {
     stmt = db.prepare(base + " WHERE trabajos.estado = ? ORDER BY fecha_creacion DESC").bind(estado);
   } else {
@@ -45,7 +45,7 @@ export async function onRequestPost({ request, env }) {
       clienteId,
       body.tipo || "Programación",
       descripcion,
-      body.estado || "Pendiente",
+      body.estado || "Recibido",
       Number(body.monto) || 0,
       nowIso(),
       null,
