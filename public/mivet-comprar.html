@@ -109,7 +109,7 @@ async function llamar(ruta, body) {
   if (!r.ok) throw new Error(d.error || 'Error ' + r.status);
   return d;
 }
-function periodo(m) { return m === 1 ? 'por 1 mes' : m % 12 === 0 ? `por ${m / 12} año${m === 12 ? '' : 's'}` : `por ${m} meses`; }
+function periodo(m) { return m === 0 ? 'Licencia perpetua · pago único' : m === 1 ? 'por 1 mes' : m % 12 === 0 ? `por ${m / 12} año${m === 12 ? '' : 's'}` : `por ${m} meses`; }
 
 // ------------------------------------------------------------------ elegir plan y pagar
 async function pintarCompra() {
@@ -196,7 +196,7 @@ async function pintarResultado(ref) {
       c.innerHTML = `<div class="resultado"><div class="ok-icono">✓</div>
         <h2>${d.renovacion ? 'Licencia renovada' : 'Esta es tu clave de producto'}</h2>
         <div class="clave">${esc(d.clave)}</div>
-        <div><b>${esc(d.plan)}</b> · ${d.cajas} equipo${d.cajas === 1 ? '' : 's'} · válida hasta el <b>${fecha(d.vence)}</b></div>
+        <div><b>${esc(d.plan)}</b> · ${d.cajas} equipo${d.cajas === 1 ? '' : 's'} · ${d.vence ? `válida hasta el <b>${fecha(d.vence)}</b>` : '<b>perpetua · sin vencimiento</b>'}</div>
         ${d.desde_mipos ? '<div class="aviso">Compraste desde MiVet: <b>tu computador ya se activó solo</b> (vuelve a MiVet; tarda unos segundos).</div>'
           : '<div class="aviso">Abre MiVet, escribe esta clave donde dice <b>“Clave de producto”</b> y presiona <b>Activar</b>.</div>'}
         <div class="det">${d.correo === 'enviado' ? `También te la enviamos a <b>${esc(d.email)}</b>. ` : ''}Guárdala: la necesitas si cambias de computador.</div>

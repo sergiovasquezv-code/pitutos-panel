@@ -211,11 +211,12 @@ function pintar() {
     ${d.config.correo === 'falta' && d.planes.length ? '<div class="aviso">Sin correo configurado (RESEND_API_KEY y EMAIL_REMITENTE): las licencias se activan igual, pero no se envía el correo.</div>' : ''}
     <div class="stats">
       <div class="stat"><span>Clientes activos</span><strong>${activas.length}</strong></div>
-      <div class="stat"><span>PCs activados</span><strong>${pcs}</strong></div>
+      <div class="stat"><span>Servidores activados</span><strong>${pcs}</strong></div>
       <div class="stat"><span>Vencen en 30 días</span><strong style="color:${pronto ? 'var(--aviso)' : 'inherit'}">${pronto}</strong></div>
       <div class="stat"><span>Pruebas en curso</span><strong>${enPrueba}</strong></div>
       <div class="stat"><span>Ventas web este mes</span><strong>$${ventasMes.toLocaleString('es-CL')}</strong></div>
     </div>
+    <p class="det" style="margin:-8px 0 14px">Este contador muestra servidores MiVet activados con clave. Los PC cliente que se conectan por red no cuentan como servidores; el acceso simultáneo se limita por los puestos de cada licencia.</p>
     <div class="tabs">${[['claves', 'Clientes'], ['soporte', `Soporte${d.soporte && d.soporte.sin_leer ? ` <span class="burbuja">${d.soporte.sin_leer}</span>` : ''}`], ['ventas', 'Ventas'], ['planes', 'Planes y precios'], ['pruebas', 'Pruebas gratis'], ['codigo', 'Código sin internet'], ['historial', 'Historial']]
       .map(([k, t]) => `<button data-tab="${k}" class="${E.tab === k ? 'activo' : ''}">${t}</button>`).join('')}</div>
     <div id="contenido"></div></div>`;
@@ -242,11 +243,11 @@ function vistaClaves() {
     $('#lista').innerHTML = l.length ? l.map(k => {
       const activos = k.equipos.filter(x => x.estado === 'activa');
       return `<article class="tarjeta ${k.estado !== 'activa' ? 'bloqueada' : ''}" data-id="${k.id}">
-        <div class="t-cab"><h3>${esc(k.cliente)}</h3>${badgeVence(k)}<span class="badge azul">${k.cajas} equipo${k.cajas === 1 ? "" : "s"}</span></div>
+        <div class="t-cab"><h3>${esc(k.cliente)}</h3>${badgeVence(k)}<span class="badge azul">${k.cajas} puesto${k.cajas === 1 ? "" : "s"} simultáneo${k.cajas === 1 ? "" : "s"}</span></div>
         <div class="t-cab"><span class="clave">${esc(k.clave)}</span>
           <button class="btn chico" data-copiar="${esc(k.clave)}">Copiar</button>
           <a class="btn chico verde" href="${linkWhatsApp(k)}" target="_blank" rel="noopener">Enviar por WhatsApp</a></div>
-        <div class="meta"><span>PCs: <b>${activos.length} de ${k.max_equipos}</b></span>${k.contacto ? `<span>Contacto: <b>${esc(k.contacto)}</b></span>` : ''}
+        <div class="meta"><span>Servidores activados: <b>${activos.length} de ${k.max_equipos}</b></span>${k.contacto ? `<span>Contacto: <b>${esc(k.contacto)}</b></span>` : ''}
           <span>Creada: ${fecha(k.creado)}</span>${k.notas ? `<span>${esc(k.notas)}</span>` : ''}</div>
         ${activos.length ? `<div class="pcs">${activos.map(x => `<div class="pc"><b>${esc(x.nombre_pc || 'PC')}</b><code>${esc(x.equipo)}</code>
           <span class="badge">v${esc(x.version || '?')}</span><span class="det">conectado ${hace(x.ultimo_contacto)}</span>
@@ -464,7 +465,7 @@ function vistaPlanes() {
       <button class="btn primario" id="pl-nuevo">+ Nuevo plan</button></div>
     ${l.length ? `<div class="tabla-wrap"><table><thead><tr><th>Plan</th><th>Precio</th><th>Duración</th><th>Equipos</th><th>Estado</th><th></th></tr></thead><tbody>
     ${l.map(p => `<tr><td><b>${esc(p.nombre)}</b>${p.destacado ? ' <span class="badge amarillo">destacado</span>' : ''}${p.descripcion ? `<div class="det">${esc(p.descripcion)}</div>` : ''}</td>
-      <td>$${Number(p.precio).toLocaleString('es-CL')}</td><td>${p.meses} mes${p.meses === 1 ? '' : 'es'}</td><td>${p.cajas}</td>
+      <td>$${Number(p.precio).toLocaleString('es-CL')}</td><td>${p.meses === 0 ? 'Perpetua · pago único' : `${p.meses} mes${p.meses === 1 ? '' : 'es'}`}</td><td>${p.cajas}</td>
       <td>${p.activo ? '<span class="badge verde">a la venta</span>' : '<span class="badge">pausado</span>'}</td>
       <td class="acciones"><button class="btn chico" data-editar-plan="${p.id}">Editar</button><button class="btn chico peligro" data-borrar-plan="${p.id}">Eliminar</button></td></tr>`).join('')}</tbody></table></div>`
     : `<div class="vacio">Aún no hay planes. Crea por ejemplo “Mensual” (1 mes), “Semestral” (6 meses) y “Anual” (12 meses).
@@ -492,19 +493,29 @@ function formPlan(p) {
     <div class="grid2" style="margin-top:12px">
       <label class="full">Nombre (lo ve el cliente)<input name="nombre" value="${esc(p?.nombre || '')}" required autofocus placeholder="Ej: Anual"></label>
       <label>Precio (pesos)<input name="precio" type="number" min="100" step="1" value="${p?.precio || ''}" required></label>
-      <label>Duración (meses)<input name="meses" type="number" min="1" max="120" value="${p?.meses || 1}" required></label>
+      <label id="pl-meses-label">Duración (meses)<input name="meses" type="number" min="1" max="120" value="${p?.meses || 12}" required></label>
+      <label class="check full"><input type="checkbox" id="pl-perpetuo" ${p?.meses === 0 ? 'checked' : ''}> Licencia perpetua · pago único, sin vencimiento</label>
       <label>Equipos incluidos<input name="cajas" type="number" min="1" max="50" value="${p?.cajas || 1}" required></label>
       <label>Orden en la página<input name="orden" type="number" value="${p?.orden || 0}"></label>
       <label class="full">Detalle (opcional)<input name="descripcion" value="${esc(p?.descripcion || '')}" placeholder="Ej: Ideal para empezar"></label>
       <label class="check"><input type="checkbox" name="destacado" ${p?.destacado ? 'checked' : ''}> Destacarlo (“Más conveniente”)</label>
       <label class="check"><input type="checkbox" name="activo" ${!p || p.activo ? 'checked' : ''}> A la venta</label>
     </div>
-    <div class="det" style="margin:10px 0">Al renovar, el cliente queda con los equipos de este plan y los meses se suman desde su fecha de vencimiento.</div>
+    <div class="det" id="pl-ayuda" style="margin:10px 0">Al renovar, el cliente queda con los equipos de este plan y los meses se suman desde su fecha de vencimiento.</div>
     <div class="acciones" style="justify-content:flex-end"><button type="button" class="btn" data-cerrar>Cancelar</button><button class="btn primario">Guardar</button></div></form>`);
   const f = $('#f-plan', m.el);
+  const perpetuo = $('#pl-perpetuo', m.el);
+  const actualizarDuracion = () => {
+    $('#pl-meses-label', m.el).classList.toggle('oculto', perpetuo.checked);
+    $('#pl-ayuda', m.el).textContent = perpetuo.checked
+      ? 'El cliente paga una vez. La licencia queda activa sin fecha de vencimiento.'
+      : 'Al renovar, el cliente queda con los equipos de este plan y los meses se suman desde su fecha de vencimiento.';
+  };
+  perpetuo.addEventListener('change', actualizarDuracion);
+  actualizarDuracion();
   f.addEventListener('submit', async e => {
     e.preventDefault();
-    const body = { nombre: f.nombre.value, precio: +f.precio.value, meses: +f.meses.value, cajas: +f.cajas.value, orden: +f.orden.value,
+    const body = { nombre: f.nombre.value, precio: +f.precio.value, meses: perpetuo.checked ? 0 : +f.meses.value, cajas: +f.cajas.value, orden: +f.orden.value,
                    descripcion: f.descripcion.value, destacado: f.destacado.checked, activo: f.activo.checked };
     try { await api(p ? 'planes/' + p.id : 'planes', { method: p ? 'PUT' : 'POST', body }); m.cerrar(); toast('Plan guardado'); await cargar(); }
     catch (err) { toast(err.message, 'error'); }

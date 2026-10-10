@@ -56,6 +56,7 @@ export async function asegurarTablas(db) {
     db.prepare("CREATE TABLE IF NOT EXISTS mivet_pruebas (equipo TEXT PRIMARY KEY, inicio TEXT NOT NULL, nombre_pc TEXT NOT NULL DEFAULT '', version TEXT NOT NULL DEFAULT '', ultimo_contacto TEXT)"),
     db.prepare("CREATE TABLE IF NOT EXISTS mivet_eventos (id INTEGER PRIMARY KEY AUTOINCREMENT, fecha TEXT NOT NULL, tipo TEXT NOT NULL, clave_id INTEGER, equipo TEXT, detalle TEXT NOT NULL DEFAULT '')"),
   ]);
+  try { await db.prepare("ALTER TABLE mivet_pruebas ADD COLUMN ip TEXT NOT NULL DEFAULT ''").run(); } catch (e) { /* ya existe */ }
   tablasListas = true;
 }
 export function anotar(db, tipo, { clave_id = null, equipo = null, detalle = '' } = {}) {
@@ -197,10 +198,11 @@ export async function cumplirCompra(db, env, compra, pago) {
   let clave = compra.clave_id ? await db.prepare('SELECT * FROM mivet_claves WHERE id=?').bind(compra.clave_id).first() : null;
   if (!clave && compra.equipo) clave = await claveDeEquipo(db, compra.equipo);
   const base = clave && clave.vence && clave.vence > hoy() ? clave.vence : hoy();
-  const vence = sumarMeses(base, compra.meses);
+  const vence = compra.meses === 0 ? null : sumarMeses(base, compra.meses);
+  const vigencia = vence ? fechaCL(vence) : 'perpetua · sin vencimiento';
   if (clave) {
     await db.prepare("UPDATE mivet_claves SET vence=?, cajas=?, estado='activa', email=CASE WHEN email='' THEN ? ELSE email END WHERE id=?").bind(vence, compra.cajas, compra.email, clave.id).run();
-    await anotar(db, 'renovacion_pagada', { clave_id: clave.id, equipo: compra.equipo, detalle: `${compra.plan_nombre} · ${clp(compra.precio)} · vence ${fechaCL(vence)}` });
+    await anotar(db, 'renovacion_pagada', { clave_id: clave.id, equipo: compra.equipo, detalle: `${compra.plan_nombre} · ${clp(compra.precio)} · ${vigencia}` });
   } else {
     let id = null;
     for (let i = 0; i < 5 && !id; i++) {
@@ -223,7 +225,7 @@ export async function cumplirCompra(db, env, compra, pago) {
   const estadoCorreo = await correo(env, compra.email, compra.renovacion ? 'Tu licencia de MiVet fue renovada' : 'Tu licencia de MiVet', correoCliente(final, clave));
   await correo(env, env.EMAIL_NOTIFICACIONES, `Venta MiVet: ${compra.nombre} · ${clp(compra.precio)}`,
     `<p><b>${escH(compra.nombre)}</b> (${escH(compra.email)}${compra.telefono ? ' · ' + escH(compra.telefono) : ''}) pagó <b>${clp(compra.precio)}</b> por ${escH(compra.plan_nombre)}.</p>
-     <p>Clave ${escH(clave.clave)} · ${clave.cajas} caja(s) · vence ${fechaCL(vence)}${compra.renovacion ? ' (renovación)' : ''} · pago MP ${escH(pago.id)}.</p>
+    <p>Clave ${escH(clave.clave)} · ${clave.cajas} caja(s) · ${vigencia}${compra.renovacion ? ' (renovación)' : ''} · pago MP ${escH(pago.id)}.</p>
      <p>Recuerda emitir la boleta o factura de esta venta.</p>`);
   await db.prepare('UPDATE mivet_compras SET correo=? WHERE id=?').bind(estadoCorreo, compra.id).run();
   return { ...final, correo: estadoCorreo };
@@ -235,11 +237,11 @@ function correoCliente(compra, clave) {
   <p>${compra.renovacion ? 'Tu licencia de MiVet quedó renovada.' : 'Esta es tu licencia de MiVet.'}</p>
   <div style="font-family:Consolas,monospace;font-size:22px;letter-spacing:2px;text-align:center;padding:14px;border:2px dashed #ffd23f;border-radius:12px;background:#fffbea">${escH(clave.clave)}</div>
   <table style="margin:14px 0;font-size:14px"><tr><td style="color:#5f6580;padding-right:12px">Plan</td><td>${escH(compra.plan_nombre)}</td></tr>
-    <tr><td style="color:#5f6580">Cajas</td><td>${clave.cajas}</td></tr><tr><td style="color:#5f6580">Válida hasta</td><td><b>${fechaCL(clave.vence)}</b></td></tr>
+    <tr><td style="color:#5f6580">Cajas</td><td>${clave.cajas}</td></tr><tr><td style="color:#5f6580">Vigencia</td><td><b>${clave.vence ? fechaCL(clave.vence) : 'Perpetua · sin vencimiento'}</b></td></tr>
     <tr><td style="color:#5f6580">Pagado</td><td>${clp(compra.precio)} · pago Mercado Pago N° ${escH(compra.mp_pago)}</td></tr></table>
   ${compra.equipo ? '<p>Compraste desde MiVet, así que <b>se activa solo</b> en ese computador (en unos segundos).</p>' : ''}
   <p><b>Para activarla en otro momento o en un PC nuevo:</b> abre MiVet, escribe la clave donde dice “Clave de producto” y presiona <b>Activar</b>.</p>
-  <p>Unos días antes del vencimiento MiVet te avisará para renovar. Guarda este correo.</p>
+  <p>${clave.vence ? 'Unos días antes del vencimiento MiVet te avisará para renovar.' : 'Esta licencia no tiene fecha de vencimiento.'} Guarda este correo.</p>
 </div>`;
 }
 

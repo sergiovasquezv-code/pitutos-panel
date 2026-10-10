@@ -115,9 +115,12 @@ export async function onRequest({ request, env, params, waitUntil }) {
 
     // ---- planes a la venta (los ve la página de compra)
     const datosPlan = x => {
+      const meses = x.meses === undefined ? 1 : Number(x.meses);
+      if (!Number.isInteger(meses) || meses < 0 || meses > 120) throw Object.assign(new Error('La duración debe ser 0 (perpetua) o entre 1 y 120 meses'), { status: 400 });
       const v = { nombre: texto(x.nombre, 60), descripcion: texto(x.descripcion, 200), meses: Math.min(Math.max(parseInt(x.meses, 10) || 1, 1), 120),
                   cajas: Math.min(Math.max(parseInt(x.cajas, 10) || 1, 1), 50), precio: Math.max(parseInt(x.precio, 10) || 0, 0),
                   destacado: x.destacado ? 1 : 0, activo: x.activo === false ? 0 : 1, orden: parseInt(x.orden, 10) || 0 };
+      v.meses = meses;
       if (!v.nombre) throw Object.assign(new Error('Falta el nombre del plan'), { status: 400 });
       if (v.precio < 100) throw Object.assign(new Error('El precio debe ser de al menos $100'), { status: 400 });
       return v;
