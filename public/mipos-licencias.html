@@ -265,6 +265,7 @@ function vistaClaves() {
           <button class="btn chico" data-liberar="${esc(x.equipo)}" title="Para que la clave se pueda usar en otro PC">Liberar</button></div>
           ${(x.puestos || []).map(p => `<div class="pc" style="margin-left:18px"><b>${esc(p.nombre || 'Caja MiPOS')}</b>${p.usuario ? `<span>${esc(p.usuario)}</span>` : ''}
             ${luzConexion(p.ultimo_contacto)}<span class="det">último reporte ${hace(p.ultimo_contacto)}</span></div>`).join('') || '<div class="det" style="margin-left:18px">Sin cajas cliente reportadas todavía.</div>'}
+          <div class="det" style="margin-left:18px">El estado se actualiza cada minuto. Rojo significa más de 5 minutos sin reporte; el PC puede estar apagado, desconectado o con MiPOS cerrado.</div>`).join('')}</div>`
           : '<div class="det">Aún no se activa en ningún PC.</div>'}
         <div class="acciones">
           <button class="btn chico" data-renovar="1">+1 mes</button><button class="btn chico" data-renovar="12">+1 año</button>
