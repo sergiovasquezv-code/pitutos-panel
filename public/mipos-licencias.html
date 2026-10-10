@@ -377,14 +377,29 @@ function vistaPruebas() {
         <td>${fecha(p.inicio)}</td>
         <td>${p.licencia_vigente ? `<span class="badge verde">Convertida a licencia · ${esc(p.licencia_vigente.cliente)}</span>` : p.estado === 'bloqueada' ? '<span class="badge rojo">Suspendida</span>' : n < 0 ? '<span class="badge">Demo vencida</span>' : sinContacto ? '<span class="badge amarillo">Sin contacto 30+ días</span>' : `<span class="badge azul">quedan ${n + 1} días</span>`}</td><td>${hace(p.ultimo_contacto)}</td>
         <td>${p.licencia_vigente ? '' : `<div class="acciones"><button class="btn chico ${p.estado === 'bloqueada' ? '' : 'peligro'}" data-estado="${p.estado === 'bloqueada' ? 'activa' : 'bloqueada'}">${p.estado === 'bloqueada' ? 'Reactivar' : 'Suspender'}</button>
-          <button class="btn chico" data-otra="${esc(p.equipo)}">Reiniciar demo</button></div>`}</td></tr>`; }).join('')}</tbody></table></div>`
+          <button class="btn chico" data-otra="${esc(p.equipo)}">Reiniciar demo</button>
+          <button class="btn chico peligro" data-eliminar-prueba="${esc(p.equipo)}">Eliminar demo</button></div>`}</td></tr>`; }).join('')}</tbody></table></div>`
       : `<div class="vacio">${l.length ? (mostrarArchivadas ? 'No hay pruebas archivadas.' : 'No hay pruebas vigentes.') : 'Nadie ha pedido la prueba gratis todavía.'}</div>`}
-      ${bl.length ? `<h3 style="margin:18px 0 8px">Intentos bloqueados (últimos 60 días)</h3>
-        <div class="tabla-wrap"><table><thead><tr><th>Fecha</th><th>PC</th><th>Código de equipo</th><th>Conexión (IP)</th></tr></thead><tbody>
-        ${bl.map(x => `<tr class="fila-sospechosa"><td>${fechaHora(x.fecha)}</td><td><b>${esc(x.nombre_pc || '—')}</b></td><td><code>${esc(x.equipo)}</code></td><td><code>${esc(x.ip)}</code></td></tr>`).join('')}
+      ${bl.length ? `<div class="barra" style="margin:18px 0 8px"><h3 style="margin:0">Intentos bloqueados (últimos 60 días)</h3>
+        <button class="btn chico peligro" id="borrar-intentos">Borrar últimos 60 días</button></div>
+        <div class="tabla-wrap"><table><thead><tr><th>Fecha</th><th>PC</th><th>Código de equipo</th><th>Conexión (IP)</th><th></th></tr></thead><tbody>
+        ${bl.map(x => `<tr class="fila-sospechosa"><td>${fechaHora(x.fecha)}</td><td><b>${esc(x.nombre_pc || '—')}</b></td><td><code>${esc(x.equipo)}</code></td><td><code>${esc(x.ip)}</code></td><td><button class="btn chico peligro" data-borrar-intento="${x.id}">Eliminar</button></td></tr>`).join('')}
         </tbody></table></div>` : ''}`;
     $('#b-pruebas-vigentes').addEventListener('click', () => { mostrarArchivadas = false; render(); });
     $('#b-pruebas-archivadas').addEventListener('click', () => { mostrarArchivadas = true; render(); });
+    const borrarIntentos = $('#borrar-intentos');
+    if (borrarIntentos) borrarIntentos.addEventListener('click', async () => {
+      if (!confirm('¿Borrar todos los intentos bloqueados de los últimos 60 días? Las pruebas registradas no se borrarán.')) return;
+      borrarIntentos.disabled = true;
+      try { const r = await api('pruebas-bloqueadas', { method: 'DELETE' }); toast(`${r.eliminados} intentos bloqueados eliminados`); await cargar(); }
+      catch (e) { toast(e.message, 'error'); borrarIntentos.disabled = false; }
+    });
+    $$('[data-borrar-intento]').forEach(b => b.addEventListener('click', async () => {
+      if (!confirm('¿Eliminar este intento bloqueado? No se borrará ninguna prueba ni licencia.')) return;
+      b.disabled = true;
+      try { await api(`pruebas-bloqueadas/${b.dataset.borrarIntento}`, { method: 'DELETE' }); toast('Intento eliminado'); await cargar(); }
+      catch (e) { toast(e.message, 'error'); b.disabled = false; }
+    }));
     $$('[data-estado]').forEach(b => b.addEventListener('click', async () => {
       const equipo = b.closest('tr').querySelector('td code').textContent;
       const suspender = b.dataset.estado === 'bloqueada';
@@ -399,6 +414,12 @@ function vistaPruebas() {
       if (!confirm('¿Dar a este PC otra prueba gratis, desde hoy? (No cuenta para el límite por conexión)')) return;
       try { await api('pruebas/' + encodeURIComponent(b.dataset.otra), { method: 'DELETE' }); toast('Demo reiniciada desde hoy. MiPOS debe volver a conectarse para renovarla.'); await cargar(); }
       catch (e) { toast(e.message, 'error'); }
+    }));
+    $$('[data-eliminar-prueba]').forEach(b => b.addEventListener('click', async () => {
+      if (!confirm('¿Eliminar definitivamente esta demo? No se borrará ninguna licencia; el PC podrá solicitar otra prueba según el límite por conexión.')) return;
+      b.disabled = true;
+      try { await api(`pruebas/${encodeURIComponent(b.dataset.eliminarPrueba)}/eliminar`, { method: 'DELETE' }); toast('Demo eliminada'); await cargar(); }
+      catch (e) { toast(e.message, 'error'); b.disabled = false; }
     }));
   };
   render();
@@ -579,7 +600,7 @@ function formPlan(p) {
 }
 
 const NOMBRES_EVENTO = { activacion: 'Activación', activacion_rechazada: 'Activación rechazada', prueba: 'Prueba iniciada', clave_creada: 'Clave creada',
-  clave_editada: 'Clave modificada', soporte: 'Caso de soporte', recordatorio: 'Recordatorio enviado', compra_pagada: 'Venta en línea', renovacion_pagada: 'Renovación pagada', plan: 'Plan', clave_eliminada: 'Clave eliminada', pc_liberado: 'PC liberado', prueba_reiniciada: 'Prueba reiniciada', prueba_suspendida: 'Prueba suspendida', prueba_reactivada: 'Prueba reactivada', prueba_bloqueada: 'Prueba rechazada (límite por conexión)', codigo_sin_internet: 'Código sin internet' };
+  clave_editada: 'Clave modificada', soporte: 'Caso de soporte', recordatorio: 'Recordatorio enviado', compra_pagada: 'Venta en línea', renovacion_pagada: 'Renovación pagada', plan: 'Plan', clave_eliminada: 'Clave eliminada', pc_liberado: 'PC liberado', prueba_reiniciada: 'Prueba reiniciada', prueba_eliminada: 'Prueba eliminada', prueba_suspendida: 'Prueba suspendida', prueba_reactivada: 'Prueba reactivada', prueba_bloqueada: 'Prueba rechazada (límite por conexión)', codigo_sin_internet: 'Código sin internet' };
 async function vistaHistorial() {
   const c = $('#contenido');
   c.innerHTML = '<div class="det">Cargando…</div>';

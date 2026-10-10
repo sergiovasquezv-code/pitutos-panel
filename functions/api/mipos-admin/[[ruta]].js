@@ -61,11 +61,21 @@ export async function onRequest({ request, env, params, waitUntil }) {
     const ruta = (params.ruta || []).join('/');
     const m = request.method;
     const d = m === 'GET' || m === 'DELETE' ? {} : await leerCuerpo(request);
-    let r;
+    let r, p;
 
     if (m === 'GET' && ruta === 'resumen') {
       if (waitUntil) waitUntil(recordatoriosDelDia(db, env, new URL(request.url).origin).catch(() => {}));
       return json(await resumen(db, env));
+    }
+    if (m === 'DELETE' && ruta === 'pruebas-bloqueadas') {
+      const borrado = await db.prepare('DELETE FROM mipos_pruebas_bloqueadas WHERE fecha >= ?').bind(sumarDias(hoy(), -60)).run();
+      return json({ ok: true, eliminados: borrado.meta.changes || 0 });
+    }
+    p = ruta.match(/^pruebas-bloqueadas\/(\d+)$/);
+    if (p && m === 'DELETE') {
+      const borrado = await db.prepare('DELETE FROM mipos_pruebas_bloqueadas WHERE id=?').bind(+p[1]).run();
+      if (!borrado.meta.changes) return error(404, 'Intento bloqueado no encontrado');
+      return json({ ok: true });
     }
     if (m === 'POST' && ruta === 'recordatorios') return json(await recordatoriosDelDia(db, env, new URL(request.url).origin, { forzar: true }));
 
@@ -88,7 +98,7 @@ export async function onRequest({ request, env, params, waitUntil }) {
       return error(500, 'No se pudo generar una clave única, intenta de nuevo');
     }
 
-    let p = ruta.match(/^claves\/(\d+)$/);
+    p = ruta.match(/^claves\/(\d+)$/);
     if (p && m === 'PUT') {
       const actual = await db.prepare('SELECT * FROM mipos_claves WHERE id=?').bind(+p[1]).first();
       if (!actual) return error(404, 'Clave no encontrada');
@@ -116,6 +126,17 @@ export async function onRequest({ request, env, params, waitUntil }) {
       return json({ ok: true });
     }
 
+    p = ruta.match(/^pruebas\/([A-Z0-9-]+)\/eliminar$/);
+    if (p && m === 'DELETE') {
+      const prueba = await db.prepare('SELECT * FROM mipos_pruebas WHERE equipo=?').bind(p[1]).first();
+      if (!prueba) return error(404, 'Prueba no encontrada');
+      const activa = await db.prepare("SELECT 1 FROM mipos_activaciones a JOIN mipos_claves c ON c.id=a.clave_id WHERE a.equipo=? AND a.estado='activa' AND c.estado='activa' AND (c.vence IS NULL OR c.vence>=?) LIMIT 1")
+        .bind(p[1], hoy()).first();
+      if (activa) return error(409, 'No se puede eliminar una prueba asociada a una activación activa');
+      await db.prepare('DELETE FROM mipos_pruebas WHERE equipo=?').bind(p[1]).run();
+      await anotar(db, 'prueba_eliminada', { equipo: p[1], detalle: 'Eliminada desde administración' });
+      return json({ ok: true });
+    }
     p = ruta.match(/^pruebas\/([A-Z0-9-]+)$/);
     if (p && m === 'DELETE') {
       // "Dar otra prueba": empieza de nuevo desde hoy (decisión tuya, no cuenta para el límite por conexión)
