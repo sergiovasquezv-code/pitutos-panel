@@ -34,13 +34,22 @@ export async function onRequestGet({ env }) {
   const trabajosAbiertos = (
     await db
       .prepare(
-        `SELECT trabajos.*, clientes.nombre AS cliente_nombre
+        `SELECT trabajos.*, clientes.nombre AS cliente_nombre,
+           (SELECT MAX(creado_en) FROM avances WHERE avances.trabajo_id = trabajos.id AND avances.tipo = 'estado') AS ultimo_cambio,
+           (SELECT MAX(creado_en) FROM envios_cliente WHERE envios_cliente.trabajo_id = trabajos.id) AS ultimo_envio
          FROM trabajos JOIN clientes ON clientes.id = trabajos.cliente_id
          WHERE trabajos.estado NOT IN ('Entregado', 'Demostración')
          ORDER BY trabajos.fecha_creacion`
       )
       .all()
   ).results;
+
+  // Trabajos con un cambio de estado (o recién creados) que todavía no se le
+  // avisó al cliente. Los "Equipo listo" van primero.
+  const esListo = (t) => t.estado === "Equipo listo" || t.estado === "Entrega fijada";
+  const pendientesAvisar = trabajosAbiertos
+    .filter((t) => !t.ultimo_envio || (t.ultimo_cambio || t.fecha_creacion || "") > t.ultimo_envio)
+    .sort((a, b) => Number(esListo(b)) - Number(esListo(a)));
 
   // Trabajos que se cerraron este mes — para que en Inicio se vea de un
   // vistazo cuánto se ha cerrado, no solo lo que sigue pendiente. Se
@@ -149,6 +158,7 @@ export async function onRequestGet({ env }) {
     garantias_por_vencer: garantiasPorVencer,
     garantias_vencidas_30d: garantiasVencidas30d,
     trabajos_abiertos: trabajosAbiertos,
+    pendientes_avisar: pendientesAvisar,
     trabajos_terminados_mes: trabajosTerminadosMes,
     equipos_pendientes: equiposPendientes,
     mensualidades_pendientes: mensualidadesPendientes,

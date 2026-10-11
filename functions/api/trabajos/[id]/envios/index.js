@@ -23,11 +23,22 @@ export async function onRequestPost({ request, env, params }) {
   const body = await request.json().catch(() => ({}));
   const mensaje = (body.mensaje || "").trim();
   if (!mensaje) return json({ error: "Falta el mensaje enviado." }, 400);
+  const tipoAviso = (body.tipo_aviso || "").trim() || null;
 
-  const result = await db
-    .prepare("INSERT INTO envios_cliente (trabajo_id, mensaje, creado_en) VALUES (?,?,?)")
-    .bind(trabajoId, mensaje, nowIso())
-    .run();
+  // tipo_aviso viene de migration_envios_tipo_aviso.sql; si aún no se aplicó,
+  // se registra igual el envío sin ese dato.
+  let result;
+  try {
+    result = await db
+      .prepare("INSERT INTO envios_cliente (trabajo_id, mensaje, creado_en, tipo_aviso) VALUES (?,?,?,?)")
+      .bind(trabajoId, mensaje, nowIso(), tipoAviso)
+      .run();
+  } catch {
+    result = await db
+      .prepare("INSERT INTO envios_cliente (trabajo_id, mensaje, creado_en) VALUES (?,?,?)")
+      .bind(trabajoId, mensaje, nowIso())
+      .run();
+  }
 
   return json({ ok: true, id: result.meta.last_row_id });
 }

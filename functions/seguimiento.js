@@ -567,7 +567,7 @@ const PAGINA_BASE = `<!DOCTYPE html>
       return \`https://wa.me/\${telefono}?text=\${encodeURIComponent(mensaje)}\`;
     }
 
-    const ESTADOS = ["Recibido", "En preparación", "Equipo listo", "Entrega fijada", "Entregado"];
+    const ESTADOS = ["Recibido", "En preparación", "Equipo listo", "Entregado"];
 
     function textoEntrega(valor) {
       const [fecha, hora] = String(valor).split("T");
@@ -578,7 +578,7 @@ const PAGINA_BASE = `<!DOCTYPE html>
     }
 
     function renderEstadoSteps(estadoActual) {
-      const idxActual = ESTADOS.indexOf(estadoActual);
+      const idxActual = ESTADOS.indexOf(estadoActual === "Entrega fijada" ? "Equipo listo" : estadoActual);
       return ESTADOS.map((estado, i) => {
         let cls = "";
         if (i < idxActual) cls = "done";
