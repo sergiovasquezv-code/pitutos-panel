@@ -2308,31 +2308,34 @@ async function renderAvisoCliente(trabajo, equipos, containerId) {
   container.innerHTML = `
     <div style="border:1px solid var(--border, #ddd);border-radius:10px;padding:12px;">
       <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px;">
-        <strong>Aviso al cliente</strong>
+        <strong>Avisar al cliente por WhatsApp</strong>
         ${
           pendiente
             ? `<span class="badge warn">Pendiente de avisar</span>`
             : `<span class="badge ok">Al día · último aviso ${fechaCortaHora(ultimoEnvio)}</span>`
         }
       </div>
-      <div class="field"><label>Qué enviar</label>
-        <select data-aviso-tipo>${Object.entries(AVISOS)
-          .map(([k, v]) => `<option value="${k}" ${k === tipo ? "selected" : ""}>${v.titulo}</option>`)
-          .join("")}</select></div>
       <div data-aviso-extra></div>
-      <div style="display:flex;flex-wrap:wrap;gap:6px 16px;margin-bottom:8px;">
-        ${[
-          ["nota", "Nota"],
-          ["fotos", "Fotos"],
-          ["monto", "Monto / desglose"],
-          ["saldo", "Saldo"],
-          ["link", "Link de seguimiento"],
-        ]
-          .map(([k, t]) => `<label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" data-opt="${k}"> ${t}</label>`)
-          .join("")}
-      </div>
-      <div class="field"><label>Mensaje (puedes editarlo antes de enviar)</label>
+      <div class="field"><label>Mensaje que le llegará (puedes editarlo)</label>
         <textarea data-aviso-texto rows="6"></textarea></div>
+      <details style="margin-bottom:10px;">
+        <summary style="cursor:pointer;font-weight:600;">Cambiar qué aviso enviar o qué ve el cliente</summary>
+        <div class="field" style="margin-top:8px;"><label>Tipo de aviso</label>
+          <select data-aviso-tipo>${Object.entries(AVISOS)
+            .map(([k, v]) => `<option value="${k}" ${k === tipo ? "selected" : ""}>${v.titulo}</option>`)
+            .join("")}</select></div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px 16px;">
+          ${[
+            ["nota", "Nota"],
+            ["fotos", "Fotos"],
+            ["monto", "Monto / desglose"],
+            ["saldo", "Saldo"],
+            ["link", "Link de seguimiento"],
+          ]
+            .map(([k, t]) => `<label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" data-opt="${k}"> ${t}</label>`)
+            .join("")}
+        </div>
+      </details>
       <div class="actions-row">
         <a class="btn btn-accent" data-aviso-enviar target="_blank" rel="noopener">Avisar: <span data-aviso-nombre></span></a>
       </div>
