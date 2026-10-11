@@ -202,7 +202,8 @@ CREATE TABLE IF NOT EXISTS envios_cliente (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     trabajo_id INTEGER NOT NULL,
     mensaje TEXT NOT NULL,
-    creado_en TEXT NOT NULL
+    creado_en TEXT NOT NULL,
+    tipo_aviso TEXT -- 'recibido' | 'avance' | 'listo' | 'cobro' | 'pago' | 'libre'
 );
 
 CREATE INDEX IF NOT EXISTS idx_equipos_cliente ON equipos(cliente_id);

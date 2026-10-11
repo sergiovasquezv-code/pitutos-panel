@@ -5,7 +5,11 @@ import { clp, escapeHtml, telefonoWhatsapp, soloDigitosTelefono, formatearRut } 
 
 const TIPOS_TRABAJO = ["Programación", "Soporte técnico", "Instalación", "Mantención", "Otro"];
 // Flujo natural de un trabajo, en orden; las demás son pausas o casos aparte.
-const FLUJO_TRABAJO = ["Recibido", "En preparación", "Equipo listo", "Entrega fijada", "Entregado"];
+// "Entrega fijada" ya no es un paso: se mantiene solo por compatibilidad con
+// trabajos antiguos que quedaron en ese estado (se tratan como "Equipo listo").
+const FLUJO_TRABAJO = ["Recibido", "En preparación", "Equipo listo", "Entregado"];
+const ESTADO_LEGADO_ENTREGA = "Entrega fijada";
+const estadoDeFlujo = (e) => (e === ESTADO_LEGADO_ENTREGA ? "Equipo listo" : e);
 const ESTADOS_TRABAJO = [...FLUJO_TRABAJO, "Esperando cliente", "Cliente no ubicado", "Demostración"];
 
 const els = {
@@ -277,6 +281,18 @@ async function viewDashboard() {
     )
     .join("");
 
+  const pendientesRows = (d.pendientes_avisar || [])
+    .map(
+      (t) => `
+      <tr data-goto="#/clientes/${t.cliente_id}?trabajo=${t.id}" style="cursor:pointer;">
+        <td>${escapeHtml(t.cliente_nombre)}</td>
+        <td>${escapeHtml(t.tipo)}</td>
+        <td>${badgeTrabajo(t.estado)}</td>
+        <td><span class="badge warn">Avisar</span></td>
+      </tr>`
+    )
+    .join("");
+
   const trabajosTerminadosRows = d.trabajos_terminados_mes
     .map(
       (t) => `
@@ -323,6 +339,8 @@ async function viewDashboard() {
         <div class="value ${d.garantias_por_vencer.length ? "danger" : "ok"}">${d.garantias_por_vencer.length}</div></div>
       <div class="stat-card" data-goto="#/trabajos?estado=abiertos" style="cursor:pointer;"><div class="label">Trabajos abiertos</div>
         <div class="value ${d.trabajos_abiertos.length ? "warn" : "ok"}">${d.trabajos_abiertos.length}</div></div>
+      <div class="stat-card"><div class="label">Pendientes de avisar</div>
+        <div class="value ${(d.pendientes_avisar || []).length ? "warn" : "ok"}">${(d.pendientes_avisar || []).length}</div></div>
       <div class="stat-card" data-goto="#/trabajos?estado=Entregado" style="cursor:pointer;"><div class="label">Trabajos cerrados este mes</div>
         <div class="value ok">${d.trabajos_terminados_mes.length}</div></div>
       <div class="stat-card"><div class="label">Mensualidades por cobrar</div>
@@ -341,6 +359,17 @@ async function viewDashboard() {
           garantiaRows
             ? `<table><thead><tr><th>Cliente</th><th>Equipo</th><th>Vence</th><th>Estado</th></tr></thead><tbody>${garantiaRows}</tbody></table>`
             : `<div class="panel-empty">No hay garantías por vencer en los próximos 15 días.</div>`
+        }
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header"><h2>Pendientes de avisar al cliente</h2></div>
+      <div class="panel-body">
+        ${
+          pendientesRows
+            ? `<table><thead><tr><th>Cliente</th><th>Tipo</th><th>Estado</th><th></th></tr></thead><tbody>${pendientesRows}</tbody></table>`
+            : `<div class="panel-empty">Todos tus clientes están al día con los avisos. 👍</div>`
         }
       </div>
     </div>
@@ -1020,9 +1049,9 @@ async function cargarTrabajoInline(trabajoId, clienteId, containerId = "trabajo-
   const tipoOptions = TIPOS_TRABAJO.map(
     (t) => `<option value="${t}" ${trabajo.tipo === t ? "selected" : ""}>${t}</option>`
   ).join("");
-  const estadoOptions = ESTADOS_TRABAJO.map(
-    (e) => `<option value="${e}" ${trabajo.estado === e ? "selected" : ""}>${e}</option>`
-  ).join("");
+  const estadoOptions = (ESTADOS_TRABAJO.includes(trabajo.estado) ? ESTADOS_TRABAJO : [...ESTADOS_TRABAJO, trabajo.estado])
+    .map((e) => `<option value="${e}" ${trabajo.estado === e ? "selected" : ""}>${e}</option>`)
+    .join("");
 
   // Cada equipo vinculado ya tiene su propio bloque desplegado más arriba
   // (en "Equipos y garantías"), así que aquí solo se baja con scroll hasta
@@ -1049,7 +1078,7 @@ async function cargarTrabajoInline(trabajoId, clienteId, containerId = "trabajo-
     ? `<span class="badge neutral">Oculto ahora · se mostró desde ${fechaCortaHora(trabajo.detalle_visible_desde)}</span>`
     : `<span class="badge neutral">Oculto para el cliente</span>`;
 
-  const idxFlujo = FLUJO_TRABAJO.indexOf(trabajo.estado);
+  const idxFlujo = FLUJO_TRABAJO.indexOf(estadoDeFlujo(trabajo.estado));
   const siguienteEstado = idxFlujo < 0 ? "En preparación" : FLUJO_TRABAJO[idxFlujo + 1] || null;
   const textoSiguiente = idxFlujo < 0 ? `Retomar: ${siguienteEstado}` : siguienteEstado ? `Siguiente: ${siguienteEstado}` : "";
   const pasosHtml = FLUJO_TRABAJO.map((e, i) => {
@@ -1066,18 +1095,9 @@ async function cargarTrabajoInline(trabajoId, clienteId, containerId = "trabajo-
         ${trabajo.fecha_entrega ? `<p style="margin:10px 0 0;">Entrega: <strong>${escapeHtml(fechaEntregaTexto(trabajo.fecha_entrega))}</strong></p>` : ""}
         <div class="actions-row" style="margin-top:12px;" data-paso-botones>
           ${siguienteEstado ? `<button type="button" class="btn btn-accent" data-paso="${siguienteEstado}">${textoSiguiente}</button>` : ""}
-          ${trabajo.estado === "Entrega fijada" ? `<button type="button" class="btn btn-outline btn-sm" data-paso="Entrega fijada">Cambiar fecha de entrega</button>` : ""}
         </div>
-        <div data-paso-form style="display:none;margin-top:12px;">
-          <div class="field" data-paso-fecha style="display:none;"><label>Fecha y hora de entrega *</label>
-            <input type="datetime-local" data-paso-fecha-input value="${escapeHtml(trabajo.fecha_entrega && trabajo.fecha_entrega.includes("T") ? trabajo.fecha_entrega : "")}"></div>
-          <div class="field"><label>Nota para el cliente (opcional)</label>
-            <textarea data-paso-nota placeholder="Ej: Se cambió el disco y se reinstaló el sistema"></textarea></div>
-          <div class="actions-row">
-            <button type="button" class="btn btn-accent btn-sm" data-paso-confirmar>Confirmar</button>
-            <button type="button" class="btn btn-outline btn-sm" data-paso-cancelar>Cancelar</button>
-          </div>
-        </div>
+        <span class="hint">Cambiar de estado no le envía nada al cliente: usa el aviso de abajo cuando quieras informarle.</span>
+        <div id="aviso-${trabajo.id}" style="margin-top:12px;"></div>
       </div>
     </div>
 
@@ -1150,6 +1170,7 @@ async function cargarTrabajoInline(trabajoId, clienteId, containerId = "trabajo-
         const data = await apiGet(`/api/trabajos/${trabajoId}`);
         trabajo = data.trabajo;
         renderSeguimiento(trabajo, `seguimiento-${trabajo.id}`);
+        renderAvisoCliente(trabajo, equiposVinculados, `aviso-${trabajo.id}`);
         renderInformeCliente(trabajo, equiposVinculados, `informe-${trabajo.id}`);
       } catch {
         // igual que en equipos: si falla, el mensaje de WhatsApp de
@@ -1158,39 +1179,26 @@ async function cargarTrabajoInline(trabajoId, clienteId, containerId = "trabajo-
     },
   });
 
-  const pasoForm = wrapper.querySelector("[data-paso-form]");
-  let pasoDestino = null;
+  renderAvisoCliente(trabajo, equiposVinculados, `aviso-${trabajo.id}`);
+
+  // Avanzar de estado es un solo clic y no avisa al cliente por sí solo.
   wrapper.querySelectorAll("[data-paso]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      pasoDestino = btn.dataset.paso;
-      pasoForm.style.display = "block";
-      wrapper.querySelector("[data-paso-botones]").style.display = "none";
-      wrapper.querySelector("[data-paso-fecha]").style.display = pasoDestino === "Entrega fijada" ? "block" : "none";
+    btn.addEventListener("click", async () => {
+      const pasoDestino = btn.dataset.paso;
+      btn.disabled = true;
+      try {
+        await apiPut(`/api/trabajos/${trabajo.id}`, {
+          estado: pasoDestino,
+          mostrar_detalle_cliente: !!trabajo.mostrar_detalle_cliente,
+        });
+        flash(`Trabajo en estado "${pasoDestino}". Ya puedes avisarle al cliente.`);
+        viewClienteDetalle(clienteId, { openTrabajoId: trabajoId });
+      } catch (err) {
+        btn.disabled = false;
+        if (await handleAuthError(err)) return;
+        flash(err.message, "error");
+      }
     });
-  });
-  wrapper.querySelector("[data-paso-cancelar]").addEventListener("click", () => {
-    pasoForm.style.display = "none";
-    wrapper.querySelector("[data-paso-botones]").style.display = "";
-  });
-  wrapper.querySelector("[data-paso-confirmar]").addEventListener("click", async () => {
-    const fecha = wrapper.querySelector("[data-paso-fecha-input]").value;
-    if (pasoDestino === "Entrega fijada" && !fecha) {
-      flash("Indica la fecha y hora de entrega.", "error");
-      return;
-    }
-    try {
-      await apiPut(`/api/trabajos/${trabajo.id}`, {
-        estado: pasoDestino,
-        fecha_entrega: pasoDestino === "Entrega fijada" ? fecha : undefined,
-        nota_paso: wrapper.querySelector("[data-paso-nota]").value,
-        mostrar_detalle_cliente: !!trabajo.mostrar_detalle_cliente,
-      });
-      flash(`Trabajo en estado "${pasoDestino}".`);
-      viewClienteDetalle(clienteId, { openTrabajoId: trabajoId });
-    } catch (err) {
-      if (await handleAuthError(err)) return;
-      flash(err.message, "error");
-    }
   });
 
   wrapper.querySelector(`#trabajo-form-${trabajo.id}`).addEventListener("submit", async (e) => {
@@ -2186,6 +2194,257 @@ async function renderInformeCliente(trabajo, equipos, containerId) {
   });
 }
 
+
+/* ---------------------------------------------------------------- */
+/* Aviso rápido al cliente por WhatsApp                               */
+/* ---------------------------------------------------------------- */
+const AVISOS = {
+  recibido: { titulo: "Recibimos tu equipo", opts: { link: true } },
+  avance: { titulo: "Avance", opts: { nota: true, fotos: true, link: true } },
+  listo: { titulo: "Equipo listo", opts: { saldo: true, link: true } },
+  cobro: { titulo: "Cobro / abono", opts: { monto: true, saldo: true, link: true } },
+  pago: { titulo: "Confirmación de pago", opts: { saldo: true, link: true } },
+  libre: { titulo: "Mensaje libre", opts: { link: true } },
+};
+
+function avisoSugerido(trabajo, total) {
+  const estado = estadoDeFlujo(trabajo.estado);
+  if (estado === "Recibido") return "recibido";
+  if (estado === "En preparación") return "avance";
+  if (estado === "Equipo listo") return "listo";
+  if (estado === "Entregado") return total > 0 && !trabajo.pagado_completo ? "cobro" : "pago";
+  return "libre";
+}
+
+function ymdLocal(d) {
+  const p = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+function atajoFecha(tipo) {
+  const d = new Date();
+  if (tipo === "manana") d.setDate(d.getDate() + 1);
+  else if (tipo === "lunes") d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7));
+  return ymdLocal(d);
+}
+
+function armarAviso(tipo, ctx) {
+  const { trabajo, opts, nota, total, linkUrl, fechaEntrega } = ctx;
+  const nombre = (trabajo.cliente_nombre || "").trim().split(/\s+/)[0] || "";
+  const equipo = (trabajo.tipo || "trabajo").toLowerCase();
+  const saldoTxt = trabajo.pagado_completo
+    ? `Tu pago está completo ${EMOJI_CHECK}`
+    : trabajo.abonado > 0
+    ? `Abonado ${clp(trabajo.abonado)}, saldo ${clp(trabajo.saldo)}.`
+    : `Saldo ${clp(total)}.`;
+  const lineas = [`Hola${nombre ? ` ${nombre}` : ""}, te escribimos de ${currentNombreNegocio}.`];
+
+  if (tipo === "recibido") lineas.push(`Recibimos tu equipo (${equipo}). Te iremos avisando cada avance.`);
+  else if (tipo === "avance") {
+    lineas.push(nota ? `Avance: ${nota}` : `Seguimos trabajando en tu ${equipo}.`);
+  } else if (tipo === "listo") {
+    lineas.push(`Tu equipo ya está listo ${EMOJI_CHECK}`);
+    if (fechaEntrega) lineas.push(`Entrega: ${fechaEntregaTexto(fechaEntrega)}.`);
+  } else if (tipo === "cobro") {
+    if (tipo === "cobro" && opts.monto) lineas.push(`El valor de tu ${equipo} es ${clp(total)}.`);
+  } else if (tipo === "pago") {
+    lineas.push(`Recibimos tu pago, gracias ${EMOJI_CHECK}`);
+  }
+
+  if (opts.monto && tipo !== "cobro" && total > 0) lineas.push(`Total: ${clp(total)}.`);
+  if (opts.saldo && total > 0) lineas.push(saldoTxt);
+  if (nota && tipo !== "avance" && opts.nota) lineas.push(nota);
+  if (opts.link && linkUrl) lineas.push(`Mira el detalle aquí: ${linkUrl}`);
+  return lineas.join("\n");
+}
+
+async function renderAvisoCliente(trabajo, equipos, containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+
+  let items = [];
+  let envios = [];
+  let avances = [];
+  try {
+    if (!trabajo.public_token) {
+      const res = await apiPost(`/api/trabajos/${trabajo.id}/link`, {});
+      trabajo.public_token = res.token;
+    }
+    items = (await apiGet(`/api/trabajos/${trabajo.id}/items`)).items;
+    envios = (await apiGet(`/api/trabajos/${trabajo.id}/envios`)).envios;
+    avances = (await apiGet(`/api/trabajos/${trabajo.id}/avances`)).avances;
+  } catch (err) {
+    if (await handleAuthError(err)) return;
+    container.innerHTML = `<span class="hint">No se pudo preparar el aviso al cliente.</span>`;
+    return;
+  }
+
+  const monto = Number(trabajo.monto) || 0;
+  const total = monto > 0 ? monto : items.reduce((s, i) => s + i.valor, 0);
+  const linkUrl = `${window.location.origin}/seguimiento?t=${trabajo.public_token}`;
+  const numero = telefonoWhatsapp(trabajo.cliente_telefono);
+  const fotosOcultas = avances.filter((a) => a.tipo === "foto" && !a.visible_cliente);
+  const ultimoCambio = avances.filter((a) => a.tipo === "estado").map((a) => a.creado_en).sort().pop() || trabajo.fecha_creacion || "";
+  const ultimoEnvio = envios.length ? envios[0].creado_en : "";
+  const pendiente = !ultimoEnvio || ultimoCambio > ultimoEnvio;
+
+  let tipo = avisoSugerido(trabajo, total);
+  let fechaEntrega = trabajo.fecha_entrega || "";
+  const opts = {};
+  const cargarOpts = () => {
+    for (const k of ["nota", "fotos", "monto", "saldo", "link"]) opts[k] = !!AVISOS[tipo].opts[k];
+  };
+  cargarOpts();
+
+  const historial = envios
+    .slice(0, 5)
+    .map(
+      (e) =>
+        `<li>${fechaCortaHora(e.creado_en)} · ${escapeHtml(AVISOS[e.tipo_aviso]?.titulo || "Aviso")}</li>`
+    )
+    .join("");
+
+  container.innerHTML = `
+    <div style="border:1px solid var(--border, #ddd);border-radius:10px;padding:12px;">
+      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px;">
+        <strong>Aviso al cliente</strong>
+        ${
+          pendiente
+            ? `<span class="badge warn">Pendiente de avisar</span>`
+            : `<span class="badge ok">Al día · último aviso ${fechaCortaHora(ultimoEnvio)}</span>`
+        }
+      </div>
+      <div class="field"><label>Qué enviar</label>
+        <select data-aviso-tipo>${Object.entries(AVISOS)
+          .map(([k, v]) => `<option value="${k}" ${k === tipo ? "selected" : ""}>${v.titulo}</option>`)
+          .join("")}</select></div>
+      <div data-aviso-extra></div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px 16px;margin-bottom:8px;">
+        ${[
+          ["nota", "Nota"],
+          ["fotos", "Fotos"],
+          ["monto", "Monto / desglose"],
+          ["saldo", "Saldo"],
+          ["link", "Link de seguimiento"],
+        ]
+          .map(([k, t]) => `<label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" data-opt="${k}"> ${t}</label>`)
+          .join("")}
+      </div>
+      <div class="field"><label>Mensaje (puedes editarlo antes de enviar)</label>
+        <textarea data-aviso-texto rows="6"></textarea></div>
+      <div class="actions-row">
+        <a class="btn btn-accent" data-aviso-enviar target="_blank" rel="noopener">Avisar: <span data-aviso-nombre></span></a>
+      </div>
+      <span class="hint">${numero ? "" : "Este cliente no tiene teléfono registrado: WhatsApp te pedirá elegir el contacto. "}Lo que marques (nota, fotos, monto/saldo) se hace visible en su página de seguimiento al enviar. El envío queda registrado.</span>
+      ${historial ? `<ul class="hint" style="margin:8px 0 0;padding-left:18px;">${historial}</ul>` : ""}
+    </div>`;
+
+  const extra = container.querySelector("[data-aviso-extra]");
+  const textarea = container.querySelector("[data-aviso-texto]");
+  const btn = container.querySelector("[data-aviso-enviar]");
+  let nota = "";
+
+  const pintarExtra = () => {
+    let html = "";
+    if (opts.nota) {
+      html += `<div class="field"><label>Nota para el cliente</label>
+        <textarea data-aviso-nota rows="2" placeholder="Ej: Se cambió el disco y se reinstaló el sistema">${escapeHtml(nota)}</textarea></div>`;
+    }
+    if (tipo === "listo") {
+      html += `<div class="field"><label>Fecha de entrega (opcional)</label>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
+          <button type="button" class="btn btn-outline btn-sm" data-fecha="hoy">Hoy</button>
+          <button type="button" class="btn btn-outline btn-sm" data-fecha="manana">Mañana</button>
+          <button type="button" class="btn btn-outline btn-sm" data-fecha="lunes">Lunes</button>
+          <input type="time" data-hora value="${fechaEntrega.includes("T") ? fechaEntrega.split("T")[1] : "17:00"}" style="width:auto;">
+          <button type="button" class="btn btn-outline btn-sm" data-fecha="ninguna">Sin fecha</button>
+          <span class="hint" data-fecha-actual>${fechaEntrega ? escapeHtml(fechaEntregaTexto(fechaEntrega)) : "Sin fecha"}</span>
+        </div></div>`;
+    }
+    extra.innerHTML = html;
+    const notaEl = extra.querySelector("[data-aviso-nota]");
+    if (notaEl) notaEl.addEventListener("input", () => { nota = notaEl.value.trim(); regenerar(); });
+    const horaEl = extra.querySelector("[data-hora]");
+    extra.querySelectorAll("[data-fecha]").forEach((b) => {
+      b.addEventListener("click", () => {
+        const k = b.dataset.fecha;
+        fechaEntrega = k === "ninguna" ? "" : `${atajoFecha(k)}T${horaEl.value || "17:00"}`;
+        extra.querySelector("[data-fecha-actual]").textContent = fechaEntrega ? fechaEntregaTexto(fechaEntrega) : "Sin fecha";
+        regenerar();
+      });
+    });
+    if (horaEl) {
+      horaEl.addEventListener("change", () => {
+        if (fechaEntrega) fechaEntrega = `${fechaEntrega.split("T")[0]}T${horaEl.value || "17:00"}`;
+        extra.querySelector("[data-fecha-actual]").textContent = fechaEntrega ? fechaEntregaTexto(fechaEntrega) : "Sin fecha";
+        regenerar();
+      });
+    }
+  };
+
+  const actualizarHref = () => {
+    btn.href = `https://wa.me/${numero}?text=${encodeURIComponent(textarea.value)}`;
+  };
+  const regenerar = () => {
+    container.querySelector("[data-aviso-nombre]").textContent = AVISOS[tipo].titulo;
+    container.querySelectorAll("[data-opt]").forEach((cb) => (cb.checked = !!opts[cb.dataset.opt]));
+    textarea.value = armarAviso(tipo, { trabajo, opts, nota, total, linkUrl, fechaEntrega });
+    actualizarHref();
+  };
+
+  container.querySelector("[data-aviso-tipo]").addEventListener("change", (e) => {
+    tipo = e.target.value;
+    cargarOpts();
+    pintarExtra();
+    regenerar();
+  });
+  container.querySelectorAll("[data-opt]").forEach((cb) => {
+    cb.addEventListener("change", () => {
+      opts[cb.dataset.opt] = cb.checked;
+      if (cb.dataset.opt === "nota") pintarExtra();
+      regenerar();
+    });
+  });
+  textarea.addEventListener("input", actualizarHref);
+
+  pintarExtra();
+  regenerar();
+
+  // Al enviar: se aplican los permisos de visibilidad elegidos y se registra el aviso.
+  btn.addEventListener("click", async () => {
+    const mensaje = textarea.value;
+    const tipoEnviado = tipo;
+    try {
+      if (tipoEnviado === "listo" && (fechaEntrega || "") !== (trabajo.fecha_entrega || "")) {
+        await apiPut(`/api/trabajos/${trabajo.id}`, {
+          estado: trabajo.estado,
+          fecha_entrega: fechaEntrega,
+          mostrar_detalle_cliente: !!trabajo.mostrar_detalle_cliente,
+        });
+        trabajo.fecha_entrega = fechaEntrega || null;
+      }
+      if ((opts.monto || opts.saldo) && !trabajo.mostrar_detalle_cliente) {
+        await apiPut(`/api/trabajos/${trabajo.id}`, { mostrar_detalle_cliente: true });
+        trabajo.mostrar_detalle_cliente = 1;
+      }
+      if (opts.nota && nota) {
+        const r = await apiPost(`/api/trabajos/${trabajo.id}/avances`, { tipo: "nota", texto: nota });
+        await apiPut(`/api/trabajos/${trabajo.id}/avances/${r.id}`, { visible_cliente: true });
+      }
+      if (opts.fotos) {
+        for (const f of fotosOcultas) {
+          await apiPut(`/api/trabajos/${trabajo.id}/avances/${f.id}`, { visible_cliente: true });
+        }
+      }
+      await apiPost(`/api/trabajos/${trabajo.id}/envios`, { mensaje, tipo_aviso: tipoEnviado });
+      flash("Aviso registrado.");
+    } catch (err) {
+      if (await handleAuthError(err)) return;
+      flash(`El aviso se abrió, pero no se pudo registrar: ${err.message}`, "error");
+    }
+    renderAvisoCliente(trabajo, equipos, containerId);
+  });
+}
 
 function badgeItemTipo(tipo) {
   if (tipo === "repuesto") return '<span class="badge accent">Repuesto</span>';

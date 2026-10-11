@@ -100,13 +100,13 @@ export async function onRequestPut({ request, env, params }) {
   // Si el estado cambió, dejamos un hito automático en la línea de tiempo.
   // Siempre es visible para el cliente — a diferencia de notas/fotos/enlaces,
   // que nacen ocultas hasta que tú las marcas.
-  const entregaCambio = estado === "Entrega fijada" && fechaEntrega && fechaEntrega !== trabajo.fecha_entrega;
-  if (estado !== trabajo.estado || entregaCambio) {
+  const cambioEstado = estado !== trabajo.estado;
+  const entregaCambio = !!fechaEntrega && fechaEntrega !== trabajo.fecha_entrega;
+  if (cambioEstado || entregaCambio) {
     const ahora = nowIso();
-    const texto =
-      estado === "Entrega fijada" && fechaEntrega
-        ? `Entrega fijada para el ${fechaEntrega.replace("T", " a las ")}`
-        : `Estado actualizado a "${estado}"`;
+    const texto = cambioEstado
+      ? `Estado actualizado a "${estado}"`
+      : `Entrega programada para el ${fechaEntrega.replace("T", " a las ")}`;
     await db
       .prepare(
         "INSERT INTO avances (trabajo_id, tipo, texto, valor, creado_en, visible_cliente, visible_desde) VALUES (?,?,?,?,?,1,?)"
