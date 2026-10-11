@@ -27,7 +27,7 @@ function datosClave(d, actual = {}) {
 async function resumen(db, env) {
   const claves = (await db.prepare('SELECT * FROM mivet_claves ORDER BY id DESC').all()).results;
   const acts = (await db.prepare('SELECT * FROM mivet_activaciones ORDER BY id').all()).results;
-  const puestos = (await db.prepare('SELECT * FROM mivet_puestos_reportados ORDER BY id').all()).results;
+  const puestos = (await db.prepare('SELECT * FROM mivet_puestos_reportados ORDER BY clave_id, servidor, puesto_id').all()).results;
   const pruebas = (await db.prepare('SELECT * FROM mivet_pruebas ORDER BY inicio DESC').all()).results;
   const planes = (await db.prepare('SELECT * FROM mivet_planes ORDER BY orden, precio').all()).results;
   const soporte = await db.prepare("SELECT SUM(estado<>'resuelto') AS abiertos, SUM(sin_leer_soporte>0 AND estado<>'resuelto') AS sin_leer FROM mivet_tickets").first();
