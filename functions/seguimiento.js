@@ -577,6 +577,27 @@ const PAGINA_BASE = `<!DOCTYPE html>
       return hora ? \`\${f}, \${hora} hrs\` : f;
     }
 
+    function bannerEntregaPago(trabajo) {
+      var cls = "warn", ic = "&#8987;", titulo, detalle;
+      if (trabajo.estado === "Entregado") {
+        cls = "ok"; ic = "&#10003;"; titulo = "Entregado";
+        detalle = trabajo.fecha_cierre ? "Te lo entregamos el " + fechaLarga(trabajo.fecha_cierre) + "." : "Tu equipo ya fue entregado.";
+      } else if (trabajo.fecha_entrega) {
+        titulo = "Entrega programada"; detalle = textoEntrega(trabajo.fecha_entrega) + ".";
+      } else if (trabajo.estado === "Equipo listo" || trabajo.estado === "Entrega fijada") {
+        titulo = "Equipo listo"; detalle = "Tu equipo ya está listo. Coordinemos la fecha de entrega por WhatsApp.";
+      } else {
+        titulo = "En proceso"; detalle = "Estamos trabajando en tu equipo. Te avisaremos cuando esté listo.";
+      }
+      var pago = "";
+      if (trabajo.monto) {
+        if (trabajo.pagado_completo) pago = "Pago: pagado por completo (" + clp(trabajo.monto) + ").";
+        else if (trabajo.abonado > 0) pago = "Pago: abonado " + clp(trabajo.abonado) + " de " + clp(trabajo.monto) + " · saldo pendiente " + clp(trabajo.saldo) + ".";
+        else pago = "Pago: total " + clp(trabajo.monto) + ", pendiente.";
+      }
+      return '<div class="card"><h2 style="font-size:15.5px;margin:0 0 8px;">Entrega y pago</h2><div class="banner-saldo ' + cls + '">' +
+        '<div class="ic">' + ic + '</div><div><p class="titulo">' + titulo + '</p><p class="detalle">' + detalle + (pago ? "<br>" + pago : "") + '</p></div></div></div>';
+    }
     function renderEstadoSteps(estadoActual) {
       const idxActual = ESTADOS.indexOf(estadoActual === "Entrega fijada" ? "Equipo listo" : estadoActual);
       return ESTADOS.map((estado, i) => {
@@ -726,6 +747,7 @@ const PAGINA_BASE = `<!DOCTYPE html>
           \${timelineHtml}
         </div>
         \${detalleHtml}
+        \${bannerEntregaPago(trabajo)}
       \`;
 
       content.querySelectorAll("[data-revisar]").forEach((btn) => {
