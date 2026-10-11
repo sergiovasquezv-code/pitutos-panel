@@ -25,11 +25,7 @@ export async function onRequestPost({ request, env }) {
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return error(400, 'Escribe tu correo: ahí te llega la respuesta');
       if (equipo) {
         const hoyN = await db.prepare("SELECT COUNT(*) AS n FROM mivet_tickets WHERE equipo=? AND creado >= ?").bind(equipo, new Date(Date.now() - 86400000).toISOString()).first();
-        if (hoyN.n >= 10) return error(429, 'Ya enviaste varios casos hoy. Intenta de nuevo mañana.');
-      } else {
-        const hoyN = await db.prepare("SELECT COUNT(*) AS n FROM mivet_tickets WHERE email=? AND equipo IS NULL AND creado >= ?")
-          .bind(email, new Date(Date.now() - 86400000).toISOString()).first();
-        if (hoyN.n >= 5) return error(429, 'Ya recibimos varias consultas desde este correo hoy. Intenta de nuevo mañana.');
+        if (hoyN.n >= 10) return error(429, 'Ya enviaste muchos casos hoy. Si es urgente, escríbenos por correo.');
       }
       const adj = adjuntoValido(d.adjunto);
       const clave = equipo ? await claveDeEquipo(db, equipo) : null;

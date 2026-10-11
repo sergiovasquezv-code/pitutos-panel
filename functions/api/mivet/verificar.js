@@ -24,7 +24,6 @@ export async function onRequestPost({ request, env, waitUntil }) {
     if (d.tipo === 'prueba') {
       const p = await db.prepare('SELECT * FROM mivet_pruebas WHERE equipo=?').bind(equipo).first();
       if (!p) return json({ sin_cambios: true });
-      if (p.estado === 'bloqueada') return json({ revocada: true, motivo: 'La prueba gratis fue suspendida desde el panel.' });
       await db.prepare('UPDATE mivet_pruebas SET ultimo_contacto=?, version=? WHERE equipo=?').bind(ahora(), texto(d.version, 20), equipo).run();
       const lic = licenciaDePrueba(env, p);
       return lic.vence < hoy() ? json({ sin_cambios: true }) : json({ licencia: await firmarLicencia(env, lic) });
