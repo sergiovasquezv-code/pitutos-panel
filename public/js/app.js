@@ -2245,6 +2245,7 @@ function armarAviso(tipo, ctx) {
   } else if (tipo === "listo") {
     lineas.push(`Tu equipo ya está listo ${EMOJI_CHECK}`);
     if (fechaEntrega) lineas.push(`Entrega: ${fechaEntregaTexto(fechaEntrega)}.`);
+    else lineas.push("¿Cuándo te acomoda que te lo entreguemos? Respóndeme por aquí y lo coordinamos.");
   } else if (tipo === "cobro") {
     if (tipo === "cobro" && opts.monto) lineas.push(`El valor de tu ${equipo} es ${clp(total)}.`);
   } else if (tipo === "pago") {
