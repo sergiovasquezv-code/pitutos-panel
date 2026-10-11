@@ -2315,6 +2315,11 @@ async function renderAvisoCliente(trabajo, equipos, containerId) {
             : `<span class="badge ok">Al día · último aviso ${fechaCortaHora(ultimoEnvio)}</span>`
         }
       </div>
+      ${
+        equipos && equipos.length
+          ? ""
+          : `<p class="hint" style="margin:0 0 8px;color:var(--warn, #b45309);">Este trabajo no tiene equipo/producto en garantía vinculado: el cliente no verá qué disco o pieza es, ni su garantía ni fotos. Si ya lo registraste en Equipos, vincúlalo a este trabajo; si no, usa "+ Agregar equipo/producto en garantía" más abajo.</p>`
+      }
       <div data-aviso-extra></div>
       <div class="field"><label>Mensaje que le llegará (puedes editarlo)</label>
         <textarea data-aviso-texto rows="6"></textarea></div>
