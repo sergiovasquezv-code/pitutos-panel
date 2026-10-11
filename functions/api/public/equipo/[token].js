@@ -14,7 +14,7 @@ export async function onRequestGet({ env, params }) {
   const equipo = await db
     .prepare(
       `SELECT equipos.id, equipos.tipo_equipo, equipos.marca_modelo, equipos.numero_serie,
-              equipos.precio, equipos.fecha_venta, equipos.meses_garantia,
+              equipos.precio, equipos.fecha_venta, equipos.meses_garantia, equipos.trabajo_id,
               clientes.nombre AS cliente_nombre
        FROM equipos JOIN clientes ON clientes.id = equipos.cliente_id
        WHERE equipos.public_token = ?`
@@ -44,7 +44,17 @@ export async function onRequestGet({ env, params }) {
       .all()
   ).results;
 
-  const { id, precio, ...equipoPublico } = equipo;
+  const { id, precio, trabajo_id, ...equipoPublico } = equipo;
+
+  // Si el equipo viene de un trabajo, se informa en qué va la entrega.
+  let entrega = null;
+  if (equipo.trabajo_id) {
+    const t = await db
+      .prepare("SELECT estado, fecha_entrega, fecha_cierre FROM trabajos WHERE id = ?")
+      .bind(equipo.trabajo_id)
+      .first();
+    if (t) entrega = { estado: t.estado, fecha_entrega: t.fecha_entrega, fecha_cierre: t.fecha_cierre };
+  }
 
   return json({
     negocio: env.NOMBRE_NEGOCIO || "Pitutos Informáticos",
@@ -52,6 +62,7 @@ export async function onRequestGet({ env, params }) {
     monto_total: precio,
     historial,
     fotos,
+    entrega,
     ...info,
   });
 }

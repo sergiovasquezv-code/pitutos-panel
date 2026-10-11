@@ -273,6 +273,34 @@
         </div>`;
     }
 
+    function bannerEntrega(entrega) {
+      if (!entrega) return "";
+      function fechaHora(v) {
+        var p = String(v).split("T");
+        var f = p[0].split("-").map(Number);
+        if (!f[0] || !f[1] || !f[2]) return v;
+        var txt = new Date(f[0], f[1] - 1, f[2]).toLocaleDateString("es-CL", { dateStyle: "full" });
+        return p[1] ? txt + ", " + p[1] + " hrs" : txt;
+      }
+      var cls = "warn", ic = "&#8987;", titulo, detalle;
+      if (entrega.estado === "Entregado") {
+        cls = "ok";
+        ic = "&#10003;";
+        titulo = "Entregado";
+        detalle = entrega.fecha_cierre ? "Te lo entregamos el " + fechaLarga(entrega.fecha_cierre) + "." : "Tu equipo ya fue entregado.";
+      } else if (entrega.fecha_entrega) {
+        titulo = "Entrega programada";
+        detalle = fechaHora(entrega.fecha_entrega) + ".";
+      } else if (entrega.estado === "Equipo listo" || entrega.estado === "Entrega fijada") {
+        titulo = "Equipo listo";
+        detalle = "Tu equipo ya está listo. Coordinemos la fecha de entrega por WhatsApp.";
+      } else {
+        titulo = "En proceso";
+        detalle = "Estamos trabajando en tu equipo. Te avisaremos cuando esté listo.";
+      }
+      return '<div class="card"><h1 style="font-size:15.5px;">Entrega</h1><div class="banner-saldo ' + cls + '">' +
+        '<div class="ic">' + ic + '</div><div><p class="titulo">' + titulo + '</p><p class="detalle">' + detalle + '</p></div></div></div>';
+    }
     function bannerGarantia(equipo) {
       const dias = equipo.dias_restantes;
       if (equipo.estado_garantia === "sin_garantia") {
@@ -431,6 +459,7 @@
             ? `<div class="card"><h1 style="font-size:15.5px;">Fotos del estado del equipo</h1><div class="fotos-grid">${fotosHtml}</div></div>`
             : ""
         }
+        ${bannerEntrega(data.entrega)}
       `;
     }
 
