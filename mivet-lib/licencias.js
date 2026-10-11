@@ -57,6 +57,16 @@ export async function asegurarTablas(db) {
     db.prepare("CREATE TABLE IF NOT EXISTS mivet_pruebas (equipo TEXT PRIMARY KEY, inicio TEXT NOT NULL, nombre_pc TEXT NOT NULL DEFAULT '', version TEXT NOT NULL DEFAULT '', ultimo_contacto TEXT)"),
     db.prepare("CREATE TABLE IF NOT EXISTS mivet_eventos (id INTEGER PRIMARY KEY AUTOINCREMENT, fecha TEXT NOT NULL, tipo TEXT NOT NULL, clave_id INTEGER, equipo TEXT, detalle TEXT NOT NULL DEFAULT '')"),
   ]);
+  for (const columna of [
+    "clave_id INTEGER NOT NULL DEFAULT 0",
+    "servidor TEXT NOT NULL DEFAULT ''",
+    "puesto_id TEXT NOT NULL DEFAULT ''",
+    "nombre TEXT NOT NULL DEFAULT ''",
+    "usuario TEXT NOT NULL DEFAULT ''",
+    "ultimo_contacto TEXT NOT NULL DEFAULT ''",
+  ]) {
+    try { await db.prepare(`ALTER TABLE mivet_puestos_reportados ADD COLUMN ${columna}`).run(); } catch (e) { /* ya existe */ }
+  }
   try { await db.prepare("ALTER TABLE mivet_pruebas ADD COLUMN ip TEXT NOT NULL DEFAULT ''").run(); } catch (e) { /* ya existe */ }
   tablasListas = true;
 }

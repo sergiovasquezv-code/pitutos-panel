@@ -25,9 +25,14 @@ export async function onRequestPost({ request, env }) {
       const id = texto(cliente?.id, 100);
       if (!id || vistos.has(id)) continue;
       vistos.add(id);
-      await db.prepare('INSERT INTO mivet_puestos_reportados(clave_id, servidor, puesto_id, nombre, usuario, ultimo_contacto) VALUES(?,?,?,?,?,?) ' +
-        'ON CONFLICT(clave_id, servidor, puesto_id) DO UPDATE SET nombre=excluded.nombre, usuario=excluded.usuario, ultimo_contacto=excluded.ultimo_contacto')
-        .bind(claveId, servidor, id, texto(cliente?.nombre, 60) || 'Computador', texto(cliente?.usuario, 60), fecha).run();
+      const nombre = texto(cliente?.nombre, 60) || 'Computador';
+      const usuario = texto(cliente?.usuario, 60);
+      const actualizado = await db.prepare('UPDATE mivet_puestos_reportados SET nombre=?, usuario=?, ultimo_contacto=? WHERE clave_id=? AND servidor=? AND puesto_id=?')
+        .bind(nombre, usuario, fecha, claveId, servidor, id).run();
+      if (!actualizado.meta.changes) {
+        await db.prepare('INSERT INTO mivet_puestos_reportados(clave_id, servidor, puesto_id, nombre, usuario, ultimo_contacto) VALUES(?,?,?,?,?,?)')
+          .bind(claveId, servidor, id, nombre, usuario, fecha).run();
+      }
     }
     return json({ ok: true });
   } catch (e) {
