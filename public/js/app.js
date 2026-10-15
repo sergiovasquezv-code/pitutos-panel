@@ -3307,13 +3307,60 @@ async function viewMensualidadForm(id, presetClienteId) {
 /* ---------------------------------------------------------------- */
 /* Finanzas                                                             */
 /* ---------------------------------------------------------------- */
+const MESES_ES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+
+// "2026-09" -> "Septiembre 2026" (o "sep" si corto)
+function nombreMes(ym, corto = false) {
+  const [y, m] = ym.split("-");
+  const n = MESES_ES[Number(m) - 1] || ym;
+  return corto ? n.slice(0, 3) : n.charAt(0).toUpperCase() + n.slice(1) + " " + y;
+}
+
+function mesAnterior(ym) {
+  const [y, m] = ym.split("-").map(Number);
+  return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, "0")}`;
+}
+
+const sumaCat = (o) => o.trabajo + o.equipo + o.mensualidad;
+
+// Suma facturado/cobrado por categoría de una lista de meses de la serie.
+function totalesDeMeses(serie, meses) {
+  const fact = { trabajo: 0, equipo: 0, mensualidad: 0 };
+  const cobr = { trabajo: 0, equipo: 0, mensualidad: 0 };
+  for (const s of serie) {
+    if (!meses.includes(s.mes)) continue;
+    for (const k of Object.keys(fact)) {
+      fact[k] += s.facturado[k];
+      cobr[k] += s.cobrado[k];
+    }
+  }
+  return { fact, cobr, totalFact: sumaCat(fact), totalCobr: sumaCat(cobr) };
+}
+
+// Texto "▲ 12% vs agosto" (verde si sube, rojo si baja).
+function textoCambio(actual, anterior, etiqueta) {
+  if (!etiqueta) return `<div class="sub">&nbsp;</div>`;
+  if (!anterior && !actual) return `<div class="sub">Sin movimiento ni en ${escapeHtml(etiqueta)}</div>`;
+  if (!anterior) return `<div class="sub">Sin datos en ${escapeHtml(etiqueta)} para comparar</div>`;
+  const pct = Math.round(((actual - anterior) / anterior) * 100);
+  if (pct === 0) return `<div class="sub">Igual que ${escapeHtml(etiqueta)}</div>`;
+  const clase = pct > 0 ? "up" : "down";
+  const flecha = pct > 0 ? "▲" : "▼";
+  return `<div class="sub ${clase}">${flecha} ${Math.abs(pct)}% vs ${escapeHtml(etiqueta)} (${clp(anterior)})</div>`;
+}
+
 async function viewFinanzas() {
   setPage({
     title: "Finanzas",
-    subtitle: "Quién está en deuda, quién ha abonado y quién ya pagó todo.",
+    subtitle: "Cuánto facturas y cuánto te entra mes a mes, y quién te debe.",
   });
   setContent(`<div class="empty-state">Cargando…</div>`);
   const data = await apiGet("/api/finanzas/resumen");
+
+  const serie = data.serie || [];
+  const mesActual = data.periodo_actual;
+  const aniosConDatos = [...new Set(serie.map((s) => s.mes.slice(0, 4)))].sort().reverse();
+  let periodoSel = "mes:" + mesActual;
 
   const badgeEstado = (estado) => {
     if (estado === "al_dia") return '<span class="badge ok">Al día</span>';
@@ -3321,7 +3368,7 @@ async function viewFinanzas() {
     return '<span class="badge danger">Sin abonos</span>';
   };
 
-  const rows = data.clientes
+  const filasClientes = data.clientes
     .map(
       (c) => `
       <tr data-goto="#/clientes/${c.cliente_id}" style="cursor:pointer;">
@@ -3334,26 +3381,221 @@ async function viewFinanzas() {
     )
     .join("");
 
-  setContent(`
-    <div class="stat-grid">
-      <div class="stat-card"><div class="label">Total facturado</div><div class="value">${clp(data.total_facturado)}</div></div>
-      <div class="stat-card"><div class="label">Total abonado</div><div class="value accent">${clp(data.total_abonado)}</div></div>
-      <div class="stat-card"><div class="label">Total pendiente por cobrar</div>
-        <div class="value ${data.total_pendiente ? "danger" : "ok"}">${clp(data.total_pendiente)}</div></div>
-    </div>
-
+  const panelClientes = `
     <div class="panel">
-      <div class="panel-header"><h2>Estado de cuenta por cliente</h2></div>
+      <div class="panel-header">
+        <h2>Estado de cuenta por cliente</h2>
+        <span class="muted">Facturado ${clp(data.total_facturado)} · Abonado ${clp(data.total_abonado)}</span>
+      </div>
       <div class="panel-body">
         ${
-          rows
-            ? `<table><thead><tr><th>Cliente</th><th class="num">Facturado</th><th class="num">Abonado</th><th class="num">Saldo</th><th>Estado</th></tr></thead><tbody>${rows}</tbody></table>`
+          filasClientes
+            ? `<table><thead><tr><th>Cliente</th><th class="num">Facturado</th><th class="num">Abonado</th><th class="num">Saldo</th><th>Estado</th></tr></thead><tbody>${filasClientes}</tbody></table>`
             : `<div class="empty-state"><div class="big-ic">💰</div>
                <p>Todavía no hay trabajos, equipos ni mensualidades facturados a ningún cliente.</p></div>`
         }
       </div>
-    </div>
-  `);
+    </div>`;
+
+  function render() {
+    if (!serie.length) {
+      setContent(`
+        <div class="stat-grid">
+          <div class="stat-card"><div class="label">Pendiente por cobrar</div>
+            <div class="value ${data.total_pendiente ? "danger" : "ok"}">${clp(data.total_pendiente)}</div></div>
+        </div>
+        ${panelClientes}`);
+      return;
+    }
+
+    // --- período elegido y el anterior para comparar ---
+    let meses, mesesPrev, etiquetaPeriodo, etiquetaPrev;
+    if (periodoSel === "todo") {
+      meses = serie.map((s) => s.mes);
+      mesesPrev = [];
+      etiquetaPeriodo = "Todo el tiempo";
+      etiquetaPrev = "";
+    } else if (periodoSel.startsWith("anio:")) {
+      const y = periodoSel.slice(5);
+      meses = serie.filter((s) => s.mes.startsWith(y)).map((s) => s.mes);
+      mesesPrev = serie.filter((s) => s.mes.startsWith(String(Number(y) - 1))).map((s) => s.mes);
+      etiquetaPeriodo = "Año " + y;
+      etiquetaPrev = mesesPrev.length ? String(Number(y) - 1) : "";
+    } else {
+      const ym = periodoSel.slice(4);
+      meses = [ym];
+      const prev = mesAnterior(ym);
+      mesesPrev = serie.some((s) => s.mes === prev) ? [prev] : [];
+      etiquetaPeriodo = nombreMes(ym);
+      etiquetaPrev = mesesPrev.length ? nombreMes(prev, true) : "";
+    }
+    const cur = totalesDeMeses(serie, meses);
+    const prv = totalesDeMeses(serie, mesesPrev);
+
+    // --- promedio mensual cobrado (últimos 12 meses con la serie disponible) ---
+    const ultimos = serie.slice(-12);
+    const promedio = Math.round(ultimos.reduce((a, s) => a + sumaCat(s.cobrado), 0) / (ultimos.length || 1));
+
+    // --- selector ---
+    const opciones = [];
+    for (const s of [...serie].reverse()) {
+      const v = "mes:" + s.mes;
+      opciones.push(
+        `<option value="${v}" ${v === periodoSel ? "selected" : ""}>${nombreMes(s.mes)}${s.mes === mesActual ? " (este mes)" : ""}</option>`
+      );
+    }
+    for (const y of aniosConDatos) {
+      const v = "anio:" + y;
+      opciones.push(`<option value="${v}" ${v === periodoSel ? "selected" : ""}>Año ${y}</option>`);
+    }
+    opciones.push(`<option value="todo" ${periodoSel === "todo" ? "selected" : ""}>Todo el tiempo</option>`);
+
+    // --- gráfico: últimos 12 meses ---
+    const maxBarra = Math.max(1, ...ultimos.map((s) => Math.max(sumaCat(s.facturado), sumaCat(s.cobrado))));
+    const altoBarra = (v) => (v > 0 ? Math.max(3, Math.round((v / maxBarra) * 150)) : 0);
+    const columnas = ultimos
+      .map((s) => {
+        const f = sumaCat(s.facturado);
+        const c = sumaCat(s.cobrado);
+        const sel = meses.includes(s.mes) ? " sel" : "";
+        return `
+        <button type="button" class="bar-col${sel}" data-mes="${s.mes}"
+          title="${nombreMes(s.mes)} — Facturado ${clp(f)} · Cobrado ${clp(c)}">
+          <div class="bar-pair">
+            <div class="bar fact" style="height:${altoBarra(f)}px"></div>
+            <div class="bar cobr" style="height:${altoBarra(c)}px"></div>
+          </div>
+          <div class="mes">${nombreMes(s.mes, true)}</div>
+        </button>`;
+      })
+      .join("");
+
+    // --- desglose por categoría del período ---
+    const cats = [
+      ["trabajo", "Trabajos y soporte"],
+      ["equipo", "Equipos y garantías"],
+      ["mensualidad", "Mensualidades"],
+    ];
+    const filasCat = cats
+      .map(([k, nombre]) => {
+        const pct = cur.totalCobr ? Math.round((cur.cobr[k] / cur.totalCobr) * 100) : 0;
+        return `<tr>
+          <td>${nombre}</td>
+          <td class="num">${clp(cur.fact[k])}</td>
+          <td class="num">${clp(cur.cobr[k])}</td>
+          <td class="num">${cur.totalCobr ? pct + "%" : "—"}</td>
+        </tr>`;
+      })
+      .join("");
+
+    // --- tabla mes a mes (más reciente primero) ---
+    const filasMes = [...ultimos]
+      .reverse()
+      .map((s) => {
+        const idx = serie.findIndex((x) => x.mes === s.mes);
+        const prev = idx > 0 ? serie[idx - 1] : null;
+        const f = sumaCat(s.facturado);
+        const c = sumaCat(s.cobrado);
+        let cambio = '<span class="muted">—</span>';
+        if (s.mes === mesActual) {
+          cambio = '<span class="muted">mes en curso</span>';
+        } else if (prev) {
+          const pc = sumaCat(prev.cobrado);
+          if (pc > 0) {
+            const pct = Math.round(((c - pc) / pc) * 100);
+            cambio = pct === 0 ? "0%" : `<span class="${pct > 0 ? "ok" : "danger"}">${pct > 0 ? "▲" : "▼"} ${Math.abs(pct)}%</span>`;
+          }
+        }
+        const sel = meses.includes(s.mes) && meses.length === 1 ? ' class="sel"' : "";
+        return `<tr data-mes="${s.mes}"${sel} style="cursor:pointer;">
+          <td>${nombreMes(s.mes)}${s.mes === mesActual ? ' <span class="muted">(en curso)</span>' : ""}</td>
+          <td class="num">${clp(f)}</td>
+          <td class="num">${clp(c)}</td>
+          <td class="num">${cambio}</td>
+        </tr>`;
+      })
+      .join("");
+
+    const avisoMesEnCurso =
+      periodoSel === "mes:" + mesActual
+        ? `<p class="hint" style="margin:-8px 0 18px;">Este mes todavía no termina, por eso la comparación con el mes anterior puede verse baja.</p>`
+        : "";
+
+    setContent(`
+      <div class="fin-toolbar">
+        <label for="fin-periodo"><strong>Período:</strong></label>
+        <select id="fin-periodo">${opciones.join("")}</select>
+      </div>
+
+      <div class="stat-grid">
+        <div class="stat-card"><div class="label">Facturado · ${escapeHtml(etiquetaPeriodo)}</div>
+          <div class="value">${clp(cur.totalFact)}</div>
+          ${textoCambio(cur.totalFact, prv.totalFact, etiquetaPrev)}</div>
+        <div class="stat-card"><div class="label">Cobrado · ${escapeHtml(etiquetaPeriodo)}</div>
+          <div class="value accent">${clp(cur.totalCobr)}</div>
+          ${textoCambio(cur.totalCobr, prv.totalCobr, etiquetaPrev)}</div>
+        <div class="stat-card"><div class="label">Pendiente por cobrar (hoy)</div>
+          <div class="value ${data.total_pendiente ? "danger" : "ok"}">${clp(data.total_pendiente)}</div>
+          <div class="sub">Lo que te deben en total</div></div>
+        <div class="stat-card"><div class="label">Promedio mensual cobrado</div>
+          <div class="value">${clp(promedio)}</div>
+          <div class="sub">Últimos ${ultimos.length} ${ultimos.length === 1 ? "mes" : "meses"}</div></div>
+      </div>
+      ${avisoMesEnCurso}
+
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Últimos ${ultimos.length} ${ultimos.length === 1 ? "mes" : "meses"}</h2>
+          <span class="chart-legend"><i class="dot fact"></i> Facturado <i class="dot cobr"></i> Cobrado</span>
+        </div>
+        <div class="panel-body padded">
+          <div class="bar-chart">${columnas}</div>
+          <p class="hint" style="margin:10px 0 0;">Toca un mes para ver su detalle arriba.</p>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header"><h2>Desglose · ${escapeHtml(etiquetaPeriodo)}</h2></div>
+        <div class="panel-body">
+          <table><thead><tr><th>Categoría</th><th class="num">Facturado</th><th class="num">Cobrado</th><th class="num">% del cobrado</th></tr></thead>
+          <tbody>${filasCat}
+            <tr><td><strong>Total</strong></td><td class="num"><strong>${clp(cur.totalFact)}</strong></td>
+            <td class="num"><strong>${clp(cur.totalCobr)}</strong></td><td class="num">${cur.totalCobr ? "100%" : "—"}</td></tr>
+          </tbody></table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header"><h2>Mes a mes</h2></div>
+        <div class="panel-body">
+          <table><thead><tr><th>Mes</th><th class="num">Facturado</th><th class="num">Cobrado</th><th class="num">Cobrado vs mes anterior</th></tr></thead>
+          <tbody>${filasMes}</tbody></table>
+        </div>
+      </div>
+
+      <p class="hint" style="margin:0 0 18px;">
+        <strong>Facturado</strong> = trabajos (por fecha de creación), equipos (por fecha de venta) y mensualidades (cada mes activo).
+        <strong>Cobrado</strong> = lo que realmente entró, según la fecha en que registraste cada abono.
+      </p>
+
+      ${panelClientes}
+    `);
+
+    const sel = document.getElementById("fin-periodo");
+    sel.addEventListener("change", () => {
+      periodoSel = sel.value;
+      render();
+    });
+    els.content.querySelectorAll("[data-mes]").forEach((el) => {
+      el.addEventListener("click", () => {
+        periodoSel = "mes:" + el.dataset.mes;
+        render();
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      });
+    });
+  }
+
+  render();
   attachNav();
 }
 
