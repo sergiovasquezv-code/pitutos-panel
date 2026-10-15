@@ -107,6 +107,24 @@ th { font-size: .78rem; color: var(--suave); background: var(--panel-2); }
 .toast.error { background: var(--peligro); color: #fff; }
 .det { color: var(--suave); font-size: .85rem; }
 @media (max-width: 560px) { .grid2 { grid-template-columns: 1fr; } .t-cab h3 { width: 100%; } }
+
+/* --- Lista compacta de licencias: fila resumen + detalle desplegable --- */
+.tarjeta.lic { padding: 0; gap: 0; overflow: hidden; }
+.tarjeta.lic.abierta { border-color: var(--acento); }
+.t-resumen { display: flex; align-items: center; gap: 10px; padding: 9px 14px; cursor: pointer; user-select: none; }
+.t-resumen:hover { background: var(--panel-2); }
+.t-resumen:focus-visible { outline: 2px solid var(--acento); outline-offset: -2px; }
+.t-resumen h3 { margin: 0; font-size: 1rem; flex: 1 1 160px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.t-resumen .clave { font-size: .85rem; padding: 2px 8px; }
+.t-resumen .srv { color: var(--suave); font-size: .82rem; font-weight: 650; white-space: nowrap; }
+.luz { width: 11px; height: 11px; border-radius: 50%; flex: none; background: var(--borde); }
+.luz.ok { background: var(--ok); }
+.luz.mal { background: var(--peligro); }
+.flecha { width: 8px; height: 8px; margin: 0 6px 3px 2px; border-right: 2px solid var(--suave); border-bottom: 2px solid var(--suave); transform: rotate(45deg); transition: transform .15s; flex: none; }
+.tarjeta.lic.abierta .flecha { transform: rotate(225deg); margin-bottom: 0; margin-top: 3px; }
+.t-detalle { display: grid; gap: 10px; padding: 12px 16px 14px; border-top: 1px solid var(--borde); }
+.t-detalle[hidden] { display: none; }
+@media (max-width: 700px) { .t-resumen { flex-wrap: wrap; } .t-resumen h3 { flex-basis: calc(100% - 60px); } }
 </style>
 </head>
 <body>
@@ -236,6 +254,10 @@ function badgeVence(k) {
   return `<span class="badge ${n <= 30 ? 'amarillo' : 'verde'}">Vence ${fecha(k.vence)}${n <= 30 ? ` (${n} días)` : ''}</span>`;
 }
 
+const contactoReciente = u => { const t = Date.parse(u || ''); const d = Date.now() - t; return Number.isFinite(t) && d >= -60000 && d < 5 * 60 * 1000; };
+// Usa el dato del servidor si viene; si no, lo calcula con el último contacto.
+const servidorConectado = x => (x.conectado !== undefined && x.conectado !== null) ? !!x.conectado : contactoReciente(x.ultimo_contacto);
+
 function vistaClaves() {
   const c = $('#contenido');
   c.innerHTML = `<div class="barra"><input type="search" id="q" placeholder="Buscar cliente, clave o PC" value="${esc(E.q)}"></div><div class="lista" id="lista"></div>`;
@@ -244,29 +266,44 @@ function vistaClaves() {
     const l = E.datos.claves.filter(k => !q || [k.cliente, k.clave, k.contacto, k.notas, ...k.equipos.map(x => x.nombre_pc + ' ' + x.equipo)].join(' ').toLowerCase().includes(q));
     $('#lista').innerHTML = l.length ? l.map(k => {
       const activos = k.equipos.filter(x => x.estado === 'activa');
-      return `<article class="tarjeta ${k.estado !== 'activa' ? 'bloqueada' : ''}" data-id="${k.id}">
-        <div class="t-cab"><h3>${esc(k.cliente)}</h3>${badgeVence(k)}<span class="badge azul">${k.cajas} puesto${k.cajas === 1 ? "" : "s"} simultáneo${k.cajas === 1 ? "" : "s"}</span></div>
-        <div class="t-cab"><span class="clave">${esc(k.clave)}</span>
+      const abierta = E.abierta === k.id;
+      const hayServ = activos.length > 0;
+      const algunoConectado = activos.some(servidorConectado);
+      const luz = k.estado !== 'activa' ? ['', 'Suspendida'] : !hayServ ? ['', 'Sin activar en ningún PC'] : algunoConectado ? ['ok', 'Servidor conectado'] : ['mal', 'Servidor sin contacto'];
+      return `<article class="tarjeta lic ${abierta ? 'abierta' : ''} ${k.estado !== 'activa' ? 'bloqueada' : ''}" data-id="${k.id}">
+        <div class="t-resumen" role="button" tabindex="0" aria-expanded="${abierta}">
+          <i class="luz ${luz[0]}" title="${luz[1]}"></i><h3 title="${esc(k.cliente)}">${esc(k.cliente)}</h3>
+          <span class="clave">${esc(k.clave)}</span>${badgeVence(k)}<span class="srv" title="Servidores activados">${activos.length}/${k.max_equipos} srv</span>
           <button class="btn chico" data-copiar="${esc(k.clave)}">Copiar</button>
-          <a class="btn chico verde" href="${linkWhatsApp(k)}" target="_blank" rel="noopener">Enviar por WhatsApp</a></div>
-        <div class="meta"><span>Servidores activados: <b>${activos.length} de ${k.max_equipos}</b></span>${k.contacto ? `<span>Contacto: <b>${esc(k.contacto)}</b></span>` : ''}
+          <a class="btn chico verde" href="${linkWhatsApp(k)}" target="_blank" rel="noopener">WhatsApp</a><span class="flecha"></span></div>
+        <div class="t-detalle" ${abierta ? '' : 'hidden'}>
+        <div class="meta"><span><b>${k.cajas} puesto${k.cajas === 1 ? '' : 's'} simultáneo${k.cajas === 1 ? '' : 's'}</b></span><span>Servidores activados: <b>${activos.length} de ${k.max_equipos}</b></span>${k.contacto ? `<span>Contacto: <b>${esc(k.contacto)}</b></span>` : ''}
           <span>Creada: ${fecha(k.creado)}</span>${k.notas ? `<span>${esc(k.notas)}</span>` : ''}</div>
-        ${activos.length ? `<div class="pcs">${activos.map(x => `<div class="pc ${x.conectado ? '' : 'desconectado'}"><b>Servidor: ${esc(x.nombre_pc || 'PC')}</b><code>${esc(x.equipo)}</code>
-          <span class="badge">v${esc(x.version || '?')}</span><span class="badge ${x.conectado ? 'verde' : 'rojo'}">${x.conectado ? '● Conectado' : '● Sin reporte'}</span>
+        ${activos.length ? `<div class="pcs">${activos.map(x => `<div class="pc ${servidorConectado(x) ? '' : 'desconectado'}"><b>Servidor: ${esc(x.nombre_pc || 'PC')}</b><code>${esc(x.equipo)}</code>
+          <span class="badge">v${esc(x.version || '?')}</span><span class="badge ${servidorConectado(x) ? 'verde' : 'rojo'}">${servidorConectado(x) ? '● Conectado' : '● Sin reporte'}</span>
           <span class="det">último contacto ${hace(x.ultimo_contacto)}</span>
           <button class="btn chico" data-liberar="${esc(x.equipo)}" title="Para que la clave se pueda usar en otro PC">Liberar</button></div>
-          ${x.puestos?.length ? x.puestos.map(p => `<div class="pc puesto ${p.conectado ? '' : 'desconectado'}"><b>${esc(p.nombre || 'Computador')}</b>
-            ${p.usuario ? `<span>${esc(p.usuario)}</span>` : ''}<span class="badge ${p.conectado ? 'verde' : 'rojo'}">${p.conectado ? '● Conectado' : '● Desconectado'}</span>
+          ${x.puestos?.length ? x.puestos.map(p => `<div class="pc puesto ${servidorConectado(p) ? '' : 'desconectado'}"><b>${esc(p.nombre || 'Computador')}</b>
+            ${p.usuario ? `<span>${esc(p.usuario)}</span>` : ''}<span class="badge ${servidorConectado(p) ? 'verde' : 'rojo'}">${servidorConectado(p) ? '● Conectado' : '● Desconectado'}</span>
             <span class="det">último reporte ${hace(p.ultimo_contacto)}</span></div>`).join('') : '<div class="det" style="margin-left:18px">Esperando el primer reporte de puestos.</div>'}`).join('')}</div>`
           : '<div class="det">Aún no se activa en ningún PC.</div>'}
         <div class="acciones">
           <button class="btn chico" data-renovar="1">+1 mes</button><button class="btn chico" data-renovar="12">+1 año</button>
           <button class="btn chico" data-editar>Editar</button>
           <button class="btn chico ${k.estado === 'activa' ? 'peligro' : ''}" data-estado>${k.estado === 'activa' ? 'Suspender' : 'Reactivar'}</button>
-          <button class="btn chico peligro" data-borrar style="margin-left:auto">Eliminar</button></div></article>`;
+          <button class="btn chico peligro" data-borrar style="margin-left:auto">Eliminar</button></div></div></article>`;
     }).join('') : `<div class="vacio">${E.datos.claves.length ? 'Nada coincide con la búsqueda.' : 'Aún no hay claves. Crea la primera con “+ Nueva clave”.'}</div>`;
     $$('#lista .tarjeta').forEach(t => {
       const k = E.datos.claves.find(x => x.id === +t.dataset.id);
+      const cab = $('.t-resumen', t), det = $('.t-detalle', t);
+      const alternar = () => {
+        const abrir = det.hidden;
+        $$('#lista .tarjeta.lic.abierta').forEach(o => { o.classList.remove('abierta'); $('.t-detalle', o).hidden = true; $('.t-resumen', o).setAttribute('aria-expanded', 'false'); });
+        det.hidden = !abrir; t.classList.toggle('abierta', abrir); cab.setAttribute('aria-expanded', String(abrir));
+        E.abierta = abrir ? k.id : null;
+      };
+      cab.addEventListener('click', e => { if (!e.target.closest('button, a')) alternar(); });
+      cab.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target === cab) { e.preventDefault(); alternar(); } });
       const accion = (sel, fn) => $$(sel, t).forEach(b => b.addEventListener('click', async () => {
         b.disabled = true;
         try { await fn(b); } catch (e) { toast(e.message, 'error'); }
