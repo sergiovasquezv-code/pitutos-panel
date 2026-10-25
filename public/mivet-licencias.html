@@ -111,7 +111,7 @@ th { font-size: .78rem; color: var(--suave); background: var(--panel-2); }
 /* --- Lista compacta de licencias: fila resumen + detalle desplegable --- */
 .tarjeta.lic { padding: 0; gap: 0; overflow: hidden; }
 .tarjeta.lic.abierta { border-color: var(--acento); }
-.t-resumen { display: flex; align-items: center; gap: 10px; padding: 9px 14px; cursor: pointer; user-select: none; }
+.t-resumen { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 9px 14px; cursor: pointer; user-select: none; }
 .t-resumen:hover { background: var(--panel-2); }
 .t-resumen:focus-visible { outline: 2px solid var(--acento); outline-offset: -2px; }
 .t-resumen h3 { margin: 0; font-size: 1rem; flex: 1 1 160px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -325,13 +325,13 @@ function vistaClaves() {
         <div class="t-resumen" role="button" tabindex="0" aria-expanded="${abierta}">
           <i class="luz ${luz[0]}" title="${luz[1]}"></i><h3 title="${esc(k.cliente)}">${esc(k.cliente)}</h3>
           <span class="clave">${esc(k.clave)}</span>${badgeVence(k)}<span class="srv" title="Servidores activados">${activos.length}/${k.max_equipos} srv</span>
+          <span class="badge ${respaldo.cls}" title="${esc(respaldo.detalle)}">Respaldo: ${esc(respaldo.texto)}</span>
+          <button class="btn chico" data-backup ${respaldo.puede ? '' : 'disabled'}>Hacer backup</button>
           <button class="btn chico" data-copiar="${esc(k.clave)}">Copiar</button>
           <a class="btn chico verde" href="${linkWhatsApp(k)}" target="_blank" rel="noopener">WhatsApp</a><span class="flecha"></span></div>
         <div class="t-respaldo">
           <span class="linea">Creada: ${fecha(k.creado)}${antiguedad ? ` · <b>${esc(antiguedad)}</b>` : ''}</span>
-          <span>Respaldo</span><span class="badge ${respaldo.cls}">${esc(respaldo.texto)}</span>
-          <span class="det crece">${esc(respaldo.detalle)}</span>
-          <button class="btn chico" data-backup ${respaldo.puede ? '' : 'disabled'}>Hacer backup</button></div>
+          <span class="det crece">${esc(respaldo.detalle)}</span></div>
         <div class="t-detalle" ${abierta ? '' : 'hidden'}>
         <div class="meta"><span><b>${k.cajas} puesto${k.cajas === 1 ? '' : 's'} simultáneo${k.cajas === 1 ? '' : 's'}</b></span><span>Servidores activados: <b>${activos.length} de ${k.max_equipos}</b></span>${k.contacto ? `<span>Contacto: <b>${esc(k.contacto)}</b></span>` : ''}
           <span>Creada: ${fecha(k.creado)}${antiguedad ? ` · <b>${esc(antiguedad)}</b>` : ''}</span>${k.notas ? `<span>${esc(k.notas)}</span>` : ''}</div>
