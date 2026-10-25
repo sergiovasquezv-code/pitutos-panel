@@ -77,6 +77,8 @@ label { display: grid; gap: 4px; font-size: .85rem; font-weight: 650; color: var
 .badge.azul { background: var(--acento-claro); color: var(--acento); }
 .pcs { display: grid; gap: 6px; }
 .pc { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; background: var(--panel-2); border-radius: 10px; padding: 6px 10px; font-size: .88rem; }
+.pc.respaldo { background: var(--acento-claro); }
+.pc.respaldo b { color: var(--acento); }
 .pc code { font-size: .82rem; color: var(--suave); }
 .pc .det { color: var(--suave); margin-left: auto; }
 .acciones { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -123,9 +125,8 @@ th { font-size: .78rem; color: var(--suave); background: var(--panel-2); }
 .tarjeta.lic.abierta .flecha { transform: rotate(225deg); margin-bottom: 0; margin-top: 3px; }
 .t-detalle { display: grid; gap: 10px; padding: 12px 16px 14px; border-top: 1px solid var(--borde); }
 .t-detalle[hidden] { display: none; }
-.t-respaldo { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; padding: 8px 14px; border-top: 1px solid var(--borde); background: color-mix(in srgb, var(--panel-2) 70%, var(--panel)); font-size: .88rem; }
-.t-respaldo .crece { flex: 1; min-width: 140px; }
-.t-respaldo .linea { flex: 1 0 100%; }
+.t-fijo { display: grid; gap: 8px; padding: 8px 14px 10px; border-top: 1px solid var(--borde); }
+.t-fijo .pc.respaldo { margin: 0; }
 @media (max-width: 700px) { .t-resumen { flex-wrap: wrap; } .t-resumen h3 { flex-basis: calc(100% - 60px); } }
 </style>
 </head>
@@ -148,52 +149,6 @@ function hace(f) {
   if (m < 2) return 'recién'; if (m < 60) return `hace ${m} min`;
   const h = Math.round(m / 60); if (h < 36) return `hace ${h} h`;
   return `hace ${Math.round(h / 24)} días`;
-}
-function diaIso(f) {
-  const s = String(f || '');
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-  const t = Date.parse(s);
-  if (!Number.isFinite(t)) return '';
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santiago', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(t));
-}
-function sumarMesesIso(iso, meses) {
-  const [y, m, d] = iso.split('-').map(Number);
-  const total = y * 12 + (m - 1) + meses;
-  const ny = Math.floor(total / 12);
-  const nm = total % 12;
-  const ultimo = new Date(Date.UTC(ny, nm + 1, 0)).getUTCDate();
-  return `${ny}-${String(nm + 1).padStart(2, '0')}-${String(Math.min(d, ultimo)).padStart(2, '0')}`;
-}
-function llevaConNosotros(creado, hoyIso) {
-  const inicio = diaIso(creado);
-  const fin = diaIso(hoyIso);
-  if (!inicio || !fin || fin < inicio) return '';
-  if (inicio === fin) return 'desde hoy';
-  let years = 0;
-  while (sumarMesesIso(inicio, (years + 1) * 12) <= fin) years++;
-  const trasAnios = sumarMesesIso(inicio, years * 12);
-  let months = 0;
-  while (sumarMesesIso(trasAnios, months + 1) <= fin) months++;
-  const trasMeses = sumarMesesIso(trasAnios, months);
-  const days = Math.round((Date.parse(`${fin}T12:00:00Z`) - Date.parse(`${trasMeses}T12:00:00Z`)) / 86400000);
-  const partes = [];
-  if (years) partes.push(years === 1 ? '1 año' : `${years} años`);
-  if (months) partes.push(months === 1 ? '1 mes' : `${months} meses`);
-  if (days) partes.push(days === 1 ? '1 día' : `${days} días`);
-  if (!partes.length) return 'desde hoy';
-  return `lleva ${partes.length === 1 ? partes[0] : `${partes.slice(0, -1).join(', ')} y ${partes.at(-1)}`} con nosotros`;
-}
-function estadoRespaldo(k, programa) {
-  const activos = (k.equipos || []).filter(x => x.estado === 'activa');
-  if (!activos.length) return { cls: '', texto: 'Sin servidor', detalle: 'Activa la clave en un PC para poder respaldar.', puede: false };
-  const pendiente = activos.some(x => x.respaldo_pedido && !(x.respaldo_estado === 'ok' && x.respaldo_en && x.respaldo_en >= x.respaldo_pedido));
-  if (pendiente) return { cls: 'amarillo', texto: 'Pedido', detalle: `Se hará cuando ${programa} se conecte.`, puede: true };
-  const ultimo = activos.filter(x => x.respaldo_en).sort((a, b) => String(b.respaldo_en).localeCompare(String(a.respaldo_en)))[0];
-  if (!ultimo) return { cls: '', texto: 'Sin datos', detalle: 'El programa aún no informa un respaldo.', puede: true };
-  if (ultimo.respaldo_estado === 'error') return { cls: 'rojo', texto: 'Falló', detalle: ultimo.respaldo_detalle || `El último intento falló ${hace(ultimo.respaldo_en)}.`, puede: true };
-  const ms = Date.now() - Date.parse(ultimo.respaldo_en);
-  const viejo = !Number.isFinite(ms) || ms > 7 * 86400000;
-  return { cls: viejo ? 'amarillo' : 'verde', texto: viejo ? 'Atrasado' : 'Al día', detalle: `Último respaldo ${hace(ultimo.respaldo_en)}`, puede: true };
 }
 function sumar(f, { dias = 0, meses = 0 }) {
   const d = new Date((f && f > E.datos.hoy ? f : E.datos.hoy) + 'T12:00');
@@ -268,8 +223,8 @@ function pintar() {
     const scroll = window.scrollY;
     try { E.datos = await api('resumen'); vistaClaves(); window.scrollTo(0, scroll); } catch (e) { /* sesión cerrada o sin conexión */ }
   }, 60_000);
-  const activas = d.claves.filter(k => k.estado === 'activa');
-  const pcs = d.claves.reduce((a, k) => a + k.equipos.filter(x => x.estado === 'activa').length, 0);
+  const activas = d.claves.filter(k => k.estado === 'activa' && !k.archivada);
+  const pcs = d.claves.filter(k => !k.archivada).reduce((a, k) => a + k.equipos.filter(x => x.estado === 'activa').length, 0);
   const pronto = activas.filter(k => k.vence && diasHasta(k.vence) <= 30).length;
   const enPrueba = d.pruebas.filter(p => p.estado !== 'bloqueada' && !p.licencia_vigente && !pruebaArchivada(p)).length;
   const mes = d.hoy.slice(0, 7);
@@ -305,6 +260,59 @@ function badgeVence(k) {
   return `<span class="badge ${n <= 30 ? 'amarillo' : 'verde'}">Vence ${fecha(k.vence)}${n <= 30 ? ` (${n} días)` : ''}</span>`;
 }
 
+function diaIso(f) {
+  const s = String(f || '');
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const t = Date.parse(s);
+  if (!Number.isFinite(t)) return '';
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santiago', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(t));
+}
+function sumarMesesIso(iso, meses) {
+  const [y, m, d] = iso.split('-').map(Number);
+  const total = y * 12 + (m - 1) + meses;
+  const ny = Math.floor(total / 12);
+  const nm = total % 12;
+  const ultimo = new Date(Date.UTC(ny, nm + 1, 0)).getUTCDate();
+  return `${ny}-${String(nm + 1).padStart(2, '0')}-${String(Math.min(d, ultimo)).padStart(2, '0')}`;
+}
+function llevaConNosotros(creado, hoyIso) {
+  const inicio = diaIso(creado);
+  const fin = diaIso(hoyIso);
+  if (!inicio || !fin || fin < inicio) return '';
+  if (inicio === fin) return 'desde hoy';
+  let years = 0;
+  while (sumarMesesIso(inicio, (years + 1) * 12) <= fin) years++;
+  const trasAnios = sumarMesesIso(inicio, years * 12);
+  let months = 0;
+  while (sumarMesesIso(trasAnios, months + 1) <= fin) months++;
+  const trasMeses = sumarMesesIso(trasAnios, months);
+  const days = Math.round((Date.parse(`${fin}T12:00:00Z`) - Date.parse(`${trasMeses}T12:00:00Z`)) / 86400000);
+  const partes = [];
+  if (years) partes.push(years === 1 ? '1 año' : `${years} años`);
+  if (months) partes.push(months === 1 ? '1 mes' : `${months} meses`);
+  if (days) partes.push(days === 1 ? '1 día' : `${days} días`);
+  if (!partes.length) return 'desde hoy';
+  return `lleva ${partes.length === 1 ? partes[0] : `${partes.slice(0, -1).join(', ')} y ${partes.at(-1)}`} con nosotros`;
+}
+function tamanoRespaldo(n) {
+  const b = Number(n) || 0;
+  if (b < 1024) return b + ' B';
+  if (b < 1048576) return (b / 1024).toFixed(0) + ' KB';
+  return (b / 1048576).toFixed(1) + ' MB';
+}
+function textoRespaldo(r) {
+  if (!r || !r.estado) return 'Sin respaldo en la nube.';
+  if (r.estado === 'pendiente') return `Pendiente${r.pedido ? ` desde ${fechaHora(r.pedido)}` : ''}. El PC principal lo sube solo.`;
+  if (r.estado === 'error') return `Error${r.error ? `: ${r.error}` : ''}`;
+  if (r.estado === 'listo') return `Listo ${fechaHora(r.listo)} · ${tamanoRespaldo(r.tamano)}`;
+  return r.estado;
+}
+function bloqueRespaldo(k) {
+  const listo = k.respaldo && k.respaldo.estado === 'listo';
+  return `<div class="pc respaldo"><b>Respaldo</b><span>${esc(textoRespaldo(k.respaldo))}</span>
+    <button type="button" class="btn chico primario" data-pedir-respaldo>Pedir respaldo</button>
+    <button type="button" class="btn chico" data-bajar-respaldo${listo ? '' : ' disabled title="Todavía no hay un archivo listo"'}>Descargar</button></div>`;
+}
 function contactoReciente(ultimo) {
   const instante = Date.parse(ultimo || '');
   const delta = Date.now() - instante;
@@ -316,12 +324,16 @@ function luzConexion(ultimo) {
   return `<span class="badge ${conectado ? 'verde' : 'rojo'}"><i style="display:inline-block;width:8px;height:8px;border-radius:50%;background:currentColor"></i>${conectado ? 'Conectado' : 'Sin contacto'}</span>`;
 }
 
+let verArchivadosClientes = false;
 function vistaClaves() {
   const c = $('#contenido');
-  c.innerHTML = `<div class="barra"><input type="search" id="q" placeholder="Buscar cliente, clave o PC" value="${esc(E.q)}"></div><div class="lista" id="lista"></div>`;
+  const nArchivo = E.datos.claves.filter(k => k.archivada).length;
+  c.innerHTML = `<div class="barra"><input type="search" id="q" placeholder="Buscar cliente, clave o PC" value="${esc(E.q)}">
+    <button class="btn ${verArchivadosClientes ? 'primario' : ''}" id="b-claves-archivo">${verArchivadosClientes ? 'Ver vigentes' : `Ver archivados (${nArchivo})`}</button></div><div class="lista" id="lista"></div>`;
   const pintarLista = () => {
     const q = E.q.toLowerCase();
-    const l = E.datos.claves.filter(k => !q || [k.cliente, k.clave, k.contacto, k.notas, ...k.equipos.map(x => x.nombre_pc + ' ' + x.equipo)].join(' ').toLowerCase().includes(q));
+    const base = E.datos.claves.filter(k => !!k.archivada === verArchivadosClientes);
+    const l = base.filter(k => !q || [k.cliente, k.clave, k.contacto, k.notas, ...k.equipos.map(x => x.nombre_pc + ' ' + x.equipo)].join(' ').toLowerCase().includes(q));
     $('#lista').innerHTML = l.length ? l.map(k => {
       const activos = k.equipos.filter(x => x.estado === 'activa');
       const abierta = E.abierta === k.id;
@@ -329,34 +341,32 @@ function vistaClaves() {
       const algunoConectado = activos.some(servidorConectado);
       const luz = k.estado !== 'activa' ? ['', 'Suspendida'] : !hayServ ? ['', 'Sin activar en ningún PC'] : algunoConectado ? ['ok', 'Servidor conectado'] : ['mal', 'Servidor sin contacto'];
       const antiguedad = llevaConNosotros(k.creado, E.datos.hoy);
-      const respaldo = estadoRespaldo(k, 'MiPOS');
       return `<article class="tarjeta lic ${abierta ? 'abierta' : ''} ${k.estado !== 'activa' ? 'bloqueada' : ''}" data-id="${k.id}">
         <div class="t-resumen" role="button" tabindex="0" aria-expanded="${abierta}">
           <i class="luz ${luz[0]}" title="${luz[1]}"></i><h3 title="${esc(k.cliente)}">${esc(k.cliente)}</h3>
           <span class="clave">${esc(k.clave)}</span>${badgeVence(k)}<span class="srv" title="Servidores activados">${activos.length}/${k.max_equipos} srv</span>
-          <span class="badge ${respaldo.cls}" title="${esc(respaldo.detalle)}">Respaldo: ${esc(respaldo.texto)}</span>
-          <button class="btn chico" data-backup ${respaldo.puede ? '' : 'disabled'}>Hacer backup</button>
           <button class="btn chico" data-copiar="${esc(k.clave)}">Copiar</button>
           <a class="btn chico verde" href="${linkWhatsApp(k)}" target="_blank" rel="noopener">WhatsApp</a><span class="flecha"></span></div>
-        <div class="t-respaldo">
-          <span class="linea">Creada: ${fecha(k.creado)}${antiguedad ? ` · <b>${esc(antiguedad)}</b>` : ''}</span>
-          <span class="det crece">${esc(respaldo.detalle)}</span></div>
+        <div class="t-fijo">
+          <div class="meta"><span>Creada: ${fecha(k.creado)}${antiguedad ? ` · <b>${esc(antiguedad)}</b>` : ''}</span></div>
+          ${k.estado === 'activa' ? bloqueRespaldo(k) : ''}</div>
         <div class="t-detalle" ${abierta ? '' : 'hidden'}>
         <div class="meta"><span><b>${k.cajas} caja${k.cajas === 1 ? '' : 's'} simultánea${k.cajas === 1 ? '' : 's'}</b></span><span>Servidores activados: <b>${activos.length} de ${k.max_equipos}</b></span>${k.contacto ? `<span>Contacto: <b>${esc(k.contacto)}</b></span>` : ''}
-          <span>Creada: ${fecha(k.creado)}${antiguedad ? ` · <b>${esc(antiguedad)}</b>` : ''}</span>${k.notas ? `<span><b>Nota interna:</b> ${esc(k.notas)}</span>` : ''}</div>
-        ${activos.length ? `<div class="pcs">${activos.map(x => `<div class="pc"><b>Servidor: ${esc(x.nombre_pc || 'PC')}</b><code>${esc(x.equipo)}</code>
+          ${k.notas ? `<span><b>Nota interna:</b> ${esc(k.notas)}</span>` : ''}</div>
+        ${activos.length ? `<div class="pcs">${activos.map((x, i) => `<div class="pc"><b>Servidor: ${esc(x.nombre_pc || 'PC')}</b><code>${esc(x.equipo)}</code>
           <span class="badge">v${esc(x.version || '?')}</span>${luzConexion(x.ultimo_contacto)}<span class="det">último contacto ${hace(x.ultimo_contacto)}</span>
           <button class="btn chico" data-liberar="${esc(x.equipo)}" title="Para que la clave se pueda usar en otro PC">Liberar</button></div>
           ${(x.puestos || []).map(p => `<div class="pc" style="margin-left:18px"><b>${esc(p.nombre || 'Equipo MiPOS')}</b>${p.usuario ? `<span>${esc(p.usuario)}</span>` : ''}
             ${luzConexion(p.ultimo_contacto)}<span class="det">último reporte ${hace(p.ultimo_contacto)}</span></div>`).join('') || '<div class="det" style="margin-left:18px">Sin cajas cliente reportadas todavía.</div>'}
           <div class="det" style="margin-left:18px">El estado se actualiza cada minuto. Rojo significa más de 5 minutos sin reporte; el PC puede estar apagado, desconectado o con MiPOS cerrado.</div>`).join('')}</div>`
-          : '<div class="det">Aún no se activa en ningún PC.</div>'}
+          : `<div class="det">Aún no se activa en ningún PC.</div>`}
         <div class="acciones">
           <button class="btn chico" data-renovar="1">+1 mes</button><button class="btn chico" data-renovar="12">+1 año</button>
           <button class="btn chico" data-editar>Editar</button>
+          <button class="btn chico" data-archivar>${k.archivada ? 'Restaurar' : 'Archivar'}</button>
           <button class="btn chico ${k.estado === 'activa' ? 'peligro' : ''}" data-estado>${k.estado === 'activa' ? 'Suspender' : 'Reactivar'}</button>
           <button class="btn chico peligro" data-borrar style="margin-left:auto">Eliminar</button></div></div></article>`;
-    }).join('') : `<div class="vacio">${E.datos.claves.length ? 'Nada coincide con la búsqueda.' : 'Aún no hay claves. Crea la primera con “+ Nueva clave”.'}</div>`;
+    }).join('') : `<div class="vacio">${verArchivadosClientes ? 'No hay clientes archivados.' : (E.datos.claves.some(k => !k.archivada) ? 'Nada coincide con la búsqueda.' : 'Aún no hay claves. Crea la primera con “+ Nueva clave”.')}</div>`;
     $$('#lista .tarjeta').forEach(t => {
       const k = E.datos.claves.find(x => x.id === +t.dataset.id);
       const cab = $('.t-resumen', t), det = $('.t-detalle', t);
@@ -375,6 +385,13 @@ function vistaClaves() {
       }));
       accion('[data-copiar]', b => copiar(b.dataset.copiar));
       accion('[data-editar]', () => formClave(k));
+      accion('[data-archivar]', async () => {
+        const archivar = !k.archivada;
+        if (archivar && !confirm(`¿Archivar a ${k.cliente}? La licencia sigue activa; solo se oculta de esta lista.`)) return;
+        await api(`claves/${k.id}/${archivar ? 'archivar' : 'restaurar'}`, { method: 'POST' });
+        toast(archivar ? 'Cliente archivado' : 'Cliente restaurado');
+        await cargar();
+      });
       accion('[data-renovar]', async b => {
         const vence = sumar(k.vence, { meses: +b.dataset.renovar });
         await api('claves/' + k.id, { method: 'PUT', body: { vence } });
@@ -396,14 +413,22 @@ function vistaClaves() {
         await api('claves/' + k.id, { method: 'DELETE' });
         toast('Clave eliminada'); await cargar();
       });
-      accion('[data-backup]', async () => {
-        if (!confirm(`¿Pedir un respaldo de ${k.cliente}? MiPOS lo hará en su servidor la próxima vez que se conecte.`)) return;
-        await api(`claves/${k.id}/respaldo`, { method: 'POST', body: {} });
-        toast('Backup pedido. Se hará cuando MiPOS se conecte.'); await cargar();
+      accion('[data-pedir-respaldo]', async () => {
+        await api('claves/' + k.id + '/respaldo', { method: 'POST', body: {} });
+        toast('Pedido enviado. El PC principal lo sube en los próximos minutos.');
+        await cargar();
+      });
+      accion('[data-bajar-respaldo]', async () => {
+        const ventana = window.open('', '_blank');
+        try {
+          const r = await api('claves/' + k.id + '/respaldo/descarga', { method: 'POST', body: {} });
+          if (ventana) ventana.location = r.url; else location.href = r.url;
+        } catch (e) { if (ventana) ventana.close(); throw e; }
       });
     });
   };
   $('#q').addEventListener('input', e => { E.q = e.target.value; pintarLista(); });
+  $('#b-claves-archivo').addEventListener('click', () => { verArchivadosClientes = !verArchivadosClientes; vistaClaves(); });
   pintarLista();
 }
 
@@ -451,6 +476,7 @@ function pruebaSinContacto(p) {
   return Number.isFinite(ultimo) && Date.now() - ultimo >= DIAS_SIN_CONTACTO_ARCHIVO * 86400000;
 }
 function pruebaArchivada(p) {
+  if (p.archivada_manual) return true;
   if (p.licencia_vigente || diasHasta(fin(p)) < 0) return true;
   return pruebaSinContacto(p);
 }
@@ -474,9 +500,11 @@ function vistaPruebas() {
         <td>${p.ip ? `<code>${esc(p.ip)}</code>` : '—'}${p.sospechosa ? `<br><span class="badge rojo" title="Pruebas desde esta conexión: ${p.misma_ip}. Intentos bloqueados: ${p.bloqueos_ip}">Sospechosa · ${p.misma_ip} prueba${p.misma_ip === 1 ? '' : 's'}${p.bloqueos_ip ? ` + ${p.bloqueos_ip} bloqueada${p.bloqueos_ip === 1 ? '' : 's'}` : ''}</span>` : ''}</td>
         <td>${fecha(p.inicio)}</td>
         <td>${p.licencia_vigente ? `<span class="badge verde">Convertida a licencia · ${esc(p.licencia_vigente.cliente)}</span>` : p.estado === 'bloqueada' ? '<span class="badge rojo">Suspendida</span>' : n < 0 ? '<span class="badge">Demo vencida</span>' : sinContacto ? '<span class="badge amarillo">Sin contacto 30+ días</span>' : `<span class="badge azul">quedan ${n + 1} días</span>`}</td><td>${hace(p.ultimo_contacto)}</td>
-        <td>${p.licencia_vigente ? '' : `<div class="acciones"><button class="btn chico ${p.estado === 'bloqueada' ? '' : 'peligro'}" data-estado="${p.estado === 'bloqueada' ? 'activa' : 'bloqueada'}">${p.estado === 'bloqueada' ? 'Reactivar' : 'Suspender'}</button>
-          <button class="btn chico" data-otra="${esc(p.equipo)}">Reiniciar demo</button>
-          <button class="btn chico peligro" data-eliminar-prueba="${esc(p.equipo)}">Eliminar demo</button></div>`}</td></tr>`; }).join('')}</tbody></table></div>`
+        <td><div class="acciones"><button class="btn chico" data-editar-prueba="${esc(p.equipo)}">Editar</button>
+          <button class="btn chico" data-archivar-prueba="${esc(p.equipo)}">${p.archivada_manual ? 'Restaurar' : 'Archivar'}</button>
+          ${p.licencia_vigente ? '' : `<button class="btn chico ${p.estado === 'bloqueada' ? '' : 'peligro'}" data-estado="${p.estado === 'bloqueada' ? 'activa' : 'bloqueada'}">${p.estado === 'bloqueada' ? 'Reactivar' : 'Suspender'}</button>
+          <button class="btn chico" data-otra="${esc(p.equipo)}">Reiniciar demo</button>`}
+          <button class="btn chico peligro" data-eliminar-prueba="${esc(p.equipo)}">Eliminar</button></div></td></tr>`; }).join('')}</tbody></table></div>`
       : `<div class="vacio">${l.length ? (mostrarArchivadas ? 'No hay pruebas archivadas.' : 'No hay pruebas vigentes.') : 'Nadie ha pedido la prueba gratis todavía.'}</div>`}
       ${bl.length ? `<div class="barra" style="margin:18px 0 8px"><h3 style="margin:0">Intentos bloqueados (últimos 60 días)</h3>
         <button class="btn chico peligro" id="borrar-intentos">Borrar últimos 60 días</button></div>
@@ -519,8 +547,38 @@ function vistaPruebas() {
       try { await api(`pruebas/${encodeURIComponent(b.dataset.eliminarPrueba)}/eliminar`, { method: 'DELETE' }); toast('Demo eliminada'); await cargar(); }
       catch (e) { toast(e.message, 'error'); b.disabled = false; }
     }));
+    $$('[data-editar-prueba]').forEach(b => b.addEventListener('click', () => formPrueba(l.find(p => p.equipo === b.dataset.editarPrueba))));
+    $$('[data-archivar-prueba]').forEach(b => b.addEventListener('click', async () => {
+      const p = l.find(x => x.equipo === b.dataset.archivarPrueba);
+      const archivar = !p.archivada_manual;
+      b.disabled = true;
+      try {
+        await api(`pruebas/${encodeURIComponent(p.equipo)}/${archivar ? 'archivar' : 'restaurar'}`, { method: 'POST' });
+        toast(archivar ? 'Prueba archivada' : 'Prueba restaurada');
+        await cargar();
+      } catch (e) { toast(e.message, 'error'); b.disabled = false; }
+    }));
   };
   render();
+}
+
+function formPrueba(p) {
+  if (!p) return;
+  const m = modal(`<form id="f-prueba"><h2>Editar prueba · ${esc(p.nombre_pc || p.equipo)}</h2>
+    <div class="grid2" style="margin-top:12px">
+      <label class="full">Nombre del PC<input name="nombre_pc" value="${esc(p.nombre_pc || '')}" maxlength="80" autofocus></label>
+      <label>Empezó<input name="inicio" type="date" value="${esc(p.inicio || '')}" required></label>
+    </div>
+    <div class="det" style="margin:10px 0">Cambiar la fecha de inicio mueve el vencimiento de la demo. No modifica ninguna licencia.</div>
+    <div class="acciones" style="justify-content:flex-end"><button type="button" class="btn" data-cerrar>Cancelar</button><button class="btn primario">Guardar</button></div></form>`);
+  $('#f-prueba', m.el).addEventListener('submit', async e => {
+    e.preventDefault();
+    const f = e.target;
+    try {
+      await api('pruebas/' + encodeURIComponent(p.equipo), { method: 'PUT', body: { nombre_pc: f.nombre_pc.value, inicio: f.inicio.value } });
+      m.cerrar(); toast('Prueba actualizada'); await cargar();
+    } catch (err) { toast(err.message, 'error'); }
+  });
 }
 
 function vistaCodigo() {
@@ -547,20 +605,63 @@ function vistaCodigo() {
 
 // ------------------------------------------------------------------ soporte
 const ESTADOS_SOP = { nuevo: ['rojo', 'Nuevo'], en_curso: ['amarillo', 'En curso'], resuelto: ['verde', 'Resuelto'] };
+let verArchivadosSoporte = false;
 async function vistaSoporte() {
   const c = $('#contenido');
   c.innerHTML = '<div class="det">Cargando…</div>';
   let l;
-  try { l = await api('soporte'); } catch (e) { c.innerHTML = `<div class="aviso peligro">${esc(e.message)}</div>`; return; }
-  c.innerHTML = `<div class="det" style="margin-bottom:10px">Casos que tus clientes abren con el botón <b>Soporte</b> de MiPOS. Cada uno trae su versión, licencia, impresora y últimos errores. Te llega un correo con cada caso nuevo y cada mensaje.</div>
-    ${l.length ? `<div class="tabla-wrap"><table><thead><tr><th>Caso</th><th>Cliente</th><th>Asunto</th><th>Estado</th><th>Actualizado</th></tr></thead><tbody>
+  try { l = await api(`soporte${verArchivadosSoporte ? '?archivados=1' : ''}`); } catch (e) { c.innerHTML = `<div class="aviso peligro">${esc(e.message)}</div>`; return; }
+  c.innerHTML = `<div class="barra"><div class="det" style="flex:1">Casos que tus clientes abren con el botón <b>Soporte</b> de MiPOS. Cada uno trae su versión, licencia, impresora y últimos errores. Te llega un correo con cada caso nuevo y cada mensaje.</div>
+    <button class="btn ${verArchivadosSoporte ? 'primario' : ''}" id="b-soporte-archivo">${verArchivadosSoporte ? 'Ver vigentes' : 'Ver archivados'}</button></div>
+    ${l.length ? `<div class="tabla-wrap"><table><thead><tr><th>Caso</th><th>Cliente</th><th>Asunto</th><th>Estado</th><th>Actualizado</th><th>Acciones</th></tr></thead><tbody>
     ${l.map(t => { const [cl, tx] = ESTADOS_SOP[t.estado] || ['', t.estado]; return `<tr class="click" data-caso="${t.id}" style="cursor:pointer">
       <td><b>#${t.id}</b> <span class="badge ${t.tipo === 'problema' ? 'rojo' : 'azul'}">${t.tipo === 'problema' ? 'Problema' : 'Consulta'}</span></td>
       <td><b>${esc(t.cliente || '—')}</b><div class="det">${esc(t.email || t.telefono || '')}</div></td>
       <td>${esc(t.asunto)}${t.sin_leer_soporte ? ` <span class="burbuja">${t.sin_leer_soporte}</span>` : ''}</td>
-      <td><span class="badge ${cl}">${tx}</span></td><td style="white-space:nowrap">${fechaHora(t.actualizado)}</td></tr>`; }).join('')}</tbody></table></div>`
-    : '<div class="vacio">No hay casos de soporte. Cuando un cliente use el botón Soporte de MiPOS, aparecerá aquí.</div>'}`;
-  $$('[data-caso]').forEach(tr => tr.addEventListener('click', () => verCaso(+tr.dataset.caso)));
+      <td><span class="badge ${cl}">${tx}</span></td><td style="white-space:nowrap">${fechaHora(t.actualizado)}</td>
+      <td><div class="acciones"><button class="btn chico" data-editar-caso="${t.id}">Editar</button>
+        <button class="btn chico" data-archivar-caso="${t.id}">${verArchivadosSoporte ? 'Restaurar' : 'Archivar'}</button>
+        <button class="btn chico peligro" data-eliminar-caso="${t.id}">Eliminar</button></div></td></tr>`; }).join('')}</tbody></table></div>`
+    : `<div class="vacio">${verArchivadosSoporte ? 'No hay casos archivados.' : 'No hay casos de soporte. Cuando un cliente use el botón Soporte de MiPOS, aparecerá aquí.'}</div>`}`;
+  $$('[data-caso]').forEach(tr => tr.addEventListener('click', e => { if (!e.target.closest('button')) verCaso(+tr.dataset.caso); }));
+  $('#b-soporte-archivo').addEventListener('click', () => { verArchivadosSoporte = !verArchivadosSoporte; vistaSoporte(); });
+  $$('[data-editar-caso]').forEach(b => b.addEventListener('click', () => formCaso(l.find(t => t.id === +b.dataset.editarCaso))));
+  $$('[data-archivar-caso]').forEach(b => b.addEventListener('click', async () => {
+    b.disabled = true;
+    try {
+      await api(`soporte/${b.dataset.archivarCaso}/${verArchivadosSoporte ? 'restaurar' : 'archivar'}`, { method: 'POST' });
+      toast(verArchivadosSoporte ? 'Caso restaurado' : 'Caso archivado');
+      await vistaSoporte();
+    } catch (err) { toast(err.message, 'error'); b.disabled = false; }
+  }));
+  $$('[data-eliminar-caso]').forEach(b => b.addEventListener('click', async () => {
+    if (!confirm(`¿Eliminar definitivamente el caso #${b.dataset.eliminarCaso} y todos sus mensajes?`)) return;
+    b.disabled = true;
+    try { await api(`soporte/${b.dataset.eliminarCaso}`, { method: 'DELETE' }); toast('Caso eliminado'); await vistaSoporte(); }
+    catch (err) { toast(err.message, 'error'); b.disabled = false; }
+  }));
+}
+
+function formCaso(t) {
+  if (!t) return;
+  const m = modal(`<form id="f-caso"><h2>Editar caso #${t.id}</h2>
+    <div class="grid2" style="margin-top:12px">
+      <label class="full">Cliente<input name="cliente" value="${esc(t.cliente || '')}" required autofocus></label>
+      <label>Correo<input name="email" type="email" value="${esc(t.email || '')}"></label>
+      <label>Teléfono<input name="telefono" value="${esc(t.telefono || '')}"></label>
+      <label class="full">Asunto<input name="asunto" value="${esc(t.asunto || '')}" required></label>
+      <label>Tipo<select name="tipo"><option value="consulta" ${t.tipo === 'consulta' ? 'selected' : ''}>Consulta</option><option value="problema" ${t.tipo === 'problema' ? 'selected' : ''}>Problema</option></select></label>
+      <label>Estado<select name="estado"><option value="nuevo" ${t.estado === 'nuevo' ? 'selected' : ''}>Nuevo</option><option value="en_curso" ${t.estado === 'en_curso' ? 'selected' : ''}>En curso</option><option value="resuelto" ${t.estado === 'resuelto' ? 'selected' : ''}>Resuelto</option></select></label>
+    </div>
+    <div class="acciones" style="justify-content:flex-end"><button type="button" class="btn" data-cerrar>Cancelar</button><button class="btn primario">Guardar</button></div></form>`);
+  $('#f-caso', m.el).addEventListener('submit', async e => {
+    e.preventDefault();
+    const f = e.target;
+    try {
+      await api('soporte/' + t.id, { method: 'PUT', body: { cliente: f.cliente.value, email: f.email.value, telefono: f.telefono.value, asunto: f.asunto.value, tipo: f.tipo.value, estado: f.estado.value } });
+      m.cerrar(); toast('Caso actualizado'); await vistaSoporte();
+    } catch (err) { toast(err.message, 'error'); }
+  });
 }
 
 async function verCaso(id) {
@@ -569,16 +670,13 @@ async function verCaso(id) {
   let diag = {};
   try { diag = JSON.parse(t.diagnostico || '{}'); } catch (e) { /* nada */ }
   const nombres = { version: 'Versión', negocio: 'Negocio', rut: 'RUT', licencia: 'Licencia', licencia_panel: 'Licencia (panel)', equipo: 'Equipo',
-    windows: 'Sistema', impresora: 'Impresora', balanza: 'Balanza', cajas: 'Cajas', productos: 'Productos', usuario: 'Reporta', pantalla: 'Pantalla', boleta: 'Boleta electrónica', respaldo: 'Respaldo' };
-  const respaldoDiag = diag.respaldo ?? diag.backup;
-  const respaldoVisible = respaldoDiag == null || respaldoDiag === '' ? '' : `<div class="aviso" style="margin:8px 0"><b>Respaldo:</b> ${esc(typeof respaldoDiag === 'object' ? (respaldoDiag.detalle || respaldoDiag.estado || JSON.stringify(respaldoDiag)) : respaldoDiag)}${respaldoDiag && typeof respaldoDiag === 'object' && respaldoDiag.fecha ? ` · ${esc(String(respaldoDiag.fecha))}` : ''}</div>`;
+    windows: 'Sistema', impresora: 'Impresora', balanza: 'Balanza', cajas: 'Cajas', productos: 'Productos', usuario: 'Reporta', pantalla: 'Pantalla', boleta: 'Boleta electrónica' };
   const m = modal(`<h2>Caso #${t.id} · ${esc(t.cliente || 'cliente')}</h2>
     <div class="t-cab"><span class="badge ${t.tipo === 'problema' ? 'rojo' : 'azul'}">${t.tipo === 'problema' ? 'Problema' : 'Consulta'}</span>
       <span class="det">${esc(t.email || t.telefono || 'sin correo')} · abierto ${fechaHora(t.creado)}</span>
       </div>
-    ${respaldoVisible}
     <details><summary class="det" style="cursor:pointer">Datos del equipo (diagnóstico)</summary><div class="diag">
-      ${Object.entries(diag).filter(([k]) => k !== 'errores' && k !== 'respaldo' && k !== 'backup').map(([k, v]) => `<b>${esc(nombres[k] || k)}</b><span>${esc(typeof v === 'object' ? JSON.stringify(v) : v)}</span>`).join('')}
+      ${Object.entries(diag).filter(([k]) => k !== 'errores').map(([k, v]) => `<b>${esc(nombres[k] || k)}</b><span>${esc(typeof v === 'object' ? JSON.stringify(v) : v)}</span>`).join('')}
       ${diag.errores ? `<pre>${esc(diag.errores)}</pre>` : ''}</div></details>
     <div class="chat">${t.mensajes.map(x => `<div class="msg ${x.autor}">${esc(x.texto)}${x.adjunto ? `<img src="${x.adjunto}" alt="captura" data-zoom>` : ''}
       <small>${x.autor === 'soporte' ? 'Tú' : esc(t.cliente || 'Cliente')} · ${fechaHora(x.creado)}</small></div>`).join('')}</div>
@@ -606,10 +704,13 @@ async function verCaso(id) {
 
 // ------------------------------------------------------------------ ventas en línea (Mercado Pago)
 const ESTADOS_COMPRA = { aprobada: ['verde', 'Pagada'], pendiente: ['amarillo', 'Pendiente'], procesando: ['amarillo', 'Procesando'], rechazada: ['rojo', 'Rechazada'] };
+let verArchivadosVentas = false;
 function vistaVentas() {
-  const l = E.datos.compras;
-  $('#contenido').innerHTML = `<div class="det" style="margin-bottom:10px">Cada pago aprobado crea o renueva la clave del cliente y le envía el correo, sin que hagas nada. “Pendiente” = abrió el pago y no lo terminó (o una transferencia en proceso).</div>
-    ${l.length ? `<div class="tabla-wrap"><table><thead><tr><th>Fecha</th><th>Cliente</th><th>Plan</th><th>Monto</th><th>Estado</th><th>Clave</th><th></th></tr></thead><tbody>
+  const todas = E.datos.compras;
+  const l = todas.filter(c => !!c.archivada === verArchivadosVentas);
+  $('#contenido').innerHTML = `<div class="barra"><div class="det" style="flex:1">Cada pago aprobado crea o renueva la clave del cliente y le envía el correo, sin que hagas nada. “Pendiente” = abrió el pago y no lo terminó (o una transferencia en proceso). Archivar solo oculta la venta; no borra la licencia.</div>
+    <button class="btn ${verArchivadosVentas ? 'primario' : ''}" id="b-ventas-archivo">${verArchivadosVentas ? 'Ver vigentes' : `Ver archivadas (${todas.filter(c => c.archivada).length})`}</button></div>
+    ${l.length ? `<div class="tabla-wrap"><table><thead><tr><th>Fecha</th><th>Cliente</th><th>Plan</th><th>Monto</th><th>Estado</th><th>Clave</th><th>Acciones</th></tr></thead><tbody>
     ${l.map(c => { const [cl, t] = ESTADOS_COMPRA[c.estado] || ['', c.estado]; return `<tr>
       <td style="white-space:nowrap">${fechaHora(c.pagado || c.creado)}</td>
       <td><b>${esc(c.nombre)}</b><div class="det">${esc(c.email)}${c.telefono ? ' · ' + esc(c.telefono) : ''}</div></td>
@@ -617,8 +718,11 @@ function vistaVentas() {
       <td style="white-space:nowrap">$${Number(c.precio).toLocaleString('es-CL')}</td>
       <td><span class="badge ${cl}">${t}</span>${c.mp_detalle ? `<div class="det">${esc(c.mp_detalle)}</div>` : ''}${c.estado === 'aprobada' && c.correo && c.correo !== 'enviado' ? `<div class="det">correo: ${esc(c.correo)}</div>` : ''}</td>
       <td>${c.clave ? `<code>${esc(c.clave)}</code>` : ''}</td>
-      <td>${c.estado === 'pendiente' ? `<button class="btn chico" data-revisar="${c.id}">Revisar pago</button>` : ''}</td></tr>`; }).join('')}</tbody></table></div>`
-    : '<div class="vacio">Aún no hay ventas en línea. Cuando alguien compre desde MiPOS o desde tu página de compra, aparecerá aquí.</div>'}
+      <td><div class="acciones">${c.estado === 'pendiente' ? `<button class="btn chico" data-revisar="${c.id}">Revisar pago</button>` : ''}
+        <button class="btn chico" data-editar-venta="${c.id}">Editar</button>
+        <button class="btn chico" data-archivar-venta="${c.id}">${c.archivada ? 'Restaurar' : 'Archivar'}</button>
+        <button class="btn chico peligro" data-eliminar-venta="${c.id}">Eliminar</button></div></td></tr>`; }).join('')}</tbody></table></div>`
+    : `<div class="vacio">${verArchivadosVentas ? 'No hay ventas archivadas.' : 'Aún no hay ventas en línea. Cuando alguien compre desde MiPOS o desde tu página de compra, aparecerá aquí.'}</div>`}
     <div class="barra" style="margin-top:12px"><div class="det" style="flex:1">Recordatorios por correo: se envían solos 7 días antes, 1 día antes y al día siguiente de vencer (una vez al día, con el enlace para renovar).</div>
       <button class="btn chico" id="rec-ahora">Revisar recordatorios ahora</button></div>
     <div class="det" style="margin-top:10px">Página de compra para compartir: <a href="mipos-comprar.html" target="_blank" rel="noopener">${location.origin}/mipos-comprar.html</a>. Recuerda emitir la boleta o factura de cada venta.</div>`;
@@ -630,11 +734,48 @@ function vistaVentas() {
     } catch (err) { toast(err.message, 'error'); }
     e.target.disabled = false;
   });
+  $('#b-ventas-archivo').addEventListener('click', () => { verArchivadosVentas = !verArchivadosVentas; vistaVentas(); });
   $$('[data-revisar]').forEach(b => b.addEventListener('click', async () => {
     b.disabled = true;
     try { const r = await api(`compras/${b.dataset.revisar}/revisar`, { method: 'POST' }); toast(r.estado === 'aprobada' ? 'Pago confirmado: licencia entregada' : 'Mercado Pago aún no lo muestra pagado'); await cargar(); }
     catch (e) { toast(e.message, 'error'); b.disabled = false; }
   }));
+  $$('[data-editar-venta]').forEach(b => b.addEventListener('click', () => formVenta(todas.find(c => c.id === +b.dataset.editarVenta))));
+  $$('[data-archivar-venta]').forEach(b => b.addEventListener('click', async () => {
+    const c = todas.find(x => x.id === +b.dataset.archivarVenta);
+    b.disabled = true;
+    try {
+      await api(`compras/${c.id}/${c.archivada ? 'restaurar' : 'archivar'}`, { method: 'POST' });
+      toast(c.archivada ? 'Venta restaurada' : 'Venta archivada');
+      await cargar();
+    } catch (e) { toast(e.message, 'error'); b.disabled = false; }
+  }));
+  $$('[data-eliminar-venta]').forEach(b => b.addEventListener('click', async () => {
+    if (!confirm('¿Eliminar esta venta del listado? La clave de licencia no se borra.')) return;
+    b.disabled = true;
+    try { await api('compras/' + b.dataset.eliminarVenta, { method: 'DELETE' }); toast('Venta eliminada'); await cargar(); }
+    catch (e) { toast(e.message, 'error'); b.disabled = false; }
+  }));
+}
+
+function formVenta(c) {
+  if (!c) return;
+  const m = modal(`<form id="f-venta"><h2>Editar venta</h2>
+    <div class="grid2" style="margin-top:12px">
+      <label class="full">Cliente<input name="nombre" value="${esc(c.nombre || '')}" required autofocus></label>
+      <label>Correo<input name="email" type="email" value="${esc(c.email || '')}"></label>
+      <label>Teléfono<input name="telefono" value="${esc(c.telefono || '')}"></label>
+    </div>
+    <div class="det" style="margin:10px 0">Solo se corrigen los datos de contacto. El monto, el plan y la licencia no cambian.</div>
+    <div class="acciones" style="justify-content:flex-end"><button type="button" class="btn" data-cerrar>Cancelar</button><button class="btn primario">Guardar</button></div></form>`);
+  $('#f-venta', m.el).addEventListener('submit', async e => {
+    e.preventDefault();
+    const f = e.target;
+    try {
+      await api('compras/' + c.id, { method: 'PUT', body: { nombre: f.nombre.value, email: f.email.value, telefono: f.telefono.value } });
+      m.cerrar(); toast('Venta actualizada'); await cargar();
+    } catch (err) { toast(err.message, 'error'); }
+  });
 }
 
 function vistaPlanes() {
@@ -700,7 +841,7 @@ function formPlan(p) {
   });
 }
 
-const NOMBRES_EVENTO = { activacion: 'Activación', activacion_rechazada: 'Activación rechazada', prueba: 'Prueba iniciada', clave_creada: 'Clave creada', respaldo_pedido: 'Backup pedido',
+const NOMBRES_EVENTO = { activacion: 'Activación', activacion_rechazada: 'Activación rechazada', prueba: 'Prueba iniciada', clave_creada: 'Clave creada',
   clave_editada: 'Clave modificada', soporte: 'Caso de soporte', recordatorio: 'Recordatorio enviado', compra_pagada: 'Venta en línea', renovacion_pagada: 'Renovación pagada', plan: 'Plan', clave_eliminada: 'Clave eliminada', pc_liberado: 'PC liberado', prueba_reiniciada: 'Prueba reiniciada', prueba_eliminada: 'Prueba eliminada', prueba_suspendida: 'Prueba suspendida', prueba_reactivada: 'Prueba reactivada', prueba_bloqueada: 'Prueba rechazada (límite por conexión)', codigo_sin_internet: 'Código sin internet' };
 async function vistaHistorial() {
   const c = $('#contenido');
