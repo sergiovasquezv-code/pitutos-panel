@@ -124,6 +124,8 @@ th { font-size: .78rem; color: var(--suave); background: var(--panel-2); }
 .tarjeta.lic.abierta .flecha { transform: rotate(225deg); margin-bottom: 0; margin-top: 3px; }
 .t-detalle { display: grid; gap: 10px; padding: 12px 16px 14px; border-top: 1px solid var(--borde); }
 .t-detalle[hidden] { display: none; }
+.t-respaldo { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; padding: 8px 14px; border-top: 1px solid var(--borde); background: color-mix(in srgb, var(--panel-2) 70%, var(--panel)); font-size: .88rem; }
+.t-respaldo .crece { flex: 1; min-width: 140px; }
 @media (max-width: 700px) { .t-resumen { flex-wrap: wrap; } .t-resumen h3 { flex-basis: calc(100% - 60px); } }
 </style>
 </head>
@@ -146,6 +148,52 @@ function hace(f) {
   if (m < 2) return 'recién'; if (m < 60) return `hace ${m} min`;
   const h = Math.round(m / 60); if (h < 36) return `hace ${h} h`;
   return `hace ${Math.round(h / 24)} días`;
+}
+function diaIso(f) {
+  const s = String(f || '');
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const t = Date.parse(s);
+  if (!Number.isFinite(t)) return '';
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santiago', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(t));
+}
+function sumarMesesIso(iso, meses) {
+  const [y, m, d] = iso.split('-').map(Number);
+  const total = y * 12 + (m - 1) + meses;
+  const ny = Math.floor(total / 12);
+  const nm = total % 12;
+  const ultimo = new Date(Date.UTC(ny, nm + 1, 0)).getUTCDate();
+  return `${ny}-${String(nm + 1).padStart(2, '0')}-${String(Math.min(d, ultimo)).padStart(2, '0')}`;
+}
+function llevaConNosotros(creado, hoyIso) {
+  const inicio = diaIso(creado);
+  const fin = diaIso(hoyIso);
+  if (!inicio || !fin || fin < inicio) return '';
+  if (inicio === fin) return 'desde hoy';
+  let years = 0;
+  while (sumarMesesIso(inicio, (years + 1) * 12) <= fin) years++;
+  const trasAnios = sumarMesesIso(inicio, years * 12);
+  let months = 0;
+  while (sumarMesesIso(trasAnios, months + 1) <= fin) months++;
+  const trasMeses = sumarMesesIso(trasAnios, months);
+  const days = Math.round((Date.parse(`${fin}T12:00:00Z`) - Date.parse(`${trasMeses}T12:00:00Z`)) / 86400000);
+  const partes = [];
+  if (years) partes.push(years === 1 ? '1 año' : `${years} años`);
+  if (months) partes.push(months === 1 ? '1 mes' : `${months} meses`);
+  if (days) partes.push(days === 1 ? '1 día' : `${days} días`);
+  if (!partes.length) return 'desde hoy';
+  return `lleva ${partes.length === 1 ? partes[0] : `${partes.slice(0, -1).join(', ')} y ${partes.at(-1)}`} con nosotros`;
+}
+function estadoRespaldo(k, programa) {
+  const activos = (k.equipos || []).filter(x => x.estado === 'activa');
+  if (!activos.length) return { cls: '', texto: 'Sin servidor', detalle: 'Activa la clave en un PC para poder respaldar.', puede: false };
+  const pendiente = activos.some(x => x.respaldo_pedido && !(x.respaldo_estado === 'ok' && x.respaldo_en && x.respaldo_en >= x.respaldo_pedido));
+  if (pendiente) return { cls: 'amarillo', texto: 'Pedido', detalle: `Se hará cuando ${programa} se conecte.`, puede: true };
+  const ultimo = activos.filter(x => x.respaldo_en).sort((a, b) => String(b.respaldo_en).localeCompare(String(a.respaldo_en)))[0];
+  if (!ultimo) return { cls: '', texto: 'Sin datos', detalle: 'El programa aún no informa un respaldo.', puede: true };
+  if (ultimo.respaldo_estado === 'error') return { cls: 'rojo', texto: 'Falló', detalle: ultimo.respaldo_detalle || `El último intento falló ${hace(ultimo.respaldo_en)}.`, puede: true };
+  const ms = Date.now() - Date.parse(ultimo.respaldo_en);
+  const viejo = !Number.isFinite(ms) || ms > 7 * 86400000;
+  return { cls: viejo ? 'amarillo' : 'verde', texto: viejo ? 'Atrasado' : 'Al día', detalle: `Último respaldo ${hace(ultimo.respaldo_en)}`, puede: true };
 }
 function sumar(f, { dias = 0, meses = 0 }) {
   const d = new Date((f && f > E.datos.hoy ? f : E.datos.hoy) + 'T12:00');
@@ -270,15 +318,21 @@ function vistaClaves() {
       const hayServ = activos.length > 0;
       const algunoConectado = activos.some(servidorConectado);
       const luz = k.estado !== 'activa' ? ['', 'Suspendida'] : !hayServ ? ['', 'Sin activar en ningún PC'] : algunoConectado ? ['ok', 'Servidor conectado'] : ['mal', 'Servidor sin contacto'];
+      const antiguedad = llevaConNosotros(k.creado, E.datos.hoy);
+      const respaldo = estadoRespaldo(k, 'MiVet');
       return `<article class="tarjeta lic ${abierta ? 'abierta' : ''} ${k.estado !== 'activa' ? 'bloqueada' : ''}" data-id="${k.id}">
         <div class="t-resumen" role="button" tabindex="0" aria-expanded="${abierta}">
           <i class="luz ${luz[0]}" title="${luz[1]}"></i><h3 title="${esc(k.cliente)}">${esc(k.cliente)}</h3>
           <span class="clave">${esc(k.clave)}</span>${badgeVence(k)}<span class="srv" title="Servidores activados">${activos.length}/${k.max_equipos} srv</span>
           <button class="btn chico" data-copiar="${esc(k.clave)}">Copiar</button>
           <a class="btn chico verde" href="${linkWhatsApp(k)}" target="_blank" rel="noopener">WhatsApp</a><span class="flecha"></span></div>
+        <div class="t-respaldo">
+          <span>Respaldo</span><span class="badge ${respaldo.cls}">${esc(respaldo.texto)}</span>
+          <span class="det crece">${esc(respaldo.detalle)}</span>
+          <button class="btn chico" data-backup ${respaldo.puede ? '' : 'disabled'}>Hacer backup</button></div>
         <div class="t-detalle" ${abierta ? '' : 'hidden'}>
         <div class="meta"><span><b>${k.cajas} puesto${k.cajas === 1 ? '' : 's'} simultáneo${k.cajas === 1 ? '' : 's'}</b></span><span>Servidores activados: <b>${activos.length} de ${k.max_equipos}</b></span>${k.contacto ? `<span>Contacto: <b>${esc(k.contacto)}</b></span>` : ''}
-          <span>Creada: ${fecha(k.creado)}</span>${k.notas ? `<span>${esc(k.notas)}</span>` : ''}</div>
+          <span>Creada: ${fecha(k.creado)}${antiguedad ? ` · <b>${esc(antiguedad)}</b>` : ''}</span>${k.notas ? `<span>${esc(k.notas)}</span>` : ''}</div>
         ${activos.length ? `<div class="pcs">${activos.map(x => `<div class="pc ${servidorConectado(x) ? '' : 'desconectado'}"><b>Servidor: ${esc(x.nombre_pc || 'PC')}</b><code>${esc(x.equipo)}</code>
           <span class="badge">v${esc(x.version || '?')}</span><span class="badge ${servidorConectado(x) ? 'verde' : 'rojo'}">${servidorConectado(x) ? '● Conectado' : '● Sin reporte'}</span>
           <span class="det">último contacto ${hace(x.ultimo_contacto)}</span>
@@ -331,6 +385,11 @@ function vistaClaves() {
         if (!confirm(`¿Eliminar la clave de ${k.cliente}? Sus PCs quedarán sin licencia. Si solo dejó de pagar, mejor usa Suspender.`)) return;
         await api('claves/' + k.id, { method: 'DELETE' });
         toast('Clave eliminada'); await cargar();
+      });
+      accion('[data-backup]', async () => {
+        if (!confirm(`¿Pedir un respaldo de ${k.cliente}? MiVet lo hará en su servidor la próxima vez que se conecte.`)) return;
+        await api(`claves/${k.id}/respaldo`, { method: 'POST', body: {} });
+        toast('Backup pedido. Se hará cuando MiVet se conecte.'); await cargar();
       });
     });
   };
@@ -438,12 +497,15 @@ async function verCaso(id) {
   try { diag = JSON.parse(t.diagnostico || '{}'); } catch (e) { /* nada */ }
   const nombres = { version: 'Versión', negocio: 'Negocio', rut: 'RUT', licencia: 'Licencia', licencia_panel: 'Licencia (panel)', equipo: 'Equipo',
     windows: 'Sistema', impresora: 'Impresora', balanza: 'Balanza', equipos: 'Equipos', pacientes: 'Pacientes', respaldo: 'Respaldo', nube: 'Nube', usuario: 'Reporta', pantalla: 'Pantalla', boleta: 'Boleta electrónica' };
+  const respaldoDiag = diag.respaldo ?? diag.backup;
+  const respaldoVisible = respaldoDiag == null || respaldoDiag === '' ? '' : `<div class="aviso" style="margin:8px 0"><b>Respaldo:</b> ${esc(typeof respaldoDiag === 'object' ? (respaldoDiag.detalle || respaldoDiag.estado || JSON.stringify(respaldoDiag)) : respaldoDiag)}${respaldoDiag && typeof respaldoDiag === 'object' && respaldoDiag.fecha ? ` · ${esc(String(respaldoDiag.fecha))}` : ''}</div>`;
   const m = modal(`<h2>Caso #${t.id} · ${esc(t.cliente || 'cliente')}</h2>
     <div class="t-cab"><span class="badge ${t.tipo === 'problema' ? 'rojo' : 'azul'}">${t.tipo === 'problema' ? 'Problema' : 'Consulta'}</span>
       <span class="det">${esc(t.email || t.telefono || 'sin correo')} · abierto ${fechaHora(t.creado)}</span>
       </div>
+    ${respaldoVisible}
     <details><summary class="det" style="cursor:pointer">Datos del equipo (diagnóstico)</summary><div class="diag">
-      ${Object.entries(diag).filter(([k]) => k !== 'errores').map(([k, v]) => `<b>${esc(nombres[k] || k)}</b><span>${esc(typeof v === 'object' ? JSON.stringify(v) : v)}</span>`).join('')}
+      ${Object.entries(diag).filter(([k]) => k !== 'errores' && k !== 'respaldo' && k !== 'backup').map(([k, v]) => `<b>${esc(nombres[k] || k)}</b><span>${esc(typeof v === 'object' ? JSON.stringify(v) : v)}</span>`).join('')}
       ${diag.errores ? `<pre>${esc(diag.errores)}</pre>` : ''}</div></details>
     <div class="chat">${t.mensajes.map(x => `<div class="msg ${x.autor}">${esc(x.texto)}${x.adjunto ? `<img src="${x.adjunto}" alt="captura" data-zoom>` : ''}
       <small>${x.autor === 'soporte' ? 'Tú' : esc(t.cliente || 'Cliente')} · ${fechaHora(x.creado)}</small></div>`).join('')}</div>
@@ -565,7 +627,7 @@ function formPlan(p) {
   });
 }
 
-const NOMBRES_EVENTO = { activacion: 'Activación', activacion_rechazada: 'Activación rechazada', prueba: 'Prueba iniciada', clave_creada: 'Clave creada',
+const NOMBRES_EVENTO = { activacion: 'Activación', activacion_rechazada: 'Activación rechazada', prueba: 'Prueba iniciada', clave_creada: 'Clave creada', respaldo_pedido: 'Backup pedido',
   clave_editada: 'Clave modificada', soporte: 'Caso de soporte', recordatorio: 'Recordatorio enviado', compra_pagada: 'Venta en línea', renovacion_pagada: 'Renovación pagada', plan: 'Plan', clave_eliminada: 'Clave eliminada', pc_liberado: 'PC liberado', prueba_reiniciada: 'Prueba reiniciada', codigo_sin_internet: 'Código sin internet' };
 async function vistaHistorial() {
   const c = $('#contenido');

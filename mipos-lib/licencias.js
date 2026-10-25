@@ -40,6 +40,61 @@ export function sumarDias(fecha, n) {
 export const ahora = () => new Date().toISOString();
 export const fechaCL = f => f ? `${f.slice(8, 10)}-${f.slice(5, 7)}-${f.slice(0, 4)}` : '';
 
+function diaIso(f) {
+  const s = String(f || '');
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const t = Date.parse(s);
+  if (!Number.isFinite(t)) return '';
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santiago', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(t));
+}
+function sumarMesesIso(iso, meses) {
+  const [y, m, d] = iso.split('-').map(Number);
+  const total = y * 12 + (m - 1) + meses;
+  const ny = Math.floor(total / 12);
+  const nm = total % 12;
+  const ultimo = new Date(Date.UTC(ny, nm + 1, 0)).getUTCDate();
+  return `${ny}-${String(nm + 1).padStart(2, '0')}-${String(Math.min(d, ultimo)).padStart(2, '0')}`;
+}
+function unirDuracion(partes) {
+  if (partes.length <= 1) return partes[0] || '';
+  return `${partes.slice(0, -1).join(', ')} y ${partes.at(-1)}`;
+}
+// Desde la fecha de alta hasta hoy: "lleva 14 días con nosotros", "lleva 1 año y 2 meses con nosotros".
+export function llevaConNosotros(creado, hoyIso) {
+  const inicio = diaIso(creado);
+  const fin = diaIso(hoyIso);
+  if (!inicio || !fin || fin < inicio) return '';
+  if (inicio === fin) return 'desde hoy';
+  let years = 0;
+  while (sumarMesesIso(inicio, (years + 1) * 12) <= fin) years++;
+  const trasAnios = sumarMesesIso(inicio, years * 12);
+  let months = 0;
+  while (sumarMesesIso(trasAnios, months + 1) <= fin) months++;
+  const trasMeses = sumarMesesIso(trasAnios, months);
+  const days = Math.round((Date.parse(`${fin}T12:00:00Z`) - Date.parse(`${trasMeses}T12:00:00Z`)) / 86400000);
+  const partes = [];
+  if (years) partes.push(years === 1 ? '1 año' : `${years} años`);
+  if (months) partes.push(months === 1 ? '1 mes' : `${months} meses`);
+  if (days) partes.push(days === 1 ? '1 día' : `${days} días`);
+  return partes.length ? `lleva ${unirDuracion(partes)} con nosotros` : 'desde hoy';
+}
+export function datosRespaldo(d) {
+  const r = d?.respaldo;
+  if (!r || typeof r !== 'object') return null;
+  const estado = r.estado === 'ok' || r.ok === true ? 'ok' : (r.estado === 'error' || r.ok === false ? 'error' : '');
+  if (!estado) return null;
+  const fecha = typeof r.fecha === 'string' && /^\d{4}-\d{2}-\d{2}/.test(r.fecha) ? r.fecha.slice(0, 30) : ahora();
+  return { estado, fecha, detalle: texto(r.detalle ?? r.mensaje ?? '', 200) };
+}
+export async function guardarRespaldo(db, id, info) {
+  if (!info) return;
+  await db.prepare("UPDATE mipos_activaciones SET respaldo_estado=?, respaldo_en=?, respaldo_detalle=?, respaldo_pedido=CASE WHEN ?='ok' THEN NULL ELSE respaldo_pedido END WHERE id=?")
+    .bind(info.estado, info.fecha, info.detalle, info.estado, id).run();
+}
+export function respaldoPendiente(act) {
+  return !!(act?.respaldo_pedido && !(act.respaldo_estado === 'ok' && act.respaldo_en && act.respaldo_en >= act.respaldo_pedido));
+}
+
 export function normalizarEquipo(txt) {
   const t = String(txt || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
   return t.length === 16 ? t.match(/.{4}/g).join('-') : null;
@@ -79,6 +134,14 @@ export async function asegurarTablas(db) {
   // conexión (IP) desde la que se pidió cada prueba
   try { await db.prepare("ALTER TABLE mipos_pruebas ADD COLUMN ip TEXT NOT NULL DEFAULT ''").run(); } catch (e) { /* ya existe */ }
   try { await db.prepare("ALTER TABLE mipos_pruebas ADD COLUMN estado TEXT NOT NULL DEFAULT 'activa'").run(); } catch (e) { /* ya existe */ }
+  for (const col of [
+    "ALTER TABLE mipos_activaciones ADD COLUMN respaldo_estado TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE mipos_activaciones ADD COLUMN respaldo_en TEXT",
+    "ALTER TABLE mipos_activaciones ADD COLUMN respaldo_detalle TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE mipos_activaciones ADD COLUMN respaldo_pedido TEXT",
+  ]) {
+    try { await db.prepare(col).run(); } catch (e) { /* ya existe */ }
+  }
   tablasListas = true;
 }
 export function anotar(db, tipo, { clave_id = null, equipo = null, detalle = '' } = {}) {

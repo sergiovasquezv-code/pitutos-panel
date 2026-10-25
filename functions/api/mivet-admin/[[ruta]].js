@@ -114,6 +114,13 @@ export async function onRequest({ request, env, params, waitUntil }) {
       await anotar(db, 'pc_liberado', { clave_id: +p[1], equipo });
       return json({ ok: true });
     }
+    p = ruta.match(/^claves\/(\d+)\/respaldo$/);
+    if (p && m === 'POST') {
+      r = await db.prepare("UPDATE mivet_activaciones SET respaldo_pedido=? WHERE clave_id=? AND estado='activa'").bind(ahora(), +p[1]).run();
+      if (!r.meta.changes) return error(404, 'No hay un servidor activado para respaldar');
+      await anotar(db, 'respaldo_pedido', { clave_id: +p[1], detalle: 'Backup pedido desde el panel' });
+      return json({ ok: true, servidores: r.meta.changes });
+    }
 
     p = ruta.match(/^pruebas\/([A-Z0-9-]+)$/);
     if (p && m === 'DELETE') {
