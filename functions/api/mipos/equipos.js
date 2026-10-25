@@ -1,5 +1,5 @@
 // POST /api/mipos/equipos {equipo, k, clientes}; solo el servidor principal activado puede reportar sus cajas.
-import { asegurarTablas, base, error, json, leerCuerpo, normalizarEquipo, problemaClave, texto, ahora } from '../../../mipos-lib/licencias.js';
+import { asegurarTablas, base, datosRespaldo, error, guardarRespaldo, json, leerCuerpo, normalizarEquipo, problemaClave, respaldoPendiente, texto, ahora } from '../../../mipos-lib/licencias.js';
 
 export async function onRequestPost({ request, env }) {
   try {
@@ -29,7 +29,10 @@ export async function onRequestPost({ request, env }) {
         .bind(claveId, equipo, id, texto(p?.nombre, 80) || 'Caja MiPOS', texto(p?.usuario, 60), momento));
     }
     if (consultas.length) await db.batch(consultas);
-    return json({ ok: true, reportados: consultas.length });
+    const info = datosRespaldo(d);
+    if (info) await guardarRespaldo(db, activacion.id, info);
+    const fresco = await db.prepare('SELECT respaldo_estado, respaldo_en, respaldo_pedido FROM mipos_activaciones WHERE id=?').bind(activacion.id).first();
+    return json({ ok: true, reportados: consultas.length, backup: respaldoPendiente(fresco) });
   } catch (e) {
     return error(500, 'No se pudo registrar el estado de las cajas: ' + e.message);
   }
