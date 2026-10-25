@@ -125,6 +125,7 @@ th { font-size: .78rem; color: var(--suave); background: var(--panel-2); }
 .t-detalle[hidden] { display: none; }
 .t-respaldo { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; padding: 8px 14px; border-top: 1px solid var(--borde); background: color-mix(in srgb, var(--panel-2) 70%, var(--panel)); font-size: .88rem; }
 .t-respaldo .crece { flex: 1; min-width: 140px; }
+.t-respaldo .linea { flex: 1 0 100%; }
 @media (max-width: 700px) { .t-resumen { flex-wrap: wrap; } .t-resumen h3 { flex-basis: calc(100% - 60px); } }
 </style>
 </head>
@@ -336,6 +337,7 @@ function vistaClaves() {
           <button class="btn chico" data-copiar="${esc(k.clave)}">Copiar</button>
           <a class="btn chico verde" href="${linkWhatsApp(k)}" target="_blank" rel="noopener">WhatsApp</a><span class="flecha"></span></div>
         <div class="t-respaldo">
+          <span class="linea">Creada: ${fecha(k.creado)}${antiguedad ? ` · <b>${esc(antiguedad)}</b>` : ''}</span>
           <span>Respaldo</span><span class="badge ${respaldo.cls}">${esc(respaldo.texto)}</span>
           <span class="det crece">${esc(respaldo.detalle)}</span>
           <button class="btn chico" data-backup ${respaldo.puede ? '' : 'disabled'}>Hacer backup</button></div>
