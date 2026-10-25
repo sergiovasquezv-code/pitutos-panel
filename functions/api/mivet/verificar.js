@@ -1,8 +1,8 @@
 // POST /api/mivet/verificar  {equipo, k, tipo, version, nombre_pc}
 // MiVet lo llama solo (al iniciar y cada 6 horas). Responde con la licencia renovada, o {revocada, motivo}
 // si la clave se suspendió, venció o se liberó este PC. Sin internet, MiVet sigue con la licencia que tiene.
-import { asegurarTablasVenta, claveDeEquipo, asegurarTablas, base, error, firmarLicencia, json, leerCuerpo, licenciaDeClave, licenciaDePrueba,
-  normalizarEquipo, problemaClave, texto, ahora, hoy , recordatoriosDelDia } from '../../../mivet-lib/licencias.js';
+import { asegurarTablasVenta, claveDeEquipo, asegurarTablas, base, datosRespaldo, error, firmarLicencia, guardarRespaldo, json, leerCuerpo, licenciaDeClave, licenciaDePrueba,
+  normalizarEquipo, problemaClave, respaldoPendiente, texto, ahora, hoy , recordatoriosDelDia } from '../../../mivet-lib/licencias.js';
 
 export async function onRequestPost({ request, env, waitUntil }) {
   try {
@@ -37,7 +37,11 @@ export async function onRequestPost({ request, env, waitUntil }) {
     if (problema) return json({ revocada: true, motivo: problema });
     await db.prepare('UPDATE mivet_activaciones SET ultimo_contacto=?, version=?, nombre_pc=? WHERE id=?')
       .bind(ahora(), texto(d.version, 20), texto(d.nombre_pc, 60) || act.nombre_pc, act.id).run();
-    return json({ licencia: await firmarLicencia(env, licenciaDeClave(env, clave, equipo)) });
+    const info = datosRespaldo(d);
+    if (info) await guardarRespaldo(db, act.id, info);
+    const fresco = await db.prepare('SELECT respaldo_estado, respaldo_en, respaldo_pedido FROM mivet_activaciones WHERE id=?').bind(act.id).first();
+    const licencia = await firmarLicencia(env, licenciaDeClave(env, clave, equipo));
+    return json(respaldoPendiente(fresco) ? { licencia, backup: true } : { licencia });
   } catch (e) {
     return error(500, 'Error del servidor de licencias: ' + e.message);
   }

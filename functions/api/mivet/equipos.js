@@ -1,5 +1,5 @@
 // POST /api/mivet/equipos {k, clientes} — reporte periódico de puestos en red.
-import { asegurarTablas, base, error, json, leerCuerpo, normalizarEquipo, problemaClave, texto, ahora } from '../../../mivet-lib/licencias.js';
+import { asegurarTablas, base, datosRespaldo, error, guardarRespaldo, json, leerCuerpo, normalizarEquipo, problemaClave, respaldoPendiente, texto, ahora } from '../../../mivet-lib/licencias.js';
 
 export async function onRequestPost({ request, env }) {
   try {
@@ -31,7 +31,10 @@ export async function onRequestPost({ request, env }) {
         'ON CONFLICT(clave_id, servidor_equipo, cliente_id) DO UPDATE SET nombre=excluded.nombre, usuario=excluded.usuario, ultimo_contacto=excluded.ultimo_contacto')
         .bind(claveId, servidor, id, nombre, usuario, fecha).run();
     }
-    return json({ ok: true });
+    const info = datosRespaldo(d);
+    if (info) await guardarRespaldo(db, activacion.id, info);
+    const fresco = await db.prepare('SELECT respaldo_estado, respaldo_en, respaldo_pedido FROM mivet_activaciones WHERE id=?').bind(activacion.id).first();
+    return json({ ok: true, backup: respaldoPendiente(fresco) });
   } catch (e) {
     return error(500, e.message);
   }
