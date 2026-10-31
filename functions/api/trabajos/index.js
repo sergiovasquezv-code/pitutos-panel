@@ -51,7 +51,7 @@ export async function onRequestPost({ request, env }) {
     )
     .bind(
       clienteId,
-      body.tipo || "Programación",
+      body.tipo === undefined || body.tipo === null ? "Programación" : String(body.tipo).trim(),
       descripcion,
       (body.estado || "").trim() || "Cotización",
       0,

@@ -3,6 +3,7 @@ import { apiGet, apiPost, apiPut, apiDelete, apiPostForm } from "./api.js";
 // reutiliza aquí para las fotos del estado de un equipo.)
 import { clp, escapeHtml, telefonoWhatsapp, soloDigitosTelefono, formatearRut } from "./format.js";
 import { FLUJO_CASO, mensajeCaso, pasoDe } from "./caso.js";
+import { informeDesdeSeleccion, pasosAbiertos } from "./flujo.js";
 
 const TIPOS_TRABAJO = ["Venta", "Reparación", "Programación", "Soporte técnico", "Instalación", "Mantención", "Garantía", "Otro"];
 const FLUJO_TRABAJO = FLUJO_CASO;
@@ -1059,9 +1060,6 @@ async function cargarTrabajoInline(trabajoId, clienteId, containerId = "trabajo-
     return;
   }
 
-  const tipoOptions = opcionesTipo(trabajo.tipo);
-  const estadoOptions = opcionesEstado(trabajo.estado);
-
   // Cada equipo vinculado ya tiene su propio bloque desplegado más arriba
   // (en "Equipos y garantías"), así que aquí solo se baja con scroll hasta
   // él en vez de volver a cargarlo aparte.
@@ -1079,95 +1077,40 @@ async function cargarTrabajoInline(trabajoId, clienteId, containerId = "trabajo-
     )
     .join("");
 
-  // Trazabilidad de cuándo se activó "mostrar detalle y pago" — se conserva
-  // la fecha aunque después se vuelva a ocultar.
-  const detalleTag = trabajo.mostrar_detalle_cliente
-    ? `<span class="badge accent">Visible para el cliente desde ${fechaCortaHora(trabajo.detalle_visible_desde)}</span>`
-    : trabajo.detalle_visible_desde
-    ? `<span class="badge neutral">Oculto ahora · se mostró desde ${fechaCortaHora(trabajo.detalle_visible_desde)}</span>`
-    : `<span class="badge neutral">Oculto para el cliente</span>`;
-
-  const idxFlujo = FLUJO_TRABAJO.indexOf(pasoDe(trabajo.estado));
-  const siguienteEstado = idxFlujo >= 0 && idxFlujo < FLUJO_TRABAJO.length - 1 ? FLUJO_TRABAJO[idxFlujo + 1] : null;
-  const textoSiguiente = siguienteEstado ? `Avanzar a ${siguienteEstado}` : "";
-  const pasosHtml = FLUJO_TRABAJO.map((e, i) => {
-    const hecho = idxFlujo >= 0 && i < idxFlujo;
-    const actual = i === idxFlujo;
-    return `<span class="badge ${actual ? "accent" : hecho ? "ok" : "neutral"}">${hecho ? "&#10003; " : ""}${e}</span>`;
-  }).join(' <span class="text-muted">&rarr;</span> ');
-
   wrapper.innerHTML = `
     <div class="panel" style="margin-top:22px;border-color:var(--accent-dark);">
-      <div class="panel-header"><h2>Trabajo: ${escapeHtml(trabajo.tipo)}</h2>${badgeTrabajo(trabajo.estado)}</div>
+      <div class="panel-header"><h2>Trabajo${trabajo.tipo ? `: ${escapeHtml(trabajo.tipo)}` : ""}</h2>${badgeTrabajo(trabajo.estado)}</div>
       <div class="panel-body padded">
-        <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">${pasosHtml}</div>
-        <p style="margin:10px 0 0;">Total <strong>${clp(trabajo.monto)}</strong>${
+        <p style="margin:0;">Total <strong>${clp(trabajo.monto)}</strong>${
           trabajo.monto > 0
             ? ` · abonado ${clp(trabajo.abonado || 0)} · saldo <strong>${clp(trabajo.saldo || 0)}</strong>`
             : ""
         }</p>
         ${trabajo.fecha_entrega ? `<p style="margin:10px 0 0;">Entrega: <strong>${escapeHtml(fechaEntregaTexto(trabajo.fecha_entrega))}</strong></p>` : ""}
-        <div class="actions-row" style="margin-top:12px;" data-paso-botones>
-          ${siguienteEstado ? `<button type="button" class="btn btn-accent" data-paso="${siguienteEstado}">${textoSiguiente}</button>` : ""}
+        <div id="flujo-${trabajo.id}"></div>
+      </div>
+    </div>
+    <div id="equipos-del-trabajo-${trabajo.id}" style="display:none;">
+      <div class="panel" style="margin-top:14px;">
+        <div class="panel-header"><h2>Equipos y garantía de este trabajo</h2>
+          <button class="btn btn-accent btn-sm" data-goto="#/equipos/nuevo?cliente_id=${clienteId}&trabajo_id=${trabajo.id}">+ Agregar equipo/producto en garantía</button></div>
+        <div class="panel-body">
+          ${
+            equiposVinculadosRows
+              ? `<table><thead><tr><th>Equipo</th><th>N° serie</th><th class="num">Precio</th><th class="num">Saldo</th><th>Venta</th><th>Garantía</th></tr></thead><tbody>${equiposVinculadosRows}</tbody></table>`
+              : `<div class="panel-empty">Ningún equipo/producto vinculado todavía. Usa el botón de arriba si en este trabajo cambiaste una pieza (disco, fuente, etc.) para que el cliente tenga su garantía visible.</div>`
+          }
         </div>
-        <span class="hint">Avanzar no le escribe al cliente. El total es la suma de las líneas. Cuando quieras informarle, usa Avisar.</span>
-        <div id="aviso-${trabajo.id}" style="margin-top:12px;"></div>
       </div>
     </div>
-
-    <div class="panel" style="margin-top:14px;">
-      <div class="panel-header"><h2>Datos del trabajo</h2></div>
-      <div class="panel-body padded">
-        <form id="trabajo-form-${trabajo.id}">
-          <div class="form-grid">
-            <div class="field"><label for="tipo">Tipo</label><select id="tipo">${tipoOptions}</select></div>
-            <div class="field"><label for="estado">Estado</label><select id="estado">${estadoOptions}</select></div>
-          </div>
-          <div class="field"><label for="descripcion">Descripción *</label>
-            <textarea id="descripcion" required>${escapeHtml(trabajo.descripcion || "")}</textarea></div>
-          <div class="field"><label>Detalle y pago para el cliente</label>
-            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-              ${detalleTag}
-              <button type="button" class="btn ${trabajo.mostrar_detalle_cliente ? "btn-danger" : "btn-accent"} btn-sm" id="btn-toggle-detalle-cliente" data-visible-actual="${trabajo.mostrar_detalle_cliente ? "1" : "0"}">
-                ${trabajo.mostrar_detalle_cliente ? "Ocultar del cliente" : "Mostrar al cliente"}
-              </button>
-            </div>
-            <span class="hint">En cotización el cliente ve el avance, no los precios. Al pasar a En curso se muestran las líneas y el saldo. Puedes ocultarlos de nuevo con este botón.</span>
-          </div>
-          <div class="field"><label for="notas">Notas (de finalización u otras, para tu uso interno)</label><textarea id="notas">${escapeHtml(trabajo.notas || "")}</textarea></div>
-          <div class="form-actions">
-            <button type="submit" class="btn btn-accent">Guardar</button>
-            <button type="button" class="btn btn-danger-outline" id="btn-eliminar-trabajo" style="margin-left:auto;">Eliminar trabajo</button>
-          </div>
-        </form>
-      </div>
-    </div>
-
-    <div id="items-trabajo-${trabajo.id}" style="margin-top:14px;"></div>
-    <div class="panel" style="margin-top:14px;">
-      <div class="panel-header"><h2>Equipos y garantía de este trabajo</h2>
-        <button class="btn btn-accent btn-sm" data-goto="#/equipos/nuevo?cliente_id=${clienteId}&trabajo_id=${trabajo.id}">+ Agregar equipo/producto en garantía</button></div>
-      <div class="panel-body">
-        ${
-          equiposVinculadosRows
-            ? `<table><thead><tr><th>Equipo</th><th>N° serie</th><th class="num">Precio</th><th class="num">Saldo</th><th>Venta</th><th>Garantía</th></tr></thead><tbody>${equiposVinculadosRows}</tbody></table>`
-            : `<div class="panel-empty">Ningún equipo/producto vinculado todavía. Usa el botón de arriba si en este trabajo cambiaste una pieza (disco, fuente, etc.) para que el cliente tenga su garantía visible.</div>`
-        }
-      </div>
-    </div>
-    <div id="abonos-trabajo-${trabajo.id}" style="margin-top:14px;"></div>
+    <div id="abonos-trabajo-${trabajo.id}" style="display:none;margin-top:14px;"></div>
     <details style="margin-top:14px;">
       <summary style="cursor:pointer;font-weight:650;padding:8px 0;">Notas, fotos y enlaces del seguimiento (avanzado)</summary>
       <div id="seguimiento-${trabajo.id}" style="margin-top:8px;"></div>
     </details>
   `;
 
-  // Como ahora TODOS los trabajos del cliente están desplegados a la vez en
-  // la misma hoja, los campos del formulario (tipo, estado, etc.) se buscan
-  // dentro de este wrapper específico (no con document.getElementById a
-  // secas), para no chocar con los mismos ids repetidos en los demás
-  // trabajos/equipos ya abiertos en la página.
-  renderItemsTrabajo(trabajo, `items-trabajo-${trabajo.id}`, () => cargarTrabajoInline(trabajoId, clienteId, containerId));
+  const recargarTrabajo = () => cargarTrabajoInline(trabajoId, clienteId, containerId);
   renderSeguimiento(trabajo, `seguimiento-${trabajo.id}`);
   renderAbonosPanel(`abonos-trabajo-${trabajo.id}`, {
     categoria: "trabajo",
@@ -1175,34 +1118,190 @@ async function cargarTrabajoInline(trabajoId, clienteId, containerId = "trabajo-
     montoTotal: trabajo.monto,
     clienteNombre: trabajo.cliente_nombre,
     clienteTelefono: trabajo.cliente_telefono,
-    onCambio: async () => {
-      try {
-        const data = await apiGet(`/api/trabajos/${trabajoId}`);
-        trabajo = data.trabajo;
-        renderSeguimiento(trabajo, `seguimiento-${trabajo.id}`);
-        renderAvisoCliente(trabajo, equiposVinculados, `aviso-${trabajo.id}`);
-      } catch {
-        // igual que en equipos: si falla, el mensaje de WhatsApp de
-        // seguimiento queda con el saldo anterior hasta recargar.
-      }
-    },
+    onCambio: recargarTrabajo,
   });
+  await renderFlujoCaso(trabajo, { trabajoId, clienteId, containerId });
+}
 
-  renderAvisoCliente(trabajo, equiposVinculados, `aviso-${trabajo.id}`);
+function chipOpcion(opcion, marcada) {
+  return `<button type="button" class="btn btn-sm ${marcada ? "btn-accent" : "btn-outline"}" data-opcion="${opcion.id}" data-on="${marcada ? "1" : "0"}">${escapeHtml(opcion.nombre)}</button>`;
+}
 
-  // Avanzar de estado es un solo clic y no avisa al cliente por sí solo.
-  wrapper.querySelectorAll("[data-paso]").forEach((btn) => {
+function bloquePaso(titulo, abierto, cuerpo, pistaCerrado) {
+  if (!abierto) {
+    return `<section class="flujo-paso cerrado"><h3>${titulo}</h3><span class="hint">${pistaCerrado}</span></section>`;
+  }
+  return `<section class="flujo-paso"><h3>${titulo}</h3>${cuerpo}</section>`;
+}
+
+// Pasos del caso: cada uno se abre cuando el anterior ya tiene una elección.
+// Las opciones salen de Parámetros y el informe final elige qué frases van.
+async function renderFlujoCaso(trabajo, ctx) {
+  const caja = document.getElementById(`flujo-${trabajo.id}`);
+  if (!caja) return;
+  caja.innerHTML = `<div class="empty-state">Cargando pasos…</div>`;
+
+  let pasos;
+  let ids;
+  let items;
+  try {
+    if (!trabajo.public_token) {
+      const res = await apiPost(`/api/trabajos/${trabajo.id}/link`, {});
+      trabajo.public_token = res.token;
+    }
+    const [param, elec, det] = await Promise.all([
+      apiGet("/api/parametros"),
+      apiGet(`/api/trabajos/${trabajo.id}/elecciones`),
+      apiGet(`/api/trabajos/${trabajo.id}/items`),
+    ]);
+    pasos = param.pasos || [];
+    ids = new Set(elec.ids || []);
+    items = det.items || [];
+  } catch (err) {
+    if (await handleAuthError(err)) return;
+    caja.innerHTML = `<span class="hint">No se pudieron cargar los pasos.</span>`;
+    return;
+  }
+
+  const porClave = Object.fromEntries(pasos.map((p) => [p.clave, p]));
+  const todas = (clave) => (porClave[clave] && porClave[clave].opciones) || [];
+  const activas = (clave) => todas(clave).filter((o) => o.activo);
+  const marcadasDe = (lista) => lista.filter((o) => ids.has(o.id));
+  const tipoOps = activas("tipo");
+  const hechoOps = activas("hecho");
+  const cierreOps = activas("cierre");
+  const abierto = pasosAbiertos({
+    tipoMarcado: marcadasDe(todas("tipo")).length > 0,
+    hechoMarcado: marcadasDe(todas("hecho")).length > 0,
+    tieneLineas: items.length > 0,
+    cierreEstadoMarcado: marcadasDe(todas("cierre")).some((o) => o.grupo === "estado"),
+  });
+  const nombrePaso = (clave, fallback) => (porClave[clave] && porClave[clave].nombre) || fallback;
+  const chips = (lista) =>
+    lista.length
+      ? `<div class="flujo-chips">${lista.map((o) => chipOpcion(o, ids.has(o.id))).join("")}</div>`
+      : `<span class="hint">Este paso no tiene opciones. Agrégalas en Parámetros.</span>`;
+
+  const grupos = [];
+  for (const o of cierreOps) {
+    const g = o.grupo || "";
+    if (!grupos.includes(g)) grupos.push(g);
+  }
+  const etiquetaGrupo = { foto: "Foto", garantia: "Garantía", estado: "Listo o entregado" };
+  const cierreHtml = grupos
+    .map((g) => {
+      const lista = cierreOps.filter((o) => (o.grupo || "") === g);
+      return `<div style="margin-bottom:12px;"><div class="hint" style="margin-bottom:6px;">${etiquetaGrupo[g] || "Otras"}</div>${chips(lista)}</div>`;
+    })
+    .join("");
+
+  const fotoElegida = marcadasDe(cierreOps).find((o) => o.grupo === "foto");
+  const garantiaElegida = marcadasDe(cierreOps).find((o) => o.grupo === "garantia");
+  const conFoto = !!(fotoElegida && /\bcon\b/i.test(fotoElegida.nombre));
+  const conGarantia = !!(garantiaElegida && /\bcon\b/i.test(garantiaElegida.nombre));
+  const equiposEl = document.getElementById(`equipos-del-trabajo-${trabajo.id}`);
+  if (equiposEl) equiposEl.style.display = abierto.cierre && conGarantia ? "" : "none";
+  const abonosEl = document.getElementById(`abonos-trabajo-${trabajo.id}`);
+  if (abonosEl) abonosEl.style.display = abierto.hecho ? "" : "none";
+
+  const fotoHtml = conFoto
+    ? `<form data-flujo-foto style="margin-top:12px;">
+        <div class="form-grid">
+          <div class="field"><label>Foto para el cliente</label>
+            <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" data-foto-archivo></div>
+          <div class="field"><label>Qué muestra</label>
+            <input type="text" data-foto-texto placeholder="Ej: equipo instalado"></div>
+        </div>
+        <button type="submit" class="btn btn-outline btn-sm">Subir foto</button>
+        <span class="hint">La foto queda visible en el seguimiento del cliente.</span>
+      </form>`
+    : "";
+
+  const notaHtml = `
+    <div class="field" style="margin-top:14px;"><label>Nota del trabajo</label>
+      <textarea data-flujo-nota rows="3" placeholder="Ej: en el escritorio del living">${escapeHtml(trabajo.descripcion || "")}</textarea>
+      <span class="hint">Puedes incluir esta nota en el informe del final.</span>
+    </div>
+    <div class="field"><label>Notas internas</label>
+      <textarea data-flujo-notas rows="2" placeholder="Solo para ti, no salen en el informe">${escapeHtml(trabajo.notas || "")}</textarea>
+    </div>
+    <button type="button" class="btn btn-outline btn-sm" data-guardar-nota>Guardar nota</button>
+    <div id="items-trabajo-${trabajo.id}" style="margin-top:14px;"></div>`;
+
+  const elegidas = [...marcadasDe(tipoOps), ...marcadasDe(hechoOps), ...marcadasDe(cierreOps)];
+  const frases = [];
+  const vistas = new Set();
+  for (const o of elegidas) {
+    const texto = String(o.frase || "").trim();
+    if (!texto || vistas.has(texto)) continue;
+    vistas.add(texto);
+    frases.push(texto);
+  }
+  const nota = String(trabajo.descripcion || "").trim();
+  const linkUrl = trabajo.public_token ? `${window.location.origin}/seguimiento?t=${trabajo.public_token}` : "";
+  const armarInforme = (opts) =>
+    informeDesdeSeleccion({
+      nombre: trabajo.cliente_nombre,
+      negocio: currentNombreNegocio,
+      frases: frases.filter((_, i) => opts.frases[i]),
+      nota: opts.nota ? nota : "",
+      incluirDetalle: opts.detalle,
+      items,
+      total: Number(trabajo.monto) || 0,
+      linkUrl,
+    });
+
+  const informeHtml = `
+    <span class="hint" style="display:block;margin-bottom:8px;">Marca lo que quieres que diga el mensaje.</span>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px;">
+      ${frases.map((f, i) => `<label class="checkbox-row"><input type="checkbox" data-frase="${i}" checked> ${escapeHtml(f)}</label>`).join("")}
+      ${nota ? `<label class="checkbox-row"><input type="checkbox" data-inc-nota checked> Incluir la nota del trabajo</label>` : ""}
+      <label class="checkbox-row"><input type="checkbox" data-inc-detalle checked> Según el detalle${items.length ? ` (${clp(trabajo.monto)})` : ""}</label>
+    </div>
+    <div class="field"><label>Mensaje</label><textarea data-informe-texto rows="10"></textarea></div>
+    <div class="actions-row">
+      <a class="btn btn-accent" data-informe-enviar target="_blank" rel="noopener">Enviar informe por WhatsApp</a>
+    </div>
+    <span class="hint">${
+      telefonoWhatsapp(trabajo.cliente_telefono)
+        ? "Se abre WhatsApp con este mensaje."
+        : "Este cliente no tiene teléfono: WhatsApp te pedirá elegir el contacto."
+    } El envío queda registrado.</span>`;
+
+  caja.innerHTML = `
+    ${bloquePaso(`1. ${escapeHtml(nombrePaso("tipo", "Qué es"))}`, true, `${chips(tipoOps)}<span class="hint">Elige una. El siguiente paso se abre al marcarla.</span>`, "")}
+    ${bloquePaso(
+      `2. ${escapeHtml(nombrePaso("hecho", "Qué se hizo"))}`,
+      abierto.hecho,
+      `${chips(hechoOps)}<span class="hint">Puedes marcar varias.</span>${notaHtml}`,
+      "Se abre cuando elijas qué es este trabajo."
+    )}
+    ${bloquePaso(
+      `3. ${escapeHtml(nombrePaso("cierre", "Cómo cerrar"))}`,
+      abierto.cierre,
+      `${cierreHtml}${fotoHtml}`,
+      "Se abre cuando marques lo que se hizo, o cuando el trabajo ya tenga líneas."
+    )}
+    ${bloquePaso("4. Informe", abierto.informe, informeHtml, "Se abre cuando marques que está listo o que ya está entregado.")}
+    <p class="hint" style="margin-top:14px;"><a href="#/parametros" data-goto="#/parametros">Falta o sobra una opción</a></p>
+    <div class="form-actions">
+      <button type="button" class="btn btn-danger-outline" data-eliminar-trabajo style="margin-left:auto;">Eliminar trabajo</button>
+    </div>`;
+
+  const recargar = () => cargarTrabajoInline(ctx.trabajoId, ctx.clienteId, ctx.containerId);
+  if (abierto.hecho) {
+    renderItemsTrabajo(trabajo, `items-trabajo-${trabajo.id}`, recargar);
+  }
+
+  caja.querySelectorAll("[data-opcion]").forEach((btn) => {
     btn.addEventListener("click", async () => {
-      const pasoDestino = btn.dataset.paso;
       btn.disabled = true;
       try {
-        await apiPut(`/api/trabajos/${trabajo.id}`, {
-          estado: pasoDestino,
-          mostrar_detalle_cliente:
-            pasoDe(trabajo.estado) === "Cotización" ? true : !!trabajo.mostrar_detalle_cliente,
+        await apiPut(`/api/trabajos/${trabajo.id}/elecciones`, {
+          opcion_id: Number(btn.dataset.opcion),
+          marcada: btn.dataset.on !== "1",
         });
-        flash(`Trabajo en estado "${pasoDestino}". Ya puedes avisarle al cliente.`);
-        viewClienteDetalle(clienteId, { openTrabajoId: trabajoId });
+        await recargar();
       } catch (err) {
         btn.disabled = false;
         if (await handleAuthError(err)) return;
@@ -1211,54 +1310,83 @@ async function cargarTrabajoInline(trabajoId, clienteId, containerId = "trabajo-
     });
   });
 
-  wrapper.querySelector(`#trabajo-form-${trabajo.id}`).addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const payload = {
-      tipo: wrapper.querySelector("#tipo").value,
-      estado: wrapper.querySelector("#estado").value,
-      descripcion: wrapper.querySelector("#descripcion").value,
-      notas: wrapper.querySelector("#notas").value,
-      // El "mostrar/ocultar al cliente" se guarda con su propio botón (más
-      // abajo), no desde este formulario — se manda tal cual está para no
-      // pisarlo al guardar el resto de los datos.
-      mostrar_detalle_cliente: !!trabajo.mostrar_detalle_cliente,
+  const guardar = caja.querySelector("[data-guardar-nota]");
+  if (guardar) {
+    guardar.addEventListener("click", async () => {
+      guardar.disabled = true;
+      try {
+        await apiPut(`/api/trabajos/${trabajo.id}`, {
+          tipo: trabajo.tipo,
+          estado: trabajo.estado,
+          descripcion: caja.querySelector("[data-flujo-nota]").value,
+          notas: caja.querySelector("[data-flujo-notas]").value,
+          mostrar_detalle_cliente: !!trabajo.mostrar_detalle_cliente,
+        });
+        flash("Nota guardada.");
+        await recargar();
+      } catch (err) {
+        guardar.disabled = false;
+        if (await handleAuthError(err)) return;
+        flash(err.message, "error");
+      }
+    });
+  }
+
+  const fotoForm = caja.querySelector("[data-flujo-foto]");
+  if (fotoForm) {
+    fotoForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const input = fotoForm.querySelector("[data-foto-archivo]");
+      if (!input.files || !input.files[0]) {
+        flash("Selecciona una imagen primero.", "error");
+        return;
+      }
+      const fd = new FormData();
+      fd.append("foto", input.files[0]);
+      fd.append("texto", fotoForm.querySelector("[data-foto-texto]").value.trim());
+      try {
+        const subida = await apiPostForm(`/api/trabajos/${trabajo.id}/fotos`, fd);
+        await apiPut(`/api/trabajos/${trabajo.id}/avances/${subida.id}`, { visible_cliente: true });
+        flash("Foto subida y visible para el cliente.");
+        await recargar();
+      } catch (err) {
+        if (await handleAuthError(err)) return;
+        flash(err.message, "error");
+      }
+    });
+  }
+
+  if (abierto.informe) {
+    const textarea = caja.querySelector("[data-informe-texto]");
+    const btn = caja.querySelector("[data-informe-enviar]");
+    const numero = telefonoWhatsapp(trabajo.cliente_telefono);
+    const leer = () => ({
+      frases: [...caja.querySelectorAll("[data-frase]")].map((c) => c.checked),
+      nota: !!(caja.querySelector("[data-inc-nota]") && caja.querySelector("[data-inc-nota]").checked),
+      detalle: !!caja.querySelector("[data-inc-detalle]").checked,
+    });
+    const pintar = () => {
+      textarea.value = armarInforme(leer());
+      btn.href = `https://wa.me/${numero}?text=${encodeURIComponent(textarea.value)}`;
     };
-    try {
-      await apiPut(`/api/trabajos/${trabajo.id}`, payload);
-      flash("Trabajo actualizado.");
-      // Se recarga toda la ficha del cliente (para que la fila de la tabla de
-      // arriba también quede al día con el nuevo monto/estado) dejando este
-      // mismo trabajo a la vista.
-      viewClienteDetalle(clienteId, { openTrabajoId: trabajoId });
-    } catch (err) {
-      if (await handleAuthError(err)) return;
-      flash(err.message, "error");
-    }
-  });
+    caja.querySelectorAll("[data-frase], [data-inc-nota], [data-inc-detalle]").forEach((c) => {
+      c.addEventListener("change", pintar);
+    });
+    textarea.addEventListener("input", () => {
+      btn.href = `https://wa.me/${numero}?text=${encodeURIComponent(textarea.value)}`;
+    });
+    pintar();
+    btn.addEventListener("click", () => {
+      apiPost(`/api/trabajos/${trabajo.id}/envios`, { mensaje: textarea.value, tipo_aviso: "informe" }).catch(() => {});
+    });
+  }
 
-  wrapper.querySelector("#btn-toggle-detalle-cliente").addEventListener("click", async (e) => {
-    const btn = e.currentTarget;
-    const estabaVisible = btn.dataset.visibleActual === "1";
-    try {
-      await apiPut(`/api/trabajos/${trabajo.id}`, { mostrar_detalle_cliente: !estabaVisible });
-      flash(
-        estabaVisible
-          ? "Detalle y pago ocultado del cliente."
-          : "Detalle y pago marcado como visible para el cliente."
-      );
-      cargarTrabajoInline(trabajoId, clienteId, containerId);
-    } catch (err) {
-      if (await handleAuthError(err)) return;
-      flash(err.message, "error");
-    }
-  });
-
-  wrapper.querySelector("#btn-eliminar-trabajo").addEventListener("click", async () => {
+  caja.querySelector("[data-eliminar-trabajo]").addEventListener("click", async () => {
     if (!confirm("¿Eliminar este trabajo?")) return;
     try {
       await apiDelete(`/api/trabajos/${trabajo.id}`);
       flash("Trabajo eliminado.");
-      viewClienteDetalle(clienteId);
+      viewClienteDetalle(ctx.clienteId);
     } catch (err) {
       if (await handleAuthError(err)) return;
       flash(err.message, "error");
@@ -2953,12 +3081,16 @@ async function viewTrabajoForm(id, presetClienteId) {
       <div class="panel-body padded">
         <form id="trabajo-form">
           ${clienteBlock}
-          <div class="form-grid">
+          ${
+            trabajo
+              ? `<div class="form-grid">
             <div class="field"><label for="tipo">Tipo</label><select id="tipo">${tipoOptions}</select></div>
             <div class="field"><label for="estado">Estado</label><select id="estado">${estadoOptions}</select></div>
-          </div>
-          <div class="field"><label for="descripcion">Descripción *</label>
-            <textarea id="descripcion" required>${escapeHtml(trabajo?.descripcion || "")}</textarea></div>
+          </div>`
+              : `<span class="hint">Al guardar se abre el trabajo. Ahí eliges si es cotización, reparación, visita, instalación u otra cosa, y los pasos siguientes se habilitan solos.</span>`
+          }
+          <div class="field"><label for="descripcion">De qué se trata *</label>
+            <textarea id="descripcion" required placeholder="Ej: visita para instalar el sistema y agregar RAM">${escapeHtml(trabajo?.descripcion || "")}</textarea></div>
           ${
             trabajo
               ? `<div class="field"><label>Total del trabajo</label>
@@ -3019,9 +3151,11 @@ async function viewTrabajoForm(id, presetClienteId) {
 
   document.getElementById("trabajo-form").addEventListener("submit", async (e) => {
     e.preventDefault();
+    const tipoEl = document.getElementById("tipo");
+    const estadoEl = document.getElementById("estado");
     const payload = {
-      tipo: document.getElementById("tipo").value,
-      estado: document.getElementById("estado").value,
+      tipo: tipoEl ? tipoEl.value : "",
+      estado: estadoEl ? estadoEl.value : "Cotización",
       descripcion: document.getElementById("descripcion").value,
       notas: document.getElementById("notas").value,
     };
@@ -3034,8 +3168,10 @@ async function viewTrabajoForm(id, presetClienteId) {
         window.location.hash = `#/clientes/${res.cliente_id}?trabajo=${trabajo.id}`;
       } else {
         payload.cliente_id = document.getElementById("cliente_id").value;
+        payload.tipo = "";
+        payload.estado = "Cotización";
         const res = await apiPost("/api/trabajos", payload);
-        flash("Trabajo registrado.");
+        flash("Trabajo registrado. Elige qué es para abrir el siguiente paso.");
         window.location.hash = `#/clientes/${res.cliente_id}?trabajo=${res.id}`;
       }
     } catch (err) {
@@ -3563,6 +3699,183 @@ async function viewCuenta() {
 }
 
 /* ---------------------------------------------------------------- */
+/* Parámetros de los pasos del caso                                     */
+/* ---------------------------------------------------------------- */
+async function viewParametros() {
+  setPage({
+    title: "Parámetros",
+    subtitle: "Agrega o quita las opciones de cada paso. Los trabajos usan esta lista.",
+  });
+  setContent(`<div class="empty-state">Cargando…</div>`);
+  let pasos;
+  try {
+    ({ pasos } = await apiGet("/api/parametros"));
+  } catch (err) {
+    if (await handleAuthError(err)) return;
+    setContent(`<div class="empty-state">No se pudieron cargar los parámetros.</div>`);
+    return;
+  }
+
+  const pistas = [
+    "En este paso se elige una sola opción.",
+    "Aquí se pueden marcar varias.",
+    "En cada grupo (foto, garantía, listo) se elige una.",
+  ];
+  setContent(
+    pasos
+      .map((paso, i) => {
+        const activas = paso.opciones.filter((o) => o.activo);
+        const quitadas = paso.opciones.filter((o) => !o.activo);
+        const filas = activas
+          .map(
+            (o) => `
+      <tr data-opcion-row="${o.id}">
+        <td><input type="text" data-nombre value="${escapeHtml(o.nombre)}"></td>
+        <td><input type="text" data-frase value="${escapeHtml(o.frase || "")}" placeholder="Texto que puede salir en el informe"></td>
+        <td>
+          <button type="button" class="btn btn-outline btn-sm" data-guardar-opcion="${o.id}">Guardar</button>
+          <button type="button" class="btn btn-danger-outline btn-sm" data-quitar-opcion="${o.id}">Quitar</button>
+        </td>
+      </tr>`
+          )
+          .join("");
+        const grupo =
+          paso.clave === "cierre"
+            ? `<div class="field"><label>Grupo</label>
+        <select data-grupo>
+          <option value="">Se marca junto con otras</option>
+          <option value="foto">Foto (solo una)</option>
+          <option value="garantia">Garantía (solo una)</option>
+          <option value="estado">Listo o entregado (solo una)</option>
+        </select>
+        <span class="hint">Si el nombre contiene «entregado», el trabajo pasa a Entregado. Si no, una opción de este grupo lo deja Listo.</span>
+      </div>`
+            : "";
+        return `
+      <div class="panel" data-paso="${paso.clave}">
+        <div class="panel-header"><h2>${i + 1}. ${escapeHtml(paso.nombre)}</h2></div>
+        <div class="panel-body padded">
+          <p class="hint" style="margin-top:0;">${pistas[i] || ""}</p>
+          <form data-renombrar style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px;">
+            <div class="field" style="margin:0;flex:1;min-width:180px;"><label>Nombre del paso</label>
+              <input type="text" data-nombre-paso value="${escapeHtml(paso.nombre)}" required></div>
+            <button type="submit" class="btn btn-outline btn-sm">Guardar nombre</button>
+          </form>
+          ${
+            filas
+              ? `<table><thead><tr><th>Opción</th><th>Frase del informe</th><th></th></tr></thead><tbody>${filas}</tbody></table>`
+              : `<div class="panel-empty">Este paso no tiene opciones activas.</div>`
+          }
+          ${
+            quitadas.length
+              ? `<details style="margin-top:12px;"><summary style="cursor:pointer;">Opciones quitadas (${quitadas.length})</summary>
+            <ul style="padding-left:18px;">${quitadas
+              .map(
+                (o) =>
+                  `<li style="margin:8px 0;">${escapeHtml(o.nombre)} <button type="button" class="btn btn-outline btn-sm" data-activar-opcion="${o.id}">Activar</button></li>`
+              )
+              .join("")}</ul></details>`
+              : ""
+          }
+          <form data-agregar style="margin-top:16px;">
+            <div class="form-grid">
+              <div class="field"><label>Nueva opción</label><input type="text" data-nueva-nombre required placeholder="Ej: Cotización"></div>
+              <div class="field"><label>Frase del informe</label><input type="text" data-nueva-frase placeholder="Ej: Te dejamos la cotización."></div>
+            </div>
+            ${grupo}
+            <button type="submit" class="btn btn-accent btn-sm">Agregar opción</button>
+          </form>
+        </div>
+      </div>`;
+      })
+      .join("")
+  );
+
+  els.content.querySelectorAll("[data-renombrar]").forEach((form) => {
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const panel = form.closest("[data-paso]");
+      try {
+        await apiPut("/api/parametros", {
+          clave: panel.dataset.paso,
+          nombre: form.querySelector("[data-nombre-paso]").value,
+        });
+        flash("Nombre del paso guardado.");
+        viewParametros();
+      } catch (err) {
+        if (await handleAuthError(err)) return;
+        flash(err.message, "error");
+      }
+    });
+  });
+
+  els.content.querySelectorAll("[data-guardar-opcion]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const row = btn.closest("[data-opcion-row]");
+      try {
+        await apiPut(`/api/parametros/opciones/${btn.dataset.guardarOpcion}`, {
+          nombre: row.querySelector("[data-nombre]").value,
+          frase: row.querySelector("[data-frase]").value,
+        });
+        flash("Opción guardada.");
+        viewParametros();
+      } catch (err) {
+        if (await handleAuthError(err)) return;
+        flash(err.message, "error");
+      }
+    });
+  });
+
+  els.content.querySelectorAll("[data-quitar-opcion]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      if (!confirm("¿Quitar esta opción de la lista?")) return;
+      try {
+        await apiDelete(`/api/parametros/opciones/${btn.dataset.quitarOpcion}`);
+        flash("Opción quitada.");
+        viewParametros();
+      } catch (err) {
+        if (await handleAuthError(err)) return;
+        flash(err.message, "error");
+      }
+    });
+  });
+
+  els.content.querySelectorAll("[data-activar-opcion]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      try {
+        await apiPut(`/api/parametros/opciones/${btn.dataset.activarOpcion}`, { activo: 1 });
+        flash("Opción activada.");
+        viewParametros();
+      } catch (err) {
+        if (await handleAuthError(err)) return;
+        flash(err.message, "error");
+      }
+    });
+  });
+
+  els.content.querySelectorAll("[data-agregar]").forEach((form) => {
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const panel = form.closest("[data-paso]");
+      const grupoEl = form.querySelector("[data-grupo]");
+      try {
+        await apiPost("/api/parametros", {
+          paso: panel.dataset.paso,
+          nombre: form.querySelector("[data-nueva-nombre]").value,
+          frase: form.querySelector("[data-nueva-frase]").value,
+          grupo: grupoEl ? grupoEl.value : "",
+        });
+        flash("Opción agregada.");
+        viewParametros();
+      } catch (err) {
+        if (await handleAuthError(err)) return;
+        flash(err.message, "error");
+      }
+    });
+  });
+}
+
+/* ---------------------------------------------------------------- */
 /* Router                                                               */
 /* ---------------------------------------------------------------- */
 function parseHash() {
@@ -3613,6 +3926,8 @@ async function router() {
       else if (parts[2] === "editar") await viewMensualidadForm(parts[1], null);
     } else if (parts[0] === "finanzas") {
       await viewFinanzas();
+    } else if (parts[0] === "parametros") {
+      await viewParametros();
     } else if (parts[0] === "cuenta") {
       await viewCuenta();
     } else {

@@ -218,3 +218,28 @@ CREATE INDEX IF NOT EXISTS idx_items_trabajo_trabajo ON items_trabajo(trabajo_id
 CREATE UNIQUE INDEX IF NOT EXISTS idx_trabajos_public_token ON trabajos(public_token);
 CREATE INDEX IF NOT EXISTS idx_abonos_cat_ref ON abonos(categoria, referencia_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_abonos_public_token ON abonos(public_token);
+
+-- Opciones de cada paso del caso (qué es, qué se hizo, cómo cerrar).
+-- Se editan desde Parámetros. grupo marca las que son alternativas
+-- entre sí (una sola a la vez).
+CREATE TABLE IF NOT EXISTS parametros_paso (
+    clave TEXT PRIMARY KEY,
+    orden INTEGER NOT NULL,
+    nombre TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS parametros_opcion (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    paso TEXT NOT NULL,
+    orden INTEGER NOT NULL,
+    nombre TEXT NOT NULL,
+    frase TEXT,
+    grupo TEXT,
+    activo INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE TABLE IF NOT EXISTS trabajo_eleccion (
+    trabajo_id INTEGER NOT NULL,
+    opcion_id INTEGER NOT NULL,
+    PRIMARY KEY (trabajo_id, opcion_id)
+);
