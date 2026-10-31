@@ -6,6 +6,7 @@ import { onRequestGet as listarTrabajos, onRequestPost as crearTrabajo } from ".
 import { onRequestGet as verTrabajo, onRequestPut } from "../functions/api/trabajos/[id].js";
 import { onRequestGet as listarItems, onRequestPost as crearItem } from "../functions/api/trabajos/[id]/items/index.js";
 import { onRequestDelete as borrarItem } from "../functions/api/trabajos/[id]/items/[itemId].js";
+import { onRequestGet as verSeguimiento } from "../functions/api/public/trabajo/[token].js";
 import { pasoDe as pasoServidor } from "../functions/_lib/casos.js";
 import { pasoDe as pasoPantalla, mensajeCaso } from "../public/js/caso.js";
 import { clp } from "../public/js/format.js";
@@ -263,6 +264,14 @@ test("lo realizado se guarda aparte del reclamo y una base vieja crea la columna
     (await leer(db, 1)).realizado,
     "Se agregó una memoria RAM Kingston frente a la Srta. Gabriela Moyano y se revisó el punto de venta."
   );
+
+  await db.prepare("UPDATE trabajos SET public_token = ? WHERE id = 1").bind("tok-mirta").run();
+  const publico = await (
+    await verSeguimiento({ env: { DB: db }, params: { token: "tok-mirta" } })
+  ).json();
+  assert.equal(publico.trabajo.realizado, "Se agregó una memoria RAM Kingston frente a la Srta. Gabriela Moyano y se revisó el punto de venta.");
+  assert.equal(publico.avances.length, 0);
+  assert.equal(publico.trabajo.descripcion.includes("punto de venta"), true);
 });
 
 test("en una base sin la columna cantidad, la primera línea la crea", async () => {

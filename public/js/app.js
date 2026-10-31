@@ -1231,7 +1231,7 @@ async function renderFlujoCaso(trabajo, ctx) {
   const notaHtml = `
     <div class="field" style="margin-top:14px;"><label>Qué se realizó</label>
       <textarea data-flujo-realizado rows="4" placeholder="Ej: Se agregó una memoria RAM Kingston frente a la Srta. Gabriela Moyano y se revisó el punto de venta.">${escapeHtml(trabajo.realizado || "")}</textarea>
-      <span class="hint">Aquí escribes lo que hiciste. Este texto es el que sale en el informe.</span>
+      <span class="hint">Aquí escribes lo que hiciste. El cliente lo ve en Avance del trabajo, y también sale en el informe.</span>
     </div>
     <div class="field"><label>Lo que reportó el cliente</label>
       <textarea data-flujo-nota rows="2">${escapeHtml(trabajo.descripcion || "")}</textarea>

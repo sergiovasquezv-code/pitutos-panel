@@ -707,9 +707,13 @@ const PAGINA_BASE = `<!DOCTYPE html>
       // reemplaza por las iniciales del negocio.
       document.getElementById("footer-note").style.display = "block";
 
+      const realizado = String(trabajo.realizado || "").trim();
+      const realizadoHtml = realizado ? \`<p style="margin:0;">\${nl2br(realizado)}</p>\` : "";
       const timelineHtml = avances.length
-        ? \`<div class="timeline">\${avances.map(renderAvance).join("")}</div>\`
-        : \`<div class="panel-empty">Todavía no hay novedades para mostrar. Vuelve a revisar más adelante.</div>\`;
+        ? \`<div class="timeline"\${realizado ? ' style="margin-top:14px;"' : ""}>\${avances.map(renderAvance).join("")}</div>\`
+        : realizado
+          ? ""
+          : \`<div class="panel-empty">Todavía no hay novedades para mostrar. Vuelve a revisar más adelante.</div>\`;
 
       // El card de "Detalle y pago" solo aparece si hay algo que mostrar
       // (ítems del desglose, garantía de algún equipo, y/o un monto puesto
@@ -757,6 +761,7 @@ const PAGINA_BASE = `<!DOCTYPE html>
         <div class="card">
           <h2 style="font-size:15.5px;margin:0 0 4px;">Avance del trabajo</h2>
           \${ultima_actualizacion ? \`<div class="text-muted" style="font-size:12.5px;margin-bottom:12px;">Última actualización: \${fechaLarga(ultima_actualizacion)}</div>\` : ""}
+          \${realizadoHtml}
           \${timelineHtml}
         </div>
         \${detalleHtml}

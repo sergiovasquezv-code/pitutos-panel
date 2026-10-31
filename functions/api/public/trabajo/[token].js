@@ -1,13 +1,14 @@
 import { json } from "../../../_lib/json.js";
 import { infoAbono, equipoConGarantia } from "../../../_lib/negocio.js";
-import { asegurarCantidad } from "../../../_lib/casos.js";
+import { asegurarCantidad, asegurarRealizado } from "../../../_lib/casos.js";
 
 export async function onRequestGet({ env, params }) {
   const db = env.DB;
   const token = params.token;
+  await asegurarRealizado(db);
   const trabajo = await db
     .prepare(
-      `SELECT trabajos.id, trabajos.tipo, trabajos.descripcion, trabajos.estado, trabajos.monto,
+      `SELECT trabajos.id, trabajos.tipo, trabajos.descripcion, trabajos.realizado, trabajos.estado, trabajos.monto,
               trabajos.fecha_creacion, trabajos.fecha_cierre, trabajos.fecha_entrega, trabajos.mostrar_detalle_cliente,
               clientes.nombre AS cliente_nombre
        FROM trabajos JOIN clientes ON clientes.id = trabajos.cliente_id
