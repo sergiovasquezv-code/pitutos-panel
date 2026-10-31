@@ -2,11 +2,31 @@ import { clp } from "./format.js";
 
 // Un paso se abre cuando el anterior ya tiene una elección, o cuando el
 // trabajo ya trae líneas cargadas (casos anteriores a este flujo).
-export function pasosAbiertos({ tipoMarcado, hechoMarcado, tieneLineas, cierreEstadoMarcado }) {
+// En cotización no se muestran "qué se hizo" ni el cierre: todavía no hay
+// visita, foto ni entrega. El informe sale cuando ya hay líneas.
+export function pasosAbiertos({ tipoMarcado, hechoMarcado, tieneLineas, cierreEstadoMarcado, esCotizacion }) {
+  if (esCotizacion) {
+    return { tipo: true, hecho: false, detalle: true, cierre: false, informe: !!tieneLineas };
+  }
   const hecho = !!(tipoMarcado || tieneLineas);
-  const cierre = !!(hecho && (hechoMarcado || tieneLineas));
+  const detalle = !!(hecho && (hechoMarcado || tieneLineas));
+  const cierre = detalle;
   const informe = !!(cierre && cierreEstadoMarcado);
-  return { tipo: true, hecho, cierre, informe };
+  return { tipo: true, hecho, detalle, cierre, informe };
+}
+
+// En el cierre se ve un grupo a la vez: foto, después garantía, después listo.
+// Un grupo ya elegido en un trabajo viejo sigue visible aunque falte uno anterior.
+export function gruposCierreVisibles(grupos, elegido) {
+  const visibles = [];
+  for (const g of grupos) {
+    visibles.push(g);
+    if (!elegido[g]) break;
+  }
+  for (const g of grupos) {
+    if (elegido[g] && !visibles.includes(g)) visibles.push(g);
+  }
+  return visibles;
 }
 
 export function informeDesdeSeleccion(ctx) {

@@ -3,7 +3,7 @@ import { apiGet, apiPost, apiPut, apiDelete, apiPostForm } from "./api.js";
 // reutiliza aquí para las fotos del estado de un equipo.)
 import { clp, escapeHtml, telefonoWhatsapp, soloDigitosTelefono, formatearRut } from "./format.js";
 import { FLUJO_CASO, mensajeCaso, pasoDe } from "./caso.js";
-import { informeDesdeSeleccion, pasosAbiertos } from "./flujo.js";
+import { gruposCierreVisibles, informeDesdeSeleccion, pasosAbiertos } from "./flujo.js";
 
 const TIPOS_TRABAJO = ["Venta", "Reparación", "Programación", "Soporte técnico", "Instalación", "Mantención", "Garantía", "Otro"];
 const FLUJO_TRABAJO = FLUJO_CASO;
@@ -1081,11 +1081,11 @@ async function cargarTrabajoInline(trabajoId, clienteId, containerId = "trabajo-
     <div class="panel" style="margin-top:22px;border-color:var(--accent-dark);">
       <div class="panel-header"><h2>Trabajo${trabajo.tipo ? `: ${escapeHtml(trabajo.tipo)}` : ""}</h2>${badgeTrabajo(trabajo.estado)}</div>
       <div class="panel-body padded">
-        <p style="margin:0;">Total <strong>${clp(trabajo.monto)}</strong>${
+        ${
           trabajo.monto > 0
-            ? ` · abonado ${clp(trabajo.abonado || 0)} · saldo <strong>${clp(trabajo.saldo || 0)}</strong>`
+            ? `<p style="margin:0;">Total <strong>${clp(trabajo.monto)}</strong> · abonado ${clp(trabajo.abonado || 0)} · saldo <strong>${clp(trabajo.saldo || 0)}</strong></p>`
             : ""
-        }</p>
+        }
         ${trabajo.fecha_entrega ? `<p style="margin:10px 0 0;">Entrega: <strong>${escapeHtml(fechaEntregaTexto(trabajo.fecha_entrega))}</strong></p>` : ""}
         <div id="flujo-${trabajo.id}"></div>
       </div>
@@ -1104,7 +1104,7 @@ async function cargarTrabajoInline(trabajoId, clienteId, containerId = "trabajo-
       </div>
     </div>
     <div id="abonos-trabajo-${trabajo.id}" style="display:none;margin-top:14px;"></div>
-    <details style="margin-top:14px;">
+    <details id="seguimiento-avanzado-${trabajo.id}" style="display:none;margin-top:14px;">
       <summary style="cursor:pointer;font-weight:650;padding:8px 0;">Notas, fotos y enlaces del seguimiento (avanzado)</summary>
       <div id="seguimiento-${trabajo.id}" style="margin-top:8px;"></div>
     </details>
@@ -1170,11 +1170,14 @@ async function renderFlujoCaso(trabajo, ctx) {
   const tipoOps = activas("tipo");
   const hechoOps = activas("hecho");
   const cierreOps = activas("cierre");
+  const tipoElegido = marcadasDe(tipoOps)[0];
+  const esCotizacion = !!(tipoElegido && tipoElegido.nombre.trim().toLowerCase() === "cotización");
   const abierto = pasosAbiertos({
     tipoMarcado: marcadasDe(todas("tipo")).length > 0,
     hechoMarcado: marcadasDe(todas("hecho")).length > 0,
     tieneLineas: items.length > 0,
     cierreEstadoMarcado: marcadasDe(todas("cierre")).some((o) => o.grupo === "estado"),
+    esCotizacion,
   });
   const nombrePaso = (clave, fallback) => (porClave[clave] && porClave[clave].nombre) || fallback;
   const chips = (lista) =>
@@ -1187,8 +1190,14 @@ async function renderFlujoCaso(trabajo, ctx) {
     const g = o.grupo || "";
     if (!grupos.includes(g)) grupos.push(g);
   }
+  const elegidoGrupo = {};
+  for (const g of grupos) {
+    elegidoGrupo[g] = cierreOps.some((o) => (o.grupo || "") === g && ids.has(o.id));
+  }
+  const gruposVisibles = new Set(abierto.cierre ? gruposCierreVisibles(grupos, elegidoGrupo) : []);
   const etiquetaGrupo = { foto: "Foto", garantia: "Garantía", estado: "Listo o entregado" };
   const cierreHtml = grupos
+    .filter((g) => gruposVisibles.has(g))
     .map((g) => {
       const lista = cierreOps.filter((o) => (o.grupo || "") === g);
       return `<div style="margin-bottom:12px;"><div class="hint" style="margin-bottom:6px;">${etiquetaGrupo[g] || "Otras"}</div>${chips(lista)}</div>`;
@@ -1202,7 +1211,9 @@ async function renderFlujoCaso(trabajo, ctx) {
   const equiposEl = document.getElementById(`equipos-del-trabajo-${trabajo.id}`);
   if (equiposEl) equiposEl.style.display = abierto.cierre && conGarantia ? "" : "none";
   const abonosEl = document.getElementById(`abonos-trabajo-${trabajo.id}`);
-  if (abonosEl) abonosEl.style.display = abierto.hecho ? "" : "none";
+  if (abonosEl) abonosEl.style.display = abierto.detalle && !esCotizacion && items.length ? "" : "none";
+  const avanzadoEl = document.getElementById(`seguimiento-avanzado-${trabajo.id}`);
+  if (avanzadoEl) avanzadoEl.style.display = abierto.cierre || abierto.informe ? "" : "none";
 
   const fotoHtml = conFoto
     ? `<form data-flujo-foto style="margin-top:12px;">
@@ -1268,28 +1279,28 @@ async function renderFlujoCaso(trabajo, ctx) {
         : "Este cliente no tiene teléfono: WhatsApp te pedirá elegir el contacto."
     } El envío queda registrado.</span>`;
 
+  const detalleHtml = esCotizacion
+    ? bloquePaso("2. Detalle de la cotización", true, notaHtml, "")
+    : abierto.hecho
+      ? bloquePaso(
+          `2. ${escapeHtml(nombrePaso("hecho", "Qué se hizo"))}`,
+          true,
+          `${chips(hechoOps)}<span class="hint">Marca lo que ya hiciste. Puedes marcar varias.</span>${abierto.detalle ? notaHtml : ""}`,
+          ""
+        )
+      : "";
   caja.innerHTML = `
-    ${bloquePaso(`1. ${escapeHtml(nombrePaso("tipo", "Qué es"))}`, true, `${chips(tipoOps)}<span class="hint">Elige una. El siguiente paso se abre al marcarla.</span>`, "")}
-    ${bloquePaso(
-      `2. ${escapeHtml(nombrePaso("hecho", "Qué se hizo"))}`,
-      abierto.hecho,
-      `${chips(hechoOps)}<span class="hint">Puedes marcar varias.</span>${notaHtml}`,
-      "Se abre cuando elijas qué es este trabajo."
-    )}
-    ${bloquePaso(
-      `3. ${escapeHtml(nombrePaso("cierre", "Cómo cerrar"))}`,
-      abierto.cierre,
-      `${cierreHtml}${fotoHtml}`,
-      "Se abre cuando marques lo que se hizo, o cuando el trabajo ya tenga líneas."
-    )}
-    ${bloquePaso("4. Informe", abierto.informe, informeHtml, "Se abre cuando marques que está listo o que ya está entregado.")}
+    ${bloquePaso(`1. ${escapeHtml(nombrePaso("tipo", "Qué es"))}`, true, `${chips(tipoOps)}<span class="hint">Elige una.</span>`, "")}
+    ${detalleHtml}
+    ${abierto.cierre ? bloquePaso(`3. ${escapeHtml(nombrePaso("cierre", "Cómo cerrar"))}`, true, `${cierreHtml}${fotoHtml}`, "") : ""}
+    ${abierto.informe ? bloquePaso("4. Informe", true, informeHtml, "") : ""}
     <p class="hint" style="margin-top:14px;"><a href="#/parametros" data-goto="#/parametros">Falta o sobra una opción</a></p>
     <div class="form-actions">
       <button type="button" class="btn btn-danger-outline" data-eliminar-trabajo style="margin-left:auto;">Eliminar trabajo</button>
     </div>`;
 
   const recargar = () => cargarTrabajoInline(ctx.trabajoId, ctx.clienteId, ctx.containerId);
-  if (abierto.hecho) {
+  if (abierto.detalle) {
     renderItemsTrabajo(trabajo, `items-trabajo-${trabajo.id}`, recargar);
   }
 

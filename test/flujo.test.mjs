@@ -6,7 +6,7 @@ import { onRequestGet as listarParametros, onRequestPost as crearOpcion } from "
 import { onRequestDelete as quitarOpcion } from "../functions/api/parametros/opciones/[id].js";
 import { onRequestGet as verElecciones, onRequestPut as marcarEleccion } from "../functions/api/trabajos/[id]/elecciones.js";
 import { onRequestPost as crearTrabajo } from "../functions/api/trabajos/index.js";
-import { informeDesdeSeleccion, pasosAbiertos } from "../public/js/flujo.js";
+import { gruposCierreVisibles, informeDesdeSeleccion, pasosAbiertos } from "../public/js/flujo.js";
 import { clp } from "../public/js/format.js";
 
 const schema = readFileSync(new URL("../schema.sql", import.meta.url), "utf8");
@@ -40,6 +40,7 @@ test("los pasos se abren uno detrás del otro", () => {
   assert.deepEqual(pasosAbiertos({ tipoMarcado: false, hechoMarcado: false, tieneLineas: false, cierreEstadoMarcado: false }), {
     tipo: true,
     hecho: false,
+    detalle: false,
     cierre: false,
     informe: false,
   });
@@ -49,6 +50,29 @@ test("los pasos se abren uno detrás del otro", () => {
   assert.equal(conDetalle.cierre, true);
   assert.equal(conDetalle.informe, false);
   assert.equal(pasosAbiertos({ tipoMarcado: true, hechoMarcado: true, tieneLineas: true, cierreEstadoMarcado: true }).informe, true);
+  const cotizacion = pasosAbiertos({
+    tipoMarcado: true,
+    hechoMarcado: false,
+    tieneLineas: false,
+    cierreEstadoMarcado: false,
+    esCotizacion: true,
+  });
+  assert.equal(cotizacion.hecho, false);
+  assert.equal(cotizacion.cierre, false);
+  assert.equal(cotizacion.detalle, true);
+  assert.equal(cotizacion.informe, false);
+  assert.equal(
+    pasosAbiertos({ tipoMarcado: true, hechoMarcado: false, tieneLineas: true, cierreEstadoMarcado: false, esCotizacion: true }).informe,
+    true
+  );
+});
+
+test("el cierre muestra un grupo a la vez", () => {
+  const grupos = ["foto", "garantia", "estado"];
+  assert.deepEqual(gruposCierreVisibles(grupos, { foto: false, garantia: false, estado: false }), ["foto"]);
+  assert.deepEqual(gruposCierreVisibles(grupos, { foto: true, garantia: false, estado: false }), ["foto", "garantia"]);
+  assert.deepEqual(gruposCierreVisibles(grupos, { foto: true, garantia: true, estado: false }), ["foto", "garantia", "estado"]);
+  assert.deepEqual(gruposCierreVisibles(grupos, { foto: false, garantia: false, estado: true }), ["foto", "estado"]);
 });
 
 test("el informe arma solo las frases marcadas y el detalle", () => {
