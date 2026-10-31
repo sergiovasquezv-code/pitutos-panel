@@ -29,6 +29,21 @@ export function gruposCierreVisibles(grupos, elegido) {
   return visibles;
 }
 
+// En la ficha del cliente se ve un bloque a la vez.
+// Primero el trabajo. El equipo aparece cuando ya hay un trabajo.
+// La mensualidad aparece cuando ya hay un equipo, o cuando el trabajo ya quedó listo.
+// Un bloque que ya tiene datos sigue visible.
+export function seccionesCliente({ trabajos = 0, equipos = 0, mensualidades = 0, trabajoListo = false }) {
+  const tieneTrabajo = trabajos > 0;
+  const tieneEquipo = equipos > 0;
+  const tieneMensualidad = mensualidades > 0;
+  return {
+    trabajo: true,
+    equipo: tieneTrabajo || tieneEquipo,
+    mensualidad: tieneEquipo || tieneMensualidad || !!trabajoListo,
+  };
+}
+
 export function informeDesdeSeleccion(ctx) {
   const nombre = String(ctx.nombre || "")
     .trim()

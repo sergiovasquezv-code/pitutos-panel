@@ -6,7 +6,7 @@ import { onRequestGet as listarParametros, onRequestPost as crearOpcion } from "
 import { onRequestDelete as quitarOpcion } from "../functions/api/parametros/opciones/[id].js";
 import { onRequestGet as verElecciones, onRequestPut as marcarEleccion } from "../functions/api/trabajos/[id]/elecciones.js";
 import { onRequestPost as crearTrabajo } from "../functions/api/trabajos/index.js";
-import { gruposCierreVisibles, informeDesdeSeleccion, pasosAbiertos } from "../public/js/flujo.js";
+import { gruposCierreVisibles, informeDesdeSeleccion, pasosAbiertos, seccionesCliente } from "../public/js/flujo.js";
 import { clp } from "../public/js/format.js";
 
 const schema = readFileSync(new URL("../schema.sql", import.meta.url), "utf8");
@@ -65,6 +65,14 @@ test("los pasos se abren uno detrás del otro", () => {
     pasosAbiertos({ tipoMarcado: true, hechoMarcado: false, tieneLineas: true, cierreEstadoMarcado: false, esCotizacion: true }).informe,
     true
   );
+});
+
+test("en el cliente aparece un bloque y el siguiente se abre al avanzar", () => {
+  assert.deepEqual(seccionesCliente({}), { trabajo: true, equipo: false, mensualidad: false });
+  assert.deepEqual(seccionesCliente({ trabajos: 1 }), { trabajo: true, equipo: true, mensualidad: false });
+  assert.deepEqual(seccionesCliente({ trabajos: 1, trabajoListo: true }), { trabajo: true, equipo: true, mensualidad: true });
+  assert.deepEqual(seccionesCliente({ equipos: 1 }), { trabajo: true, equipo: true, mensualidad: true });
+  assert.deepEqual(seccionesCliente({ mensualidades: 1 }), { trabajo: true, equipo: false, mensualidad: true });
 });
 
 test("el cierre muestra un grupo a la vez", () => {

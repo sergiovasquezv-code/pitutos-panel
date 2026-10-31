@@ -3,7 +3,7 @@ import { apiGet, apiPost, apiPut, apiDelete, apiPostForm } from "./api.js";
 // reutiliza aquí para las fotos del estado de un equipo.)
 import { clp, escapeHtml, telefonoWhatsapp, soloDigitosTelefono, formatearRut } from "./format.js";
 import { FLUJO_CASO, mensajeCaso, pasoDe } from "./caso.js";
-import { gruposCierreVisibles, informeDesdeSeleccion, pasosAbiertos } from "./flujo.js";
+import { gruposCierreVisibles, informeDesdeSeleccion, pasosAbiertos, seccionesCliente } from "./flujo.js";
 
 const TIPOS_TRABAJO = ["Venta", "Reparación", "Programación", "Soporte técnico", "Instalación", "Mantención", "Garantía", "Otro"];
 const FLUJO_TRABAJO = FLUJO_CASO;
@@ -689,6 +689,14 @@ async function viewClienteDetalle(id, opts = {}) {
     )
     .join("");
 
+  const trabajoListo = trabajos.some((t) => ["Listo", "Equipo listo", "Entrega fijada", "Entregado"].includes(t.estado));
+  const secciones = seccionesCliente({
+    trabajos: trabajos.length,
+    equipos: equipos.length,
+    mensualidades: mensualidades.length,
+    trabajoListo,
+  });
+
   setContent(`
     <div class="panel">
       <div class="panel-header"><h2>Estado de cuenta</h2>${
@@ -715,6 +723,22 @@ async function viewClienteDetalle(id, opts = {}) {
     </div>
 
     <div class="panel">
+      <div class="panel-header"><h2>Trabajos y soporte</h2>
+        <button class="btn btn-accent btn-sm" data-goto="#/trabajos/nuevo?cliente_id=${cliente.id}">+ Nuevo trabajo</button></div>
+      <div class="panel-body">
+        ${
+          trabajosRows
+            ? `<table><thead><tr><th>Tipo</th><th>Descripción</th><th class="num">Monto</th><th class="num">Saldo</th><th>Estado</th></tr></thead><tbody>${trabajosRows}</tbody></table>`
+            : `<div class="panel-empty">Empieza por aquí. Ahí eliges si es visita, reparación, venta o cotización.</div>`
+        }
+      </div>
+    </div>
+
+    ${trabajosBloques}
+
+    ${
+      secciones.equipo
+        ? `<div class="panel">
       <div class="panel-header"><h2>Equipos y garantías</h2>
         <div class="actions-row">
           ${
@@ -729,7 +753,7 @@ async function viewClienteDetalle(id, opts = {}) {
         ${
           equiposRows
             ? `<table><thead><tr><th>Equipo</th><th>N° serie</th><th class="num">Precio</th><th class="num">Saldo</th><th>Venta</th><th>Garantía</th></tr></thead><tbody>${equiposRows}</tbody></table>`
-            : `<div class="panel-empty">Sin equipos registrados todavía.</div>`
+            : `<div class="panel-empty">Si en este trabajo vendiste o cambiaste una pieza, regístrala aquí.</div>`
         }
       </div>
       <div class="panel-body" id="agrupar-equipos-form" style="border-top:1px solid var(--border);" hidden>
@@ -758,34 +782,25 @@ async function viewClienteDetalle(id, opts = {}) {
         </form>
       </div>
     </div>
+    ${equiposBloques}`
+        : ""
+    }
 
-    ${equiposBloques}
-
-    <div class="panel">
-      <div class="panel-header"><h2>Trabajos y soporte</h2>
-        <button class="btn btn-accent btn-sm" data-goto="#/trabajos/nuevo?cliente_id=${cliente.id}">+ Nuevo trabajo</button></div>
-      <div class="panel-body">
-        ${
-          trabajosRows
-            ? `<table><thead><tr><th>Tipo</th><th>Descripción</th><th class="num">Monto</th><th class="num">Saldo</th><th>Estado</th></tr></thead><tbody>${trabajosRows}</tbody></table>`
-            : `<div class="panel-empty">Sin trabajos registrados todavía.</div>`
-        }
-      </div>
-    </div>
-
-    ${trabajosBloques}
-
-    <div class="panel">
+    ${
+      secciones.mensualidad
+        ? `<div class="panel">
       <div class="panel-header"><h2>Mensualidades</h2>
         <button class="btn btn-accent btn-sm" data-goto="#/mensualidades/nuevo?cliente_id=${cliente.id}">+ Nueva mensualidad</button></div>
       <div class="panel-body">
         ${
           mensRows
             ? `<table><thead><tr><th>Servicio</th><th class="num">Monto</th><th>Día de cobro</th><th>Este mes</th><th>Estado</th></tr></thead><tbody>${mensRows}</tbody></table>`
-            : `<div class="panel-empty">Sin mensualidades registradas todavía.</div>`
+            : `<div class="panel-empty">Si este cliente paga un servicio todos los meses, agrégalo aquí.</div>`
         }
       </div>
-    </div>
+    </div>`
+        : ""
+    }
   `);
 
   attachNav();
