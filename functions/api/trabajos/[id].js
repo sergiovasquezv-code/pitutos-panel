@@ -2,11 +2,12 @@ import { json } from "../../_lib/json.js";
 import { nowIso } from "../../_lib/dates.js";
 import { borrarAvancesDeTrabajo } from "../../_lib/avances.js";
 import { infoAbono, equipoConGarantia } from "../../_lib/negocio.js";
-import { contarItems, esCotizacion, sincronizarMonto } from "../../_lib/casos.js";
+import { asegurarRealizado, contarItems, esCotizacion, sincronizarMonto } from "../../_lib/casos.js";
 
 export async function onRequestGet({ env, params }) {
   const db = env.DB;
   const id = Number(params.id);
+  await asegurarRealizado(db);
   const trabajo = await db
     .prepare(
       `SELECT trabajos.*, clientes.nombre AS cliente_nombre, clientes.telefono AS cliente_telefono
@@ -40,6 +41,7 @@ export async function onRequestGet({ env, params }) {
 export async function onRequestPut({ request, env, params }) {
   const db = env.DB;
   const id = Number(params.id);
+  await asegurarRealizado(db);
   const trabajo = await db.prepare("SELECT * FROM trabajos WHERE id = ?").bind(id).first();
   if (!trabajo) return json({ error: "Trabajo no encontrado." }, 404);
 
@@ -88,11 +90,12 @@ export async function onRequestPut({ request, env, params }) {
 
   await db
     .prepare(
-      "UPDATE trabajos SET tipo=?, descripcion=?, estado=?, monto=?, fecha_cierre=?, fecha_entrega=?, notas=?, mostrar_detalle_cliente=?, detalle_visible_desde=? WHERE id=?"
+      "UPDATE trabajos SET tipo=?, descripcion=?, realizado=?, estado=?, monto=?, fecha_cierre=?, fecha_entrega=?, notas=?, mostrar_detalle_cliente=?, detalle_visible_desde=? WHERE id=?"
     )
     .bind(
       body.tipo || trabajo.tipo,
       (body.descripcion || "").trim() || trabajo.descripcion,
+      body.realizado === undefined ? trabajo.realizado : String(body.realizado || "").trim(),
       estado,
       body.monto === undefined ? trabajo.monto : Math.max(Math.round(Number(body.monto) || 0), 0),
       fechaCierre,

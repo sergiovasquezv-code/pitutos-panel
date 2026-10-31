@@ -15,6 +15,7 @@ const ESTADOS_POR_PASO = {
 };
 
 const columnasListas = new WeakSet();
+const realizadoListo = new WeakSet();
 
 export function pasoDe(estado) {
   if (ESTADOS_POR_PASO.Cotización.includes(estado)) return "Cotización";
@@ -56,6 +57,21 @@ export function lineaDesdeBody(body) {
   const unitario = Math.max(Math.round(Number(body.precio_unitario) || 0), 0);
   const valor = mandoUnitario ? cantidad * unitario : Math.max(Math.round(Number(body.valor) || 0), 0);
   return { tipo, descripcion, cantidad, valor };
+}
+
+export async function asegurarRealizado(db) {
+  if (realizadoListo.has(db)) return;
+  const info = await db.prepare("PRAGMA table_info(trabajos)").all();
+  const tiene = (info.results || []).some((c) => c.name === "realizado");
+  if (!tiene) {
+    try {
+      await db.prepare("ALTER TABLE trabajos ADD COLUMN realizado TEXT").run();
+    } catch (err) {
+      const msg = String((err && err.message) || err);
+      if (!/duplicate column/i.test(msg)) throw err;
+    }
+  }
+  realizadoListo.add(db);
 }
 
 export async function contarItems(db, trabajoId) {

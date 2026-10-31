@@ -107,6 +107,8 @@ CREATE TABLE IF NOT EXISTS trabajos (
     cliente_id INTEGER NOT NULL,
     tipo TEXT NOT NULL,
     descripcion TEXT NOT NULL,
+    -- Lo que se hizo, en palabras. Va al informe. No es el reclamo inicial.
+    realizado TEXT,
     estado TEXT NOT NULL DEFAULT 'Cotización',
     -- Con líneas cargadas, este monto es la suma de items_trabajo.valor.
     -- Sin líneas, conserva un monto escrito a mano (trabajos antiguos).

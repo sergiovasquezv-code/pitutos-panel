@@ -75,6 +75,23 @@ test("el cierre muestra un grupo a la vez", () => {
   assert.deepEqual(gruposCierreVisibles(grupos, { foto: false, garantia: false, estado: true }), ["foto", "estado"]);
 });
 
+test("el informe lleva lo realizado y deja afuera el reclamo si no se pide", () => {
+  const texto = informeDesdeSeleccion({
+    nombre: "Mirta",
+    negocio: "Mis Pitutos Informáticos",
+    realizado: "Se agregó una memoria RAM Kingston y se revisó el punto de venta.",
+    frases: [],
+    nota: "",
+    incluirDetalle: false,
+    items: [],
+    total: 0,
+    linkUrl: "https://panel.example/seguimiento?t=abc",
+  });
+  assert.match(texto, /Se agregó una memoria RAM Kingston/);
+  assert.doesNotMatch(texto, /punto de venta \(POS\)/);
+  assert.equal(texto.split("Se agregó una memoria RAM Kingston").length, 2);
+});
+
 test("el informe arma solo las frases marcadas y el detalle", () => {
   const texto = informeDesdeSeleccion({
     nombre: "Mirta Soto",

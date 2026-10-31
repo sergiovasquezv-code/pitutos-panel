@@ -1229,15 +1229,19 @@ async function renderFlujoCaso(trabajo, ctx) {
     : "";
 
   const notaHtml = `
-    <div class="field" style="margin-top:14px;"><label>Nota del trabajo</label>
-      <textarea data-flujo-nota rows="3" placeholder="Ej: en el escritorio del living">${escapeHtml(trabajo.descripcion || "")}</textarea>
-      <span class="hint">Puedes incluir esta nota en el informe del final.</span>
+    <div class="field" style="margin-top:14px;"><label>Qué se realizó</label>
+      <textarea data-flujo-realizado rows="4" placeholder="Ej: Se agregó una memoria RAM Kingston frente a la Srta. Gabriela Moyano y se revisó el punto de venta.">${escapeHtml(trabajo.realizado || "")}</textarea>
+      <span class="hint">Aquí escribes lo que hiciste. Este texto es el que sale en el informe.</span>
+    </div>
+    <div class="field"><label>Lo que reportó el cliente</label>
+      <textarea data-flujo-nota rows="2">${escapeHtml(trabajo.descripcion || "")}</textarea>
+      <span class="hint">Es el motivo de la visita. No se manda al cliente salvo que lo marques en el informe.</span>
     </div>
     <div class="field"><label>Notas internas</label>
       <textarea data-flujo-notas rows="2" placeholder="Solo para ti, no salen en el informe">${escapeHtml(trabajo.notas || "")}</textarea>
     </div>
-    <button type="button" class="btn btn-outline btn-sm" data-guardar-nota>Guardar nota</button>
-    <div id="items-trabajo-${trabajo.id}" style="margin-top:14px;"></div>`;
+    <button type="button" class="btn btn-accent btn-sm" data-guardar-nota>Guardar lo realizado</button>
+    ${abierto.detalle ? `<div id="items-trabajo-${trabajo.id}" style="margin-top:14px;"></div>` : ""}`;
 
   const elegidas = [...marcadasDe(tipoOps), ...marcadasDe(hechoOps), ...marcadasDe(cierreOps)];
   const frases = [];
@@ -1249,11 +1253,13 @@ async function renderFlujoCaso(trabajo, ctx) {
     frases.push(texto);
   }
   const nota = String(trabajo.descripcion || "").trim();
+  const realizado = String(trabajo.realizado || "").trim();
   const linkUrl = trabajo.public_token ? `${window.location.origin}/seguimiento?t=${trabajo.public_token}` : "";
   const armarInforme = (opts) =>
     informeDesdeSeleccion({
       nombre: trabajo.cliente_nombre,
       negocio: currentNombreNegocio,
+      realizado: opts.realizado ? realizado : "",
       frases: frases.filter((_, i) => opts.frases[i]),
       nota: opts.nota ? nota : "",
       incluirDetalle: opts.detalle,
@@ -1265,8 +1271,9 @@ async function renderFlujoCaso(trabajo, ctx) {
   const informeHtml = `
     <span class="hint" style="display:block;margin-bottom:8px;">Marca lo que quieres que diga el mensaje.</span>
     <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px;">
-      ${frases.map((f, i) => `<label class="checkbox-row"><input type="checkbox" data-frase="${i}" checked> ${escapeHtml(f)}</label>`).join("")}
-      ${nota ? `<label class="checkbox-row"><input type="checkbox" data-inc-nota checked> Incluir la nota del trabajo</label>` : ""}
+      ${realizado ? `<label class="checkbox-row"><input type="checkbox" data-inc-realizado checked> Incluir lo que se realizó</label>` : ""}
+      ${frases.map((f, i) => `<label class="checkbox-row"><input type="checkbox" data-frase="${i}"> ${escapeHtml(f)}</label>`).join("")}
+      ${nota ? `<label class="checkbox-row"><input type="checkbox" data-inc-nota> Incluir lo que reportó el cliente</label>` : ""}
       <label class="checkbox-row"><input type="checkbox" data-inc-detalle checked> Según el detalle${items.length ? ` (${clp(trabajo.monto)})` : ""}</label>
     </div>
     <div class="field"><label>Mensaje</label><textarea data-informe-texto rows="10"></textarea></div>
@@ -1285,7 +1292,7 @@ async function renderFlujoCaso(trabajo, ctx) {
       ? bloquePaso(
           `2. ${escapeHtml(nombrePaso("hecho", "Qué se hizo"))}`,
           true,
-          `${chips(hechoOps)}<span class="hint">Marca lo que ya hiciste. Puedes marcar varias.</span>${abierto.detalle ? notaHtml : ""}`,
+          `${chips(hechoOps)}<span class="hint">Marca lo que ya hiciste. Puedes marcar varias.</span>${notaHtml}`,
           ""
         )
       : "";
@@ -1330,10 +1337,11 @@ async function renderFlujoCaso(trabajo, ctx) {
           tipo: trabajo.tipo,
           estado: trabajo.estado,
           descripcion: caja.querySelector("[data-flujo-nota]").value,
+          realizado: caja.querySelector("[data-flujo-realizado]").value,
           notas: caja.querySelector("[data-flujo-notas]").value,
           mostrar_detalle_cliente: !!trabajo.mostrar_detalle_cliente,
         });
-        flash("Nota guardada.");
+        flash("Quedó guardado lo que se realizó.");
         await recargar();
       } catch (err) {
         guardar.disabled = false;
@@ -1373,6 +1381,7 @@ async function renderFlujoCaso(trabajo, ctx) {
     const numero = telefonoWhatsapp(trabajo.cliente_telefono);
     const leer = () => ({
       frases: [...caja.querySelectorAll("[data-frase]")].map((c) => c.checked),
+      realizado: !!(caja.querySelector("[data-inc-realizado]") && caja.querySelector("[data-inc-realizado]").checked),
       nota: !!(caja.querySelector("[data-inc-nota]") && caja.querySelector("[data-inc-nota]").checked),
       detalle: !!caja.querySelector("[data-inc-detalle]").checked,
     });
@@ -1380,7 +1389,7 @@ async function renderFlujoCaso(trabajo, ctx) {
       textarea.value = armarInforme(leer());
       btn.href = `https://wa.me/${numero}?text=${encodeURIComponent(textarea.value)}`;
     };
-    caja.querySelectorAll("[data-frase], [data-inc-nota], [data-inc-detalle]").forEach((c) => {
+    caja.querySelectorAll("[data-frase], [data-inc-realizado], [data-inc-nota], [data-inc-detalle]").forEach((c) => {
       c.addEventListener("change", pintar);
     });
     textarea.addEventListener("input", () => {

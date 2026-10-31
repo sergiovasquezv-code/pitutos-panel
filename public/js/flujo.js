@@ -35,6 +35,11 @@ export function informeDesdeSeleccion(ctx) {
     .split(/\s+/)[0];
   const lineas = [`Hola${nombre ? ` ${nombre}` : ""}, te escribimos de ${ctx.negocio}.`];
   const vistas = new Set();
+  const realizado = String(ctx.realizado || "").trim();
+  if (realizado) {
+    vistas.add(realizado);
+    lineas.push(realizado);
+  }
   for (const frase of ctx.frases || []) {
     const texto = String(frase || "").trim();
     if (!texto || vistas.has(texto)) continue;
@@ -42,7 +47,7 @@ export function informeDesdeSeleccion(ctx) {
     lineas.push(texto);
   }
   const nota = String(ctx.nota || "").trim();
-  if (nota) lineas.push(nota);
+  if (nota && !vistas.has(nota)) lineas.push(nota);
   if (ctx.incluirDetalle) {
     const partes = (ctx.items || []).map((i) => {
       const cant = Number(i.cantidad) || 1;

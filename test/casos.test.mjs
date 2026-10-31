@@ -217,6 +217,54 @@ test("salir de cotización muestra el detalle y el filtro En curso incluye lo re
   assert.deepEqual(estados, ["En curso", "Recibido"]);
 });
 
+test("lo realizado se guarda aparte del reclamo y una base vieja crea la columna", async () => {
+  const sinRealizado = schema.replace(
+    "\n    -- Lo que se hizo, en palabras. Va al informe. No es el reclamo inicial.\n    realizado TEXT,",
+    ""
+  );
+  assert.equal(sinRealizado.includes("realizado TEXT"), false);
+  const db = createD1(sinRealizado);
+  await db.prepare("INSERT INTO clientes (nombre, creado_en) VALUES (?, ?)").bind("Mirta Librería", "2026-10-31T15:00:00.000Z").run();
+  await db
+    .prepare(
+      "INSERT INTO trabajos (cliente_id, tipo, descripcion, estado, monto, fecha_creacion) VALUES (1, 'Soporte técnico', ?, 'Entregado', 0, '2026-10-31T15:00:00.000Z')"
+    )
+    .bind("El cliente reporta fallas en el funcionamiento del punto de venta (POS).")
+    .run();
+
+  await onRequestPut({
+    request: put("https://panel.test/api/trabajos/1", {
+      tipo: "Soporte técnico",
+      estado: "Entregado",
+      descripcion: "El cliente reporta fallas en el funcionamiento del punto de venta (POS).",
+      realizado: "Se agregó una memoria RAM Kingston frente a la Srta. Gabriela Moyano y se revisó el punto de venta.",
+      notas: "interno",
+      mostrar_detalle_cliente: true,
+    }),
+    env: { DB: db },
+    params: { id: "1" },
+  });
+  const guardado = await leer(db, 1);
+  assert.equal(guardado.descripcion, "El cliente reporta fallas en el funcionamiento del punto de venta (POS).");
+  assert.equal(guardado.realizado, "Se agregó una memoria RAM Kingston frente a la Srta. Gabriela Moyano y se revisó el punto de venta.");
+  assert.equal(guardado.notas, "interno");
+
+  await onRequestPut({
+    request: put("https://panel.test/api/trabajos/1", {
+      tipo: "Soporte técnico",
+      estado: "Entregado",
+      descripcion: "El cliente reporta fallas en el funcionamiento del punto de venta (POS).",
+      mostrar_detalle_cliente: true,
+    }),
+    env: { DB: db },
+    params: { id: "1" },
+  });
+  assert.equal(
+    (await leer(db, 1)).realizado,
+    "Se agregó una memoria RAM Kingston frente a la Srta. Gabriela Moyano y se revisó el punto de venta."
+  );
+});
+
 test("en una base sin la columna cantidad, la primera línea la crea", async () => {
   const sinCantidad = schema.replace("\n    cantidad INTEGER NOT NULL DEFAULT 1,", "");
   assert.equal(sinCantidad.includes("cantidad INTEGER"), false);
