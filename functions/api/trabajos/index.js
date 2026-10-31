@@ -1,6 +1,7 @@
 import { json } from "../../_lib/json.js";
 import { nowIso } from "../../_lib/dates.js";
 import { infoAbono } from "../../_lib/negocio.js";
+import { estadosDe, insertarLinea, sincronizarMonto } from "../../_lib/casos.js";
 
 export async function onRequestGet({ request, env }) {
   const db = env.DB;
@@ -10,8 +11,14 @@ export async function onRequestGet({ request, env }) {
   const base = `SELECT trabajos.*, clientes.nombre AS cliente_nombre
                 FROM trabajos JOIN clientes ON clientes.id = trabajos.cliente_id`;
   let stmt;
+  const equivalentes = estadosDe(estado);
   if (estado === "abiertos") {
     stmt = db.prepare(base + " WHERE trabajos.estado NOT IN ('Entregado', 'Demostración') ORDER BY fecha_creacion DESC");
+  } else if (equivalentes) {
+    const marcas = equivalentes.map(() => "?").join(",");
+    stmt = db
+      .prepare(base + ` WHERE trabajos.estado IN (${marcas}) ORDER BY fecha_creacion DESC`)
+      .bind(...equivalentes);
   } else if (estado) {
     stmt = db.prepare(base + " WHERE trabajos.estado = ? ORDER BY fecha_creacion DESC").bind(estado);
   } else {
@@ -36,6 +43,7 @@ export async function onRequestPost({ request, env }) {
   const cliente = await db.prepare("SELECT id FROM clientes WHERE id = ?").bind(clienteId).first();
   if (!cliente) return json({ error: "Cliente no encontrado." }, 400);
 
+  const montoInicial = Math.max(Math.round(Number(body.monto) || 0), 0);
   const result = await db
     .prepare(
       `INSERT INTO trabajos (cliente_id, tipo, descripcion, estado, monto, fecha_creacion, fecha_cierre, notas)
@@ -45,13 +53,26 @@ export async function onRequestPost({ request, env }) {
       clienteId,
       body.tipo || "Programación",
       descripcion,
-      body.estado || "Recibido",
-      Number(body.monto) || 0,
+      (body.estado || "").trim() || "Cotización",
+      0,
       nowIso(),
       null,
       (body.notas || "").trim()
     )
     .run();
 
-  return json({ ok: true, id: result.meta.last_row_id, cliente_id: clienteId });
+  const id = result.meta.last_row_id;
+  // Un monto al crear el caso queda como única línea, para que el total
+  // nazca de la suma y no de un campo aparte.
+  if (montoInicial > 0) {
+    await insertarLinea(db, id, {
+      tipo: "servicio",
+      descripcion,
+      cantidad: 1,
+      valor: montoInicial,
+    });
+    await sincronizarMonto(db, id);
+  }
+
+  return json({ ok: true, id, cliente_id: clienteId });
 }

@@ -107,7 +107,9 @@ CREATE TABLE IF NOT EXISTS trabajos (
     cliente_id INTEGER NOT NULL,
     tipo TEXT NOT NULL,
     descripcion TEXT NOT NULL,
-    estado TEXT NOT NULL DEFAULT 'Pendiente',
+    estado TEXT NOT NULL DEFAULT 'Cotización',
+    -- Con líneas cargadas, este monto es la suma de items_trabajo.valor.
+    -- Sin líneas, conserva un monto escrito a mano (trabajos antiguos).
     monto INTEGER DEFAULT 0,
     fecha_creacion TEXT NOT NULL,
     fecha_cierre TEXT,
@@ -125,16 +127,14 @@ CREATE TABLE IF NOT EXISTS trabajos (
     detalle_visible_desde TEXT
 );
 
--- Desglose de un trabajo: repuestos usados y/o servicios cobrados, cada
--- uno con su propio valor (ej: "Disco duro" $20.000 + "Formateo e
--- instalación de sistema" $15.000). Es solo informativo/de desglose —
--- el monto real que se cobra sigue siendo trabajos.monto; esto existe
--- para que tanto tú como el cliente vean en qué se compone ese total.
+-- Líneas del caso. El total que se cobra es la suma de valor
+-- (cantidad × precio). trabajos.monto se actualiza con esa suma.
 CREATE TABLE IF NOT EXISTS items_trabajo (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     trabajo_id INTEGER NOT NULL,
-    tipo TEXT NOT NULL, -- 'repuesto' | 'servicio' | 'otro'
+    tipo TEXT NOT NULL, -- 'producto' | 'repuesto' | 'servicio' | 'mano_obra' | 'otro'
     descripcion TEXT NOT NULL,
+    cantidad INTEGER NOT NULL DEFAULT 1,
     valor INTEGER NOT NULL DEFAULT 0,
     creado_en TEXT NOT NULL
 );

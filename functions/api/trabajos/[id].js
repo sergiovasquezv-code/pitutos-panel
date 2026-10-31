@@ -2,6 +2,7 @@ import { json } from "../../_lib/json.js";
 import { nowIso } from "../../_lib/dates.js";
 import { borrarAvancesDeTrabajo } from "../../_lib/avances.js";
 import { infoAbono, equipoConGarantia } from "../../_lib/negocio.js";
+import { contarItems, esCotizacion, sincronizarMonto } from "../../_lib/casos.js";
 
 export async function onRequestGet({ env, params }) {
   const db = env.DB;
@@ -59,20 +60,26 @@ export async function onRequestPut({ request, env, params }) {
     return json({ ok: true, mostrar_detalle_cliente: !!mostrar, detalle_visible_desde: detalleDesde });
   }
 
-  // Cambio de monto rápido (ej: "usar el total del desglose").
+  // Atajo antiguo. Si ya hay líneas, el total es su suma y este número se ignora.
   if (body.solo_monto !== undefined) {
-    await db.prepare("UPDATE trabajos SET monto = ? WHERE id = ?").bind(Math.max(Number(body.solo_monto) || 0, 0), id).run();
+    if ((await contarItems(db, id)) > 0) {
+      const monto = await sincronizarMonto(db, id);
+      return json({ ok: true, monto });
+    }
+    await db.prepare("UPDATE trabajos SET monto = ? WHERE id = ?").bind(Math.max(Math.round(Number(body.solo_monto) || 0), 0), id).run();
     return json({ ok: true });
   }
 
-  const estado = body.estado || "Recibido";
+  const estado = body.estado || trabajo.estado;
   const fechaEntrega =
     body.fecha_entrega !== undefined ? (String(body.fecha_entrega || "").trim() || null) : trabajo.fecha_entrega;
   let fechaCierre = trabajo.fecha_cierre;
   if (estado === "Entregado" && !fechaCierre) fechaCierre = nowIso();
   else if (estado !== "Entregado") fechaCierre = null;
 
-  const mostrarDetalle = body.mostrar_detalle_cliente ? 1 : 0;
+  // Al salir de la cotización el cliente ya puede ver líneas y saldo.
+  let mostrarDetalle = body.mostrar_detalle_cliente ? 1 : 0;
+  if (esCotizacion(trabajo.estado) && !esCotizacion(estado)) mostrarDetalle = 1;
   const detalleDesde = mostrarDetalle
     ? trabajo.mostrar_detalle_cliente
       ? trabajo.detalle_visible_desde
@@ -87,7 +94,7 @@ export async function onRequestPut({ request, env, params }) {
       body.tipo || trabajo.tipo,
       (body.descripcion || "").trim() || trabajo.descripcion,
       estado,
-      body.monto === undefined ? trabajo.monto : Number(body.monto) || 0,
+      body.monto === undefined ? trabajo.monto : Math.max(Math.round(Number(body.monto) || 0), 0),
       fechaCierre,
       fechaEntrega,
       body.notas === undefined ? trabajo.notas : (body.notas || "").trim(),
@@ -96,6 +103,10 @@ export async function onRequestPut({ request, env, params }) {
       id
     )
     .run();
+
+  // Con líneas cargadas, el monto escrito en el formulario no manda:
+  // el total vuelve a ser la suma.
+  if ((await contarItems(db, id)) > 0) await sincronizarMonto(db, id);
 
   // Si el estado cambió, dejamos un hito automático en la línea de tiempo.
   // Siempre es visible para el cliente — a diferencia de notas/fotos/enlaces,

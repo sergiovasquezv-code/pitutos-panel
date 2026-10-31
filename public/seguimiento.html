@@ -392,12 +392,14 @@
       }
     }
 
-    const ETIQUETAS_ITEM = { repuesto: "Repuesto", servicio: "Servicio", otro: "Otro" };
+    const ETIQUETAS_ITEM = { producto: "Producto", repuesto: "Repuesto", servicio: "Servicio", mano_obra: "Mano de obra", otro: "Otro" };
 
     function renderItem(item) {
+      const cant = Number(item.cantidad) || 1;
+      const desc = cant > 1 ? `${cant} × ${escapeHtml(item.descripcion)}` : escapeHtml(item.descripcion);
       return `
         <div class="item-row">
-          <div><span class="tipo">${ETIQUETAS_ITEM[item.tipo] || "Otro"}</span>${escapeHtml(item.descripcion)}</div>
+          <div><span class="tipo">${ETIQUETAS_ITEM[item.tipo] || "Otro"}</span>${desc}</div>
           <div>${clp(item.valor)}</div>
         </div>`;
     }
@@ -547,7 +549,14 @@
       return `https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`;
     }
 
-    const ESTADOS = ["Recibido", "En preparación", "Equipo listo", "Entregado"];
+    const ESTADOS = ["Cotización", "En curso", "Listo", "Entregado"];
+
+    function pasoCliente(estado) {
+      if (estado === "Cotización" || estado === "Pendiente" || estado === "Demostración") return "Cotización";
+      if (estado === "Listo" || estado === "Equipo listo" || estado === "Entrega fijada") return "Listo";
+      if (estado === "Entregado") return "Entregado";
+      return "En curso";
+    }
 
     function textoEntrega(valor) {
       const [fecha, hora] = String(valor).split("T");
@@ -558,16 +567,19 @@
     }
 
     function bannerEntregaPago(trabajo) {
+      var paso = pasoCliente(trabajo.estado);
       var cls = "warn", ic = "&#8987;", titulo, detalle;
-      if (trabajo.estado === "Entregado") {
+      if (paso === "Entregado") {
         cls = "ok"; ic = "&#10003;"; titulo = "Entregado";
-        detalle = trabajo.fecha_cierre ? "Te lo entregamos el " + fechaLarga(trabajo.fecha_cierre) + "." : "Tu equipo ya fue entregado.";
+        detalle = trabajo.fecha_cierre ? "Te lo entregamos el " + fechaLarga(trabajo.fecha_cierre) + "." : "Ya quedó entregado.";
       } else if (trabajo.fecha_entrega) {
         titulo = "Entrega programada"; detalle = textoEntrega(trabajo.fecha_entrega) + ".";
-      } else if (trabajo.estado === "Equipo listo" || trabajo.estado === "Entrega fijada") {
-        titulo = "Equipo listo"; detalle = "Tu equipo ya está listo. Coordinemos la fecha de entrega por WhatsApp.";
+      } else if (paso === "Listo") {
+        titulo = "Listo"; detalle = "Ya está listo. Coordinemos la entrega por WhatsApp.";
+      } else if (paso === "Cotización") {
+        titulo = "Cotización"; detalle = "Esta es la cotización. El trabajo empieza cuando la confirmes.";
       } else {
-        titulo = "En proceso"; detalle = "Estamos trabajando en tu equipo. Te avisaremos cuando esté listo.";
+        titulo = "En curso"; detalle = "Estamos trabajando. Te avisamos cuando esté listo.";
       }
       var pago = "";
       if (trabajo.monto) {
@@ -579,13 +591,14 @@
         '<div class="ic">' + ic + '</div><div><p class="titulo">' + titulo + '</p><p class="detalle">' + detalle + (pago ? "<br>" + pago : "") + '</p></div></div></div>';
     }
     function renderEstadoSteps(estadoActual) {
-      const idxActual = ESTADOS.indexOf(estadoActual === "Entrega fijada" ? "Equipo listo" : estadoActual);
+      const paso = pasoCliente(estadoActual);
+      const idxActual = ESTADOS.indexOf(paso);
       return ESTADOS.map((estado, i) => {
         let cls = "";
-        if (i < idxActual) cls = "done";
+        if (idxActual >= 0 && i < idxActual) cls = "done";
         else if (i === idxActual) cls = "current";
-        if (i === idxActual && estado === "Esperando cliente") cls += " waiting";
-        const icono = i < idxActual ? "&#10003;" : String(i + 1);
+        if (i === idxActual && estadoActual === "Esperando cliente") cls += " waiting";
+        const icono = idxActual >= 0 && i < idxActual ? "&#10003;" : String(i + 1);
         return `
           <div class="step ${cls}">
             <div class="line"></div>

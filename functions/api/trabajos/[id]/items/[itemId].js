@@ -1,4 +1,5 @@
 import { json } from "../../../../_lib/json.js";
+import { sincronizarMonto } from "../../../../_lib/casos.js";
 
 export async function onRequestDelete({ env, params }) {
   const db = env.DB;
@@ -12,5 +13,6 @@ export async function onRequestDelete({ env, params }) {
   if (!item) return json({ error: "Ítem no encontrado." }, 404);
 
   await db.prepare("DELETE FROM items_trabajo WHERE id = ?").bind(itemId).run();
-  return json({ ok: true });
+  const monto = await sincronizarMonto(db, trabajoId);
+  return json({ ok: true, monto });
 }

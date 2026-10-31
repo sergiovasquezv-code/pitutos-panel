@@ -1,5 +1,6 @@
 import { json } from "../../../_lib/json.js";
 import { infoAbono, equipoConGarantia } from "../../../_lib/negocio.js";
+import { asegurarCantidad } from "../../../_lib/casos.js";
 
 export async function onRequestGet({ env, params }) {
   const db = env.DB;
@@ -39,9 +40,12 @@ export async function onRequestGet({ env, params }) {
   let equipos = [];
   let pago = {};
   if (mostrarDetalle) {
+    await asegurarCantidad(db);
     items = (
       await db
-        .prepare("SELECT id, tipo, descripcion, valor FROM items_trabajo WHERE trabajo_id = ? ORDER BY creado_en ASC, id ASC")
+        .prepare(
+          "SELECT id, tipo, descripcion, cantidad, valor FROM items_trabajo WHERE trabajo_id = ? ORDER BY creado_en ASC, id ASC"
+        )
         .bind(trabajo.id)
         .all()
     ).results;

@@ -2,15 +2,11 @@ import { apiGet, apiPost, apiPut, apiDelete, apiPostForm } from "./api.js";
 // (apiPostForm ya se usaba para subir fotos de avances en trabajos; se
 // reutiliza aquí para las fotos del estado de un equipo.)
 import { clp, escapeHtml, telefonoWhatsapp, soloDigitosTelefono, formatearRut } from "./format.js";
+import { FLUJO_CASO, mensajeCaso, pasoDe } from "./caso.js";
 
-const TIPOS_TRABAJO = ["Programación", "Soporte técnico", "Instalación", "Mantención", "Otro"];
-// Flujo natural de un trabajo, en orden; las demás son pausas o casos aparte.
-// "Entrega fijada" ya no es un paso: se mantiene solo por compatibilidad con
-// trabajos antiguos que quedaron en ese estado (se tratan como "Equipo listo").
-const FLUJO_TRABAJO = ["Recibido", "En preparación", "Equipo listo", "Entregado"];
-const ESTADO_LEGADO_ENTREGA = "Entrega fijada";
-const estadoDeFlujo = (e) => (e === ESTADO_LEGADO_ENTREGA ? "Equipo listo" : e);
-const ESTADOS_TRABAJO = [...FLUJO_TRABAJO, "Esperando cliente", "Cliente no ubicado", "Demostración"];
+const TIPOS_TRABAJO = ["Venta", "Reparación", "Programación", "Soporte técnico", "Instalación", "Mantención", "Garantía", "Otro"];
+const FLUJO_TRABAJO = FLUJO_CASO;
+const PAUSAS_TRABAJO = ["Esperando cliente", "Cliente no ubicado"];
 
 const els = {
   content: document.getElementById("content"),
@@ -211,13 +207,30 @@ async function wireCatalogoProductoPicker() {
 }
 
 function badgeTrabajo(estado) {
+  const paso = pasoDe(estado);
   let cls = "neutral";
-  if (estado === "Entregado") cls = "ok";
-  else if (estado === "En preparación" || estado === "Equipo listo" || estado === "Entrega fijada") cls = "warn";
-  else if (estado === "Esperando cliente") cls = "danger";
-  else if (estado === "Cliente no ubicado") cls = "danger";
-  else if (estado === "Demostración") cls = "accent";
+  if (paso === "Entregado") cls = "ok";
+  else if (paso === "Listo" || paso === "En curso") cls = "warn";
+  else if (paso === "Cotización") cls = "accent";
+  if (estado === "Esperando cliente" || estado === "Cliente no ubicado") cls = "danger";
   return `<span class="badge ${cls}">${escapeHtml(estado)}</span>`;
+}
+
+function opcionesTipo(actual) {
+  const lista = [...TIPOS_TRABAJO];
+  if (actual && !lista.includes(actual)) lista.unshift(actual);
+  const sel = actual || "Programación";
+  return lista
+    .map((t) => `<option value="${escapeHtml(t)}" ${t === sel ? "selected" : ""}>${escapeHtml(t)}</option>`)
+    .join("");
+}
+
+function opcionesEstado(actual) {
+  const sel = actual || "Cotización";
+  const opt = (e) => `<option value="${escapeHtml(e)}" ${e === sel ? "selected" : ""}>${escapeHtml(e)}</option>`;
+  const conocido = new Set([...FLUJO_CASO, ...PAUSAS_TRABAJO]);
+  const legado = sel && !conocido.has(sel) ? opt(sel) : "";
+  return `<optgroup label="Paso">${FLUJO_CASO.map(opt).join("")}</optgroup><optgroup label="Pausa">${PAUSAS_TRABAJO.map(opt).join("")}</optgroup>${legado}`;
 }
 
 async function clienteOptions(selectedId) {
@@ -1046,12 +1059,8 @@ async function cargarTrabajoInline(trabajoId, clienteId, containerId = "trabajo-
     return;
   }
 
-  const tipoOptions = TIPOS_TRABAJO.map(
-    (t) => `<option value="${t}" ${trabajo.tipo === t ? "selected" : ""}>${t}</option>`
-  ).join("");
-  const estadoOptions = (ESTADOS_TRABAJO.includes(trabajo.estado) ? ESTADOS_TRABAJO : [...ESTADOS_TRABAJO, trabajo.estado])
-    .map((e) => `<option value="${e}" ${trabajo.estado === e ? "selected" : ""}>${e}</option>`)
-    .join("");
+  const tipoOptions = opcionesTipo(trabajo.tipo);
+  const estadoOptions = opcionesEstado(trabajo.estado);
 
   // Cada equipo vinculado ya tiene su propio bloque desplegado más arriba
   // (en "Equipos y garantías"), así que aquí solo se baja con scroll hasta
@@ -1078,9 +1087,9 @@ async function cargarTrabajoInline(trabajoId, clienteId, containerId = "trabajo-
     ? `<span class="badge neutral">Oculto ahora · se mostró desde ${fechaCortaHora(trabajo.detalle_visible_desde)}</span>`
     : `<span class="badge neutral">Oculto para el cliente</span>`;
 
-  const idxFlujo = FLUJO_TRABAJO.indexOf(estadoDeFlujo(trabajo.estado));
-  const siguienteEstado = idxFlujo < 0 ? "En preparación" : FLUJO_TRABAJO[idxFlujo + 1] || null;
-  const textoSiguiente = idxFlujo < 0 ? `Retomar: ${siguienteEstado}` : siguienteEstado ? `Siguiente: ${siguienteEstado}` : "";
+  const idxFlujo = FLUJO_TRABAJO.indexOf(pasoDe(trabajo.estado));
+  const siguienteEstado = idxFlujo >= 0 && idxFlujo < FLUJO_TRABAJO.length - 1 ? FLUJO_TRABAJO[idxFlujo + 1] : null;
+  const textoSiguiente = siguienteEstado ? `Avanzar a ${siguienteEstado}` : "";
   const pasosHtml = FLUJO_TRABAJO.map((e, i) => {
     const hecho = idxFlujo >= 0 && i < idxFlujo;
     const actual = i === idxFlujo;
@@ -1092,11 +1101,16 @@ async function cargarTrabajoInline(trabajoId, clienteId, containerId = "trabajo-
       <div class="panel-header"><h2>Trabajo: ${escapeHtml(trabajo.tipo)}</h2>${badgeTrabajo(trabajo.estado)}</div>
       <div class="panel-body padded">
         <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">${pasosHtml}</div>
+        <p style="margin:10px 0 0;">Total <strong>${clp(trabajo.monto)}</strong>${
+          trabajo.monto > 0
+            ? ` · abonado ${clp(trabajo.abonado || 0)} · saldo <strong>${clp(trabajo.saldo || 0)}</strong>`
+            : ""
+        }</p>
         ${trabajo.fecha_entrega ? `<p style="margin:10px 0 0;">Entrega: <strong>${escapeHtml(fechaEntregaTexto(trabajo.fecha_entrega))}</strong></p>` : ""}
         <div class="actions-row" style="margin-top:12px;" data-paso-botones>
           ${siguienteEstado ? `<button type="button" class="btn btn-accent" data-paso="${siguienteEstado}">${textoSiguiente}</button>` : ""}
         </div>
-        <span class="hint">Cambiar de estado no le envía nada al cliente: usa el aviso de abajo cuando quieras informarle.</span>
+        <span class="hint">Avanzar no le escribe al cliente. El total es la suma de las líneas. Cuando quieras informarle, usa Avisar.</span>
         <div id="aviso-${trabajo.id}" style="margin-top:12px;"></div>
       </div>
     </div>
@@ -1111,8 +1125,6 @@ async function cargarTrabajoInline(trabajoId, clienteId, containerId = "trabajo-
           </div>
           <div class="field"><label for="descripcion">Descripción *</label>
             <textarea id="descripcion" required>${escapeHtml(trabajo.descripcion || "")}</textarea></div>
-          <div class="field"><label for="monto">Monto (CLP)</label>
-            <input type="number" id="monto" min="0" step="1" value="${trabajo.monto}"></div>
           <div class="field"><label>Detalle y pago para el cliente</label>
             <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
               ${detalleTag}
@@ -1120,7 +1132,7 @@ async function cargarTrabajoInline(trabajoId, clienteId, containerId = "trabajo-
                 ${trabajo.mostrar_detalle_cliente ? "Ocultar del cliente" : "Mostrar al cliente"}
               </button>
             </div>
-            <span class="hint">Mientras esté oculto, el cliente NO ve el desglose (repuestos/servicios), la garantía de los equipos de este trabajo ni el monto/saldo en su página de seguimiento — solo el avance. Actívalo cuando el monto ya esté definitivo.</span>
+            <span class="hint">En cotización el cliente ve el avance, no los precios. Al pasar a En curso se muestran las líneas y el saldo. Puedes ocultarlos de nuevo con este botón.</span>
           </div>
           <div class="field"><label for="notas">Notas (de finalización u otras, para tu uso interno)</label><textarea id="notas">${escapeHtml(trabajo.notas || "")}</textarea></div>
           <div class="form-actions">
@@ -1144,7 +1156,6 @@ async function cargarTrabajoInline(trabajoId, clienteId, containerId = "trabajo-
       </div>
     </div>
     <div id="abonos-trabajo-${trabajo.id}" style="margin-top:14px;"></div>
-    <div id="informe-${trabajo.id}" style="margin-top:14px;"></div>
     <details style="margin-top:14px;">
       <summary style="cursor:pointer;font-weight:650;padding:8px 0;">Notas, fotos y enlaces del seguimiento (avanzado)</summary>
       <div id="seguimiento-${trabajo.id}" style="margin-top:8px;"></div>
@@ -1158,7 +1169,6 @@ async function cargarTrabajoInline(trabajoId, clienteId, containerId = "trabajo-
   // trabajos/equipos ya abiertos en la página.
   renderItemsTrabajo(trabajo, `items-trabajo-${trabajo.id}`, () => cargarTrabajoInline(trabajoId, clienteId, containerId));
   renderSeguimiento(trabajo, `seguimiento-${trabajo.id}`);
-  renderInformeCliente(trabajo, equiposVinculados, `informe-${trabajo.id}`);
   renderAbonosPanel(`abonos-trabajo-${trabajo.id}`, {
     categoria: "trabajo",
     referenciaId: trabajo.id,
@@ -1171,7 +1181,6 @@ async function cargarTrabajoInline(trabajoId, clienteId, containerId = "trabajo-
         trabajo = data.trabajo;
         renderSeguimiento(trabajo, `seguimiento-${trabajo.id}`);
         renderAvisoCliente(trabajo, equiposVinculados, `aviso-${trabajo.id}`);
-        renderInformeCliente(trabajo, equiposVinculados, `informe-${trabajo.id}`);
       } catch {
         // igual que en equipos: si falla, el mensaje de WhatsApp de
         // seguimiento queda con el saldo anterior hasta recargar.
@@ -1189,7 +1198,8 @@ async function cargarTrabajoInline(trabajoId, clienteId, containerId = "trabajo-
       try {
         await apiPut(`/api/trabajos/${trabajo.id}`, {
           estado: pasoDestino,
-          mostrar_detalle_cliente: !!trabajo.mostrar_detalle_cliente,
+          mostrar_detalle_cliente:
+            pasoDe(trabajo.estado) === "Cotización" ? true : !!trabajo.mostrar_detalle_cliente,
         });
         flash(`Trabajo en estado "${pasoDestino}". Ya puedes avisarle al cliente.`);
         viewClienteDetalle(clienteId, { openTrabajoId: trabajoId });
@@ -1207,7 +1217,6 @@ async function cargarTrabajoInline(trabajoId, clienteId, containerId = "trabajo-
       tipo: wrapper.querySelector("#tipo").value,
       estado: wrapper.querySelector("#estado").value,
       descripcion: wrapper.querySelector("#descripcion").value,
-      monto: wrapper.querySelector("#monto").value,
       notas: wrapper.querySelector("#notas").value,
       // El "mostrar/ocultar al cliente" se guarda con su propio botón (más
       // abajo), no desde este formulario — se manda tal cual está para no
@@ -1940,14 +1949,17 @@ function mostrarLinkAbono(container, res, cfg, montoAbonado) {
 /* Trabajos                                                             */
 /* ---------------------------------------------------------------- */
 async function viewTrabajosList(estado) {
-  setPage({ title: "Trabajos y soporte" });
+  setPage({
+    title: "Trabajos y soporte",
+    subtitle: "Un caso por trabajo. El total es la suma de las líneas y los abonos se restan de ese total.",
+  });
   setContent(`<div class="empty-state">Cargando…</div>`);
   const { trabajos } = await apiGet(`/api/trabajos${estado ? `?estado=${encodeURIComponent(estado)}` : ""}`);
 
   const filterBtns = [
     `<button class="btn btn-sm ${!estado ? "btn-primary" : "btn-outline"}" data-goto="#/trabajos">Todos</button>`,
     `<button class="btn btn-sm ${estado === "abiertos" ? "btn-primary" : "btn-outline"}" data-goto="#/trabajos?estado=abiertos">Abiertos</button>`,
-    ...ESTADOS_TRABAJO.map(
+    ...FLUJO_TRABAJO.map(
       (e) =>
         `<button class="btn btn-sm ${estado === e ? "btn-primary" : "btn-outline"}" data-goto="#/trabajos?estado=${encodeURIComponent(e)}">${e}</button>`
     ),
@@ -2199,22 +2211,17 @@ async function renderInformeCliente(trabajo, equipos, containerId) {
 /* Aviso rápido al cliente por WhatsApp                               */
 /* ---------------------------------------------------------------- */
 const AVISOS = {
-  recibido: { titulo: "Recibimos tu equipo", opts: { link: true } },
-  avance: { titulo: "Avance", opts: { nota: true, fotos: true, link: true } },
-  listo: { titulo: "Equipo listo", opts: { saldo: true, link: true } },
-  cobro: { titulo: "Cobro / abono", opts: { monto: true, saldo: true, link: true } },
-  pago: { titulo: "Confirmación de pago", opts: { saldo: true, link: true } },
-  libre: { titulo: "Mensaje libre", opts: { link: true } },
+  recibido: { titulo: "Recibimos tu equipo" },
+  avance: { titulo: "Avance" },
+  listo: { titulo: "Equipo listo" },
+  cobro: { titulo: "Cobro / abono" },
+  pago: { titulo: "Confirmación de pago" },
+  libre: { titulo: "Mensaje libre" },
+  Cotización: { titulo: "Cotización" },
+  "En curso": { titulo: "En curso" },
+  Listo: { titulo: "Listo" },
+  Entregado: { titulo: "Entregado" },
 };
-
-function avisoSugerido(trabajo, total) {
-  const estado = estadoDeFlujo(trabajo.estado);
-  if (estado === "Recibido") return "recibido";
-  if (estado === "En preparación") return "avance";
-  if (estado === "Equipo listo") return "listo";
-  if (estado === "Entregado") return total > 0 && !trabajo.pagado_completo ? "cobro" : "pago";
-  return "libre";
-}
 
 function ymdLocal(d) {
   const p = (n) => String(n).padStart(2, "0");
@@ -2228,42 +2235,27 @@ function atajoFecha(tipo) {
   return ymdLocal(d);
 }
 
-function armarAviso(tipo, ctx) {
-  const { trabajo, opts, nota, total, linkUrl, fechaEntrega } = ctx;
-  const nombre = (trabajo.cliente_nombre || "").trim().split(/\s+/)[0] || "";
-  const equipo = (trabajo.tipo || "trabajo").toLowerCase();
-  const saldoTxt = trabajo.pagado_completo
-    ? `Tu pago está completo ${EMOJI_CHECK}`
-    : trabajo.abonado > 0
-    ? `Abonado ${clp(trabajo.abonado)}, saldo ${clp(trabajo.saldo)}.`
-    : `Saldo ${clp(total)}.`;
-  const lineas = [`Hola${nombre ? ` ${nombre}` : ""}, te escribimos de ${currentNombreNegocio}.`];
-
-  if (tipo === "recibido") lineas.push(`Recibimos tu equipo (${equipo}). Te iremos avisando cada avance.`);
-  else if (tipo === "avance") {
-    lineas.push(nota ? `Avance: ${nota}` : `Seguimos trabajando en tu ${equipo}.`);
-  } else if (tipo === "listo") {
-    lineas.push(`Tu equipo ya está listo ${EMOJI_CHECK}`);
-    if (fechaEntrega) lineas.push(`Entrega: ${fechaEntregaTexto(fechaEntrega)}.`);
-    else lineas.push("¿Cuándo te acomoda que te lo entreguemos? Respóndeme por aquí y lo coordinamos.");
-  } else if (tipo === "cobro") {
-    if (tipo === "cobro" && opts.monto) lineas.push(`El valor de tu ${equipo} es ${clp(total)}.`);
-  } else if (tipo === "pago") {
-    lineas.push(`Recibimos tu pago, gracias ${EMOJI_CHECK}`);
-  }
-
-  if (opts.monto && tipo !== "cobro" && total > 0) lineas.push(`Total: ${clp(total)}.`);
-  if (opts.saldo && total > 0) lineas.push(saldoTxt);
-  if (nota && tipo !== "avance" && opts.nota) lineas.push(nota);
-  if (opts.link && linkUrl) lineas.push(`Mira el detalle aquí: ${linkUrl}`);
-  return lineas.join("\n");
+function textoAviso(trabajo, extra) {
+  return mensajeCaso({
+    nombre: trabajo.cliente_nombre,
+    negocio: currentNombreNegocio,
+    tipo: trabajo.tipo,
+    descripcion: trabajo.descripcion,
+    paso: pasoDe(trabajo.estado),
+    total: Number(trabajo.monto) || 0,
+    abonado: Number(trabajo.abonado) || 0,
+    saldo: Number(trabajo.saldo) || 0,
+    pagado: !!trabajo.pagado_completo,
+    nota: extra.nota,
+    linkUrl: extra.linkUrl,
+    fechaEntrega: extra.fechaEntrega ? fechaEntregaTexto(extra.fechaEntrega) : "",
+  });
 }
 
 async function renderAvisoCliente(trabajo, equipos, containerId) {
   const container = document.getElementById(containerId);
   if (!container) return;
 
-  let items = [];
   let envios = [];
   let avances = [];
   try {
@@ -2271,7 +2263,6 @@ async function renderAvisoCliente(trabajo, equipos, containerId) {
       const res = await apiPost(`/api/trabajos/${trabajo.id}/link`, {});
       trabajo.public_token = res.token;
     }
-    items = (await apiGet(`/api/trabajos/${trabajo.id}/items`)).items;
     envios = (await apiGet(`/api/trabajos/${trabajo.id}/envios`)).envios;
     avances = (await apiGet(`/api/trabajos/${trabajo.id}/avances`)).avances;
   } catch (err) {
@@ -2280,151 +2271,101 @@ async function renderAvisoCliente(trabajo, equipos, containerId) {
     return;
   }
 
-  const monto = Number(trabajo.monto) || 0;
-  const total = monto > 0 ? monto : items.reduce((s, i) => s + i.valor, 0);
+  const paso = pasoDe(trabajo.estado);
+  const total = Number(trabajo.monto) || 0;
   const linkUrl = `${window.location.origin}/seguimiento?t=${trabajo.public_token}`;
   const numero = telefonoWhatsapp(trabajo.cliente_telefono);
-  const fotosOcultas = avances.filter((a) => a.tipo === "foto" && !a.visible_cliente);
   const ultimoCambio = avances.filter((a) => a.tipo === "estado").map((a) => a.creado_en).sort().pop() || trabajo.fecha_creacion || "";
   const ultimoEnvio = envios.length ? envios[0].creado_en : "";
   const pendiente = !ultimoEnvio || ultimoCambio > ultimoEnvio;
-
-  let tipo = avisoSugerido(trabajo, total);
   let fechaEntrega = trabajo.fecha_entrega || "";
-  const opts = {};
-  const cargarOpts = () => {
-    for (const k of ["nota", "fotos", "monto", "saldo", "link"]) opts[k] = !!AVISOS[tipo].opts[k];
-  };
-  cargarOpts();
+  let nota = "";
 
   const historial = envios
     .slice(0, 5)
-    .map(
-      (e) =>
-        `<li>${fechaCortaHora(e.creado_en)} · ${escapeHtml(AVISOS[e.tipo_aviso]?.titulo || "Aviso")}</li>`
-    )
+    .map((e) => {
+      const titulo = AVISOS[e.tipo_aviso]?.titulo || e.tipo_aviso || "Aviso";
+      return `<li>${fechaCortaHora(e.creado_en)} · ${escapeHtml(titulo)}</li>`;
+    })
     .join("");
+
+  const fechaHtml =
+    paso === "Listo"
+      ? `<div class="field"><label>Fecha de entrega (opcional)</label>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
+            <button type="button" class="btn btn-outline btn-sm" data-fecha="hoy">Hoy</button>
+            <button type="button" class="btn btn-outline btn-sm" data-fecha="manana">Mañana</button>
+            <button type="button" class="btn btn-outline btn-sm" data-fecha="lunes">Lunes</button>
+            <input type="time" data-hora value="${fechaEntrega.includes("T") ? fechaEntrega.split("T")[1] : "17:00"}" style="width:auto;">
+            <button type="button" class="btn btn-outline btn-sm" data-fecha="ninguna">Sin fecha</button>
+            <span class="hint" data-fecha-actual>${fechaEntrega ? escapeHtml(fechaEntregaTexto(fechaEntrega)) : "Sin fecha"}</span>
+          </div></div>`
+      : "";
 
   container.innerHTML = `
     <div style="border:1px solid var(--border, #ddd);border-radius:10px;padding:12px;">
       <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px;">
-        <strong>Avisar al cliente por WhatsApp</strong>
+        <strong>Avisar al cliente</strong>
         ${
           pendiente
             ? `<span class="badge warn">Pendiente de avisar</span>`
             : `<span class="badge ok">Al día · último aviso ${fechaCortaHora(ultimoEnvio)}</span>`
         }
       </div>
-      ${
-        equipos && equipos.length
-          ? ""
-          : `<p class="hint" style="margin:0 0 8px;color:var(--warn, #b45309);">Este trabajo no tiene equipo/producto en garantía vinculado: el cliente no verá qué disco o pieza es, ni su garantía ni fotos. Si ya lo registraste en Equipos, vincúlalo a este trabajo; si no, usa "+ Agregar equipo/producto en garantía" más abajo.</p>`
-      }
-      <div data-aviso-extra></div>
-      <div class="field"><label>Mensaje que le llegará (puedes editarlo)</label>
-        <textarea data-aviso-texto rows="6"></textarea></div>
-      <details style="margin-bottom:10px;">
-        <summary style="cursor:pointer;font-weight:600;">Cambiar qué aviso enviar o qué ve el cliente</summary>
-        <div class="field" style="margin-top:8px;"><label>Tipo de aviso</label>
-          <select data-aviso-tipo>${Object.entries(AVISOS)
-            .map(([k, v]) => `<option value="${k}" ${k === tipo ? "selected" : ""}>${v.titulo}</option>`)
-            .join("")}</select></div>
-        <div style="display:flex;flex-wrap:wrap;gap:6px 16px;">
-          ${[
-            ["nota", "Nota"],
-            ["fotos", "Fotos"],
-            ["monto", "Monto / desglose"],
-            ["saldo", "Saldo"],
-            ["link", "Link de seguimiento"],
-          ]
-            .map(([k, t]) => `<label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" data-opt="${k}"> ${t}</label>`)
-            .join("")}
-        </div>
-      </details>
+      <p class="hint" style="margin:0 0 8px;">Un mensaje según el paso del caso. Puedes editarlo antes de enviarlo.</p>
+      ${fechaHtml}
+      <div class="field"><label>Nota para este aviso (opcional)</label>
+        <textarea data-aviso-nota rows="2" placeholder="Ej: Se cambió el disco y se reinstaló el sistema"></textarea></div>
+      <div class="field"><label>Mensaje</label>
+        <textarea data-aviso-texto rows="7"></textarea></div>
       <div class="actions-row">
-        <a class="btn btn-accent" data-aviso-enviar target="_blank" rel="noopener">Avisar: <span data-aviso-nombre></span></a>
+        <a class="btn btn-accent" data-aviso-enviar target="_blank" rel="noopener">Avisar por WhatsApp</a>
       </div>
-      <span class="hint">${numero ? "" : "Este cliente no tiene teléfono registrado: WhatsApp te pedirá elegir el contacto. "}Lo que marques (nota, fotos, monto/saldo) se hace visible en su página de seguimiento al enviar. El envío queda registrado.</span>
+      <span class="hint">${numero ? "" : "Este cliente no tiene teléfono registrado: WhatsApp te pedirá elegir el contacto. "}El envío queda registrado.</span>
       ${historial ? `<ul class="hint" style="margin:8px 0 0;padding-left:18px;">${historial}</ul>` : ""}
     </div>`;
 
-  const extra = container.querySelector("[data-aviso-extra]");
   const textarea = container.querySelector("[data-aviso-texto]");
   const btn = container.querySelector("[data-aviso-enviar]");
-  let nota = "";
-
-  const pintarExtra = () => {
-    let html = "";
-    if (opts.nota) {
-      html += `<div class="field"><label>Nota para el cliente</label>
-        <textarea data-aviso-nota rows="2" placeholder="Ej: Se cambió el disco y se reinstaló el sistema">${escapeHtml(nota)}</textarea></div>`;
-    }
-    if (tipo === "listo") {
-      html += `<div class="field"><label>Fecha de entrega (opcional)</label>
-        <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
-          <button type="button" class="btn btn-outline btn-sm" data-fecha="hoy">Hoy</button>
-          <button type="button" class="btn btn-outline btn-sm" data-fecha="manana">Mañana</button>
-          <button type="button" class="btn btn-outline btn-sm" data-fecha="lunes">Lunes</button>
-          <input type="time" data-hora value="${fechaEntrega.includes("T") ? fechaEntrega.split("T")[1] : "17:00"}" style="width:auto;">
-          <button type="button" class="btn btn-outline btn-sm" data-fecha="ninguna">Sin fecha</button>
-          <span class="hint" data-fecha-actual>${fechaEntrega ? escapeHtml(fechaEntregaTexto(fechaEntrega)) : "Sin fecha"}</span>
-        </div></div>`;
-    }
-    extra.innerHTML = html;
-    const notaEl = extra.querySelector("[data-aviso-nota]");
-    if (notaEl) notaEl.addEventListener("input", () => { nota = notaEl.value.trim(); regenerar(); });
-    const horaEl = extra.querySelector("[data-hora]");
-    extra.querySelectorAll("[data-fecha]").forEach((b) => {
-      b.addEventListener("click", () => {
-        const k = b.dataset.fecha;
-        fechaEntrega = k === "ninguna" ? "" : `${atajoFecha(k)}T${horaEl.value || "17:00"}`;
-        extra.querySelector("[data-fecha-actual]").textContent = fechaEntrega ? fechaEntregaTexto(fechaEntrega) : "Sin fecha";
-        regenerar();
-      });
-    });
-    if (horaEl) {
-      horaEl.addEventListener("change", () => {
-        if (fechaEntrega) fechaEntrega = `${fechaEntrega.split("T")[0]}T${horaEl.value || "17:00"}`;
-        extra.querySelector("[data-fecha-actual]").textContent = fechaEntrega ? fechaEntregaTexto(fechaEntrega) : "Sin fecha";
-        regenerar();
-      });
-    }
-  };
+  const notaEl = container.querySelector("[data-aviso-nota]");
 
   const actualizarHref = () => {
     btn.href = `https://wa.me/${numero}?text=${encodeURIComponent(textarea.value)}`;
   };
   const regenerar = () => {
-    container.querySelector("[data-aviso-nombre]").textContent = AVISOS[tipo].titulo;
-    container.querySelectorAll("[data-opt]").forEach((cb) => (cb.checked = !!opts[cb.dataset.opt]));
-    textarea.value = armarAviso(tipo, { trabajo, opts, nota, total, linkUrl, fechaEntrega });
+    textarea.value = textoAviso(trabajo, { nota, linkUrl, fechaEntrega });
     actualizarHref();
   };
 
-  container.querySelector("[data-aviso-tipo]").addEventListener("change", (e) => {
-    tipo = e.target.value;
-    cargarOpts();
-    pintarExtra();
+  notaEl.addEventListener("input", () => {
+    nota = notaEl.value.trim();
     regenerar();
   });
-  container.querySelectorAll("[data-opt]").forEach((cb) => {
-    cb.addEventListener("change", () => {
-      opts[cb.dataset.opt] = cb.checked;
-      if (cb.dataset.opt === "nota") pintarExtra();
+  const horaEl = container.querySelector("[data-hora]");
+  container.querySelectorAll("[data-fecha]").forEach((b) => {
+    b.addEventListener("click", () => {
+      const k = b.dataset.fecha;
+      fechaEntrega = k === "ninguna" ? "" : `${atajoFecha(k)}T${(horaEl && horaEl.value) || "17:00"}`;
+      const actual = container.querySelector("[data-fecha-actual]");
+      if (actual) actual.textContent = fechaEntrega ? fechaEntregaTexto(fechaEntrega) : "Sin fecha";
       regenerar();
     });
   });
+  if (horaEl) {
+    horaEl.addEventListener("change", () => {
+      if (fechaEntrega) fechaEntrega = `${fechaEntrega.split("T")[0]}T${horaEl.value || "17:00"}`;
+      const actual = container.querySelector("[data-fecha-actual]");
+      if (actual) actual.textContent = fechaEntrega ? fechaEntregaTexto(fechaEntrega) : "Sin fecha";
+      regenerar();
+    });
+  }
   textarea.addEventListener("input", actualizarHref);
-
-  pintarExtra();
   regenerar();
 
-  // Al enviar: se aplican los permisos de visibilidad elegidos y se registra el aviso.
   btn.addEventListener("click", async () => {
     const mensaje = textarea.value;
-    const tipoEnviado = tipo;
     try {
-      if (tipoEnviado === "listo" && (fechaEntrega || "") !== (trabajo.fecha_entrega || "")) {
+      if (paso === "Listo" && (fechaEntrega || "") !== (trabajo.fecha_entrega || "")) {
         await apiPut(`/api/trabajos/${trabajo.id}`, {
           estado: trabajo.estado,
           fecha_entrega: fechaEntrega,
@@ -2432,20 +2373,15 @@ async function renderAvisoCliente(trabajo, equipos, containerId) {
         });
         trabajo.fecha_entrega = fechaEntrega || null;
       }
-      if ((opts.monto || opts.saldo) && !trabajo.mostrar_detalle_cliente) {
+      if (paso !== "Cotización" && total > 0 && !trabajo.mostrar_detalle_cliente) {
         await apiPut(`/api/trabajos/${trabajo.id}`, { mostrar_detalle_cliente: true });
         trabajo.mostrar_detalle_cliente = 1;
       }
-      if (opts.nota && nota) {
+      if (nota) {
         const r = await apiPost(`/api/trabajos/${trabajo.id}/avances`, { tipo: "nota", texto: nota });
         await apiPut(`/api/trabajos/${trabajo.id}/avances/${r.id}`, { visible_cliente: true });
       }
-      if (opts.fotos) {
-        for (const f of fotosOcultas) {
-          await apiPut(`/api/trabajos/${trabajo.id}/avances/${f.id}`, { visible_cliente: true });
-        }
-      }
-      await apiPost(`/api/trabajos/${trabajo.id}/envios`, { mensaje, tipo_aviso: tipoEnviado });
+      await apiPost(`/api/trabajos/${trabajo.id}/envios`, { mensaje, tipo_aviso: paso });
       flash("Aviso registrado.");
     } catch (err) {
       if (await handleAuthError(err)) return;
@@ -2456,17 +2392,18 @@ async function renderAvisoCliente(trabajo, equipos, containerId) {
 }
 
 function badgeItemTipo(tipo) {
-  if (tipo === "repuesto") return '<span class="badge accent">Repuesto</span>';
-  if (tipo === "servicio") return '<span class="badge warn">Servicio</span>';
-  return '<span class="badge neutral">Otro</span>';
+  const etiquetas = {
+    producto: ["accent", "Producto"],
+    repuesto: ["accent", "Repuesto"],
+    servicio: ["warn", "Servicio"],
+    mano_obra: ["ok", "Mano de obra"],
+    otro: ["neutral", "Otro"],
+  };
+  const [cls, nombre] = etiquetas[tipo] || ["neutral", "Otro"];
+  return `<span class="badge ${cls}">${nombre}</span>`;
 }
 
-// Desglose del trabajo (repuestos y/o servicios, cada uno con su valor).
-// Es informativo — el monto que realmente se cobra sigue siendo el campo
-// "Monto (CLP)" del trabajo — pero le permite a Sergio explicarle al
-// cliente en qué se compone ese total (ej: disco $20.000 + formateo
-// $15.000 = $35.000), tanto acá en el panel como en la página pública de
-// seguimiento y en el mensaje de WhatsApp.
+// Líneas del caso. El total del trabajo es la suma de valor (cantidad × precio).
 async function renderItemsTrabajo(trabajo, containerId = "items-trabajo-container", onCambio = null) {
   const container = document.getElementById(containerId);
   if (!container) return;
@@ -2488,39 +2425,33 @@ async function renderItemsTrabajo(trabajo, containerId = "items-trabajo-containe
 
   const total = items.reduce((s, i) => s + i.valor, 0);
   const rows = items
-    .map(
-      (i) => `
+    .map((i) => {
+      const cant = Number(i.cantidad) || 1;
+      const unitario = cant > 0 ? Math.round(i.valor / cant) : i.valor;
+      return `
       <tr>
         <td>${badgeItemTipo(i.tipo)}</td>
         <td>${escapeHtml(i.descripcion)}</td>
+        <td class="num">${cant}</td>
+        <td class="num">${clp(unitario)}</td>
         <td class="num">${clp(i.valor)}</td>
         <td><button type="button" class="btn btn-outline btn-sm" data-del-item="${i.id}">Eliminar</button></td>
-      </tr>`
-    )
+      </tr>`;
+    })
     .join("");
-
-  const diferencia = trabajo.monto - total;
-  const lineaComparacion =
-    items.length && diferencia !== 0
-      ? `<span class="hint" style="color:var(--warn,#b45309);">El desglose suma ${clp(total)}, pero el "Monto (CLP)" del trabajo es ${clp(
-          trabajo.monto
-        )} (diferencia de ${clp(Math.abs(diferencia))}).</span>
-         <button type="button" class="btn btn-outline btn-sm" data-usar-total="${total}">Usar ${clp(total)} como monto del trabajo</button>`
-      : "";
 
   container.innerHTML = `
     <div class="panel">
-      <div class="panel-header"><h2>Desglose del trabajo (repuestos / servicios)</h2></div>
+      <div class="panel-header"><h2>Líneas del trabajo</h2></div>
       <div class="panel-body padded">
         ${
           rows
-            ? `<table><thead><tr><th>Tipo</th><th>Descripción</th><th class="num">Valor</th><th></th></tr></thead><tbody>${rows}</tbody>
-               <tfoot><tr><td colspan="2"><strong>Total del desglose</strong></td><td class="num"><strong>${clp(
+            ? `<table><thead><tr><th>Tipo</th><th>Descripción</th><th class="num">Cant.</th><th class="num">Precio</th><th class="num">Total</th><th></th></tr></thead><tbody>${rows}</tbody>
+               <tfoot><tr><td colspan="4"><strong>Total del trabajo</strong></td><td class="num"><strong>${clp(
                  total
                )}</strong></td><td></td></tr></tfoot></table>`
-            : `<div class="panel-empty">Todavía no agregas repuestos ni servicios a este trabajo.</div>`
+            : `<div class="panel-empty">Todavía no hay líneas. Agrega productos, repuestos o servicios y el total se calcula solo.</div>`
         }
-        ${lineaComparacion}
         <form id="item-trabajo-form" class="form-grid" style="margin-top:14px;">
           ${
             productos.length
@@ -2532,17 +2463,20 @@ async function renderItemsTrabajo(trabajo, containerId = "items-trabajo-containe
           }
           <div class="field"><label for="item-tipo">Tipo</label>
             <select id="item-tipo">
+              <option value="producto">Producto</option>
               <option value="repuesto">Repuesto</option>
-              <option value="servicio">Servicio</option>
-              <option value="otro">Otro</option>
+              <option value="servicio" selected>Servicio</option>
+              <option value="mano_obra">Mano de obra</option>
             </select></div>
           <div class="field"><label for="item-descripcion">Descripción</label>
-            <input type="text" id="item-descripcion" placeholder="Ej: Disco duro, Formateo e instalación de sistema..."></div>
-          <div class="field"><label for="item-valor">Valor (CLP)</label>
-            <input type="number" id="item-valor" min="0" step="1" value="0"></div>
-          <div class="field" style="align-self:flex-end;"><button type="submit" class="btn btn-outline btn-sm">Agregar ítem</button></div>
+            <input type="text" id="item-descripcion" placeholder="Ej: Disco duro, instalación, programación..."></div>
+          <div class="field"><label for="item-cantidad">Cantidad</label>
+            <input type="number" id="item-cantidad" min="1" step="1" value="1"></div>
+          <div class="field"><label for="item-precio">Precio unitario (CLP)</label>
+            <input type="number" id="item-precio" min="0" step="1" value="0"></div>
+          <div class="field" style="align-self:flex-end;"><button type="submit" class="btn btn-outline btn-sm">Agregar línea</button></div>
         </form>
-        <span class="hint">Este desglose es solo para que quede claro en qué se compone el cobro — el monto que realmente se le cobra al cliente es el campo "Monto (CLP)" de "Datos del trabajo" (puedes escribirlo a mano o usar el total del desglose).</span>
+        <span class="hint">El total del trabajo es la suma de estas líneas. Los abonos se restan de ese total. Si el trabajo ya tenía un monto escrito a mano y todavía no tenía líneas, la primera línea conserva ese monto como «Según lo acordado».</span>
       </div>
     </div>
   `;
@@ -2558,7 +2492,8 @@ async function renderItemsTrabajo(trabajo, containerId = "items-trabajo-containe
       await apiPost(`/api/trabajos/${trabajo.id}/items`, {
         tipo: container.querySelector("#item-tipo").value,
         descripcion,
-        valor: container.querySelector("#item-valor").value,
+        cantidad: container.querySelector("#item-cantidad").value,
+        precio_unitario: container.querySelector("#item-precio").value,
       });
       flash("Ítem agregado.");
       recargar();
@@ -2586,23 +2521,10 @@ async function renderItemsTrabajo(trabajo, containerId = "items-trabajo-containe
     selInventario.addEventListener("change", () => {
       const opt = selInventario.selectedOptions[0];
       if (!selInventario.value) return;
-      container.querySelector("#item-tipo").value = "repuesto";
+      container.querySelector("#item-tipo").value = "producto";
       container.querySelector("#item-descripcion").value = opt.dataset.nombre;
-      container.querySelector("#item-valor").value = opt.dataset.precio;
-    });
-  }
-
-  const btnUsarTotal = container.querySelector("[data-usar-total]");
-  if (btnUsarTotal) {
-    btnUsarTotal.addEventListener("click", async () => {
-      try {
-        await apiPut(`/api/trabajos/${trabajo.id}`, { solo_monto: Number(btnUsarTotal.dataset.usarTotal) });
-        flash("Monto del trabajo actualizado.");
-        recargar();
-      } catch (err) {
-        if (await handleAuthError(err)) return;
-        flash(err.message, "error");
-      }
+      container.querySelector("#item-cantidad").value = "1";
+      container.querySelector("#item-precio").value = opt.dataset.precio;
     });
   }
 }
@@ -3005,12 +2927,8 @@ async function viewTrabajoForm(id, presetClienteId) {
            presetClienteId
          )}</select></div>`;
 
-  const tipoOptions = TIPOS_TRABAJO.map(
-    (t) => `<option value="${t}" ${trabajo && trabajo.tipo === t ? "selected" : ""}>${t}</option>`
-  ).join("");
-  const estadoOptions = ESTADOS_TRABAJO.map(
-    (e) => `<option value="${e}" ${trabajo && trabajo.estado === e ? "selected" : ""}>${e}</option>`
-  ).join("");
+  const tipoOptions = opcionesTipo(trabajo && trabajo.tipo);
+  const estadoOptions = opcionesEstado(trabajo && trabajo.estado);
 
   // Tabla de equipos/garantías vinculados a este trabajo — mismo formato que
   // la tabla de "Equipos y garantías" de la ficha del cliente, para que se
@@ -3041,18 +2959,19 @@ async function viewTrabajoForm(id, presetClienteId) {
           </div>
           <div class="field"><label for="descripcion">Descripción *</label>
             <textarea id="descripcion" required>${escapeHtml(trabajo?.descripcion || "")}</textarea></div>
-          <div class="field"><label for="monto">Monto (CLP)</label>
-            <input type="number" id="monto" min="0" step="1" value="${trabajo ? trabajo.monto : 0}"></div>
           ${
             trabajo
-              ? `<div class="field">
+              ? `<div class="field"><label>Total del trabajo</label>
+                   <p style="margin:0;font-weight:700;">${clp(trabajo.monto)}</p>
+                   <span class="hint">Es la suma de las líneas. Los abonos se restan de este total.</span></div>
+                 <div class="field">
                    <label style="display:flex;align-items:center;gap:8px;font-weight:400;">
                      <input type="checkbox" id="mostrar_detalle_cliente" ${trabajo.mostrar_detalle_cliente ? "checked" : ""} style="width:auto;">
-                     Mostrar el detalle y pago al cliente en su página de seguimiento
+                     Mostrar líneas y saldo en la página del cliente
                    </label>
-                   <span class="hint">Mientras esté sin marcar, el cliente NO ve el desglose (repuestos/servicios), la garantía ni el monto/saldo — solo el avance del trabajo. Actívalo cuando el monto ya esté definitivo.</span>
+                   <span class="hint">En cotización queda oculto. Al pasar a En curso se muestra solo.</span>
                  </div>`
-              : ""
+              : `<span class="hint">Después de guardar, abre el trabajo y agrega las líneas. El total es la suma de esas líneas.</span>`
           }
           <div class="field"><label for="notas">Notas</label><textarea id="notas">${escapeHtml(trabajo?.notas || "")}</textarea></div>
           <div class="form-actions">
@@ -3104,7 +3023,6 @@ async function viewTrabajoForm(id, presetClienteId) {
       tipo: document.getElementById("tipo").value,
       estado: document.getElementById("estado").value,
       descripcion: document.getElementById("descripcion").value,
-      monto: document.getElementById("monto").value,
       notas: document.getElementById("notas").value,
     };
     const chkDetalle = document.getElementById("mostrar_detalle_cliente");
