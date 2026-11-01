@@ -1,0 +1,39 @@
+Parche local de MiPOS 4.0.92
+============================
+
+No es un instalador y no va a producción.
+Se prueba en una copia de la carpeta del programa, no en la caja que está vendiendo.
+
+En esa copia, reemplaza solo estos archivos y deja el resto como está:
+
+- _internal\static\app.js
+- _internal\static\styles.css
+- _internal\static\index.html
+
+Salen de la carpeta static de este parche.
+
+Para que el servidor acepte el permiso de pan a granel, el motivo obligatorio
+del retiro y el logo, también hay que reemplazar MiPOS.exe por uno armado con
+este parche. Hace falta Python 3.14 (el de MiPOS) y el MiPOS.exe de la versión 4.0.92:
+
+  python parche.py
+  python probar_logica.py
+
+probar_logica.py deja el ejecutable de prueba en la carpeta temporal de trabajo
+(MiPOS-prueba.exe). Cópialo encima del MiPOS.exe de la copia, no del original.
+
+Qué cambia
+----------
+
+- Crear usuario abre el formulario y guarda cajero, supervisor o administrador.
+- En el usuario se elige cada permiso. "Ingresar pan a granel" queda apagado
+  hasta que lo marques para ese cajero.
+- Con ese permiso, en Venta se suma solo el stock de pan a granel.
+- El retiro de caja pide un motivo y sigue descontando el efectivo del turno.
+  El ingreso de sencillo puede ir sin motivo.
+- En Ajustes se guarda el logo del negocio. Aparece en el ticket impreso por el
+  navegador. La impresora térmica por agente sigue imprimiendo solo texto.
+- Textos y alertas se leen en los estilos Neutro, Windows claro, Windows oscuro
+  y MiPOS original, con tema claro u oscuro y los cuatro colores.
+
+El reporte por correo no entra en este parche.

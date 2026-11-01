@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="static/styles.css">
+  <style>
+    body { margin: 0; }
+    .muestra-tema { padding: 12px; background: var(--panel); color: var(--texto); }
+    .texto { color: var(--texto); margin: 0 0 8px; }
+  </style>
+</head>
+<body>
+  <div id="caja"></div>
+  <pre id="resultado">midiendo</pre>
+  <script>
+    const estilos = ['clasico', 'neutro', 'windows-claro', 'windows-oscuro'];
+    const acentos = ['cobalto', 'uva', 'menta', 'tomate'];
+    const html = document.documentElement;
+    const caja = document.getElementById('caja');
+
+    function canal(c) {
+      c = c / 255;
+      return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+    }
+    function rgb(texto) {
+      const m = texto.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+      if (!m) return null;
+      return [+m[1], +m[2], +m[3]];
+    }
+    function contraste(a, b) {
+      const L = ([r, g, b]) => 0.2126 * canal(r) + 0.7152 * canal(g) + 0.0722 * canal(b);
+      const x = L(a), y = L(b);
+      const hi = Math.max(x, y), lo = Math.min(x, y);
+      return (hi + 0.05) / (lo + 0.05);
+    }
+    function fondoDe(el) {
+      let nodo = el;
+      while (nodo) {
+        const color = getComputedStyle(nodo).backgroundColor;
+        const partes = rgb(color);
+        if (partes && !color.endsWith(', 0)')) return partes;
+        nodo = nodo.parentElement;
+      }
+      return [255, 255, 255];
+    }
+    function medir(sel) {
+      const el = caja.querySelector(sel);
+      const estilo = getComputedStyle(el);
+      return contraste(rgb(estilo.color), fondoDe(el));
+    }
+
+    const fallas = [];
+    for (const estilo of estilos) {
+      for (const acento of acentos) {
+        const tema = estilo === 'windows-oscuro' ? 'oscuro' : estilo === 'windows-claro' ? 'claro' : null;
+        const temas = tema ? [tema] : ['claro', 'oscuro'];
+        for (const t of temas) {
+          html.dataset.estilo = estilo;
+          html.dataset.tema = t;
+          html.dataset.acento = acento;
+          caja.innerHTML = `
+            <div class="muestra-tema">
+              <p class="texto">Texto de la venta</p>
+              <p class="det">Texto secundario</p>
+              <div class="aviso">Aviso de la caja</div>
+              <div class="aviso peligro">Alerta de peligro</div>
+              <div class="aviso ok">Aviso correcto</div>
+              <div class="actualizacion-aviso"><span>Aviso superior</span></div>
+              <button class="btn">Cobrar</button>
+              <span class="badge amarillo">Pendiente</span>
+              <span class="badge rojo">Error</span>
+              <span class="badge verde">Activo</span>
+            </div>`;
+          const pares = [
+            ['.texto', 4.5], ['.det', 4.5], ['.aviso', 4.5], ['.aviso.peligro', 4.5],
+            ['.aviso.ok', 4.5], ['.actualizacion-aviso', 4.5], ['.btn', 4.5],
+            ['.badge.amarillo', 4.5], ['.badge.rojo', 4.5], ['.badge.verde', 4.5],
+          ];
+          for (const [sel, minimo] of pares) {
+            const valor = medir(sel);
+            if (!(valor >= minimo)) fallas.push(`${estilo}/${t}/${acento} ${sel} ${valor.toFixed(2)}`);
+          }
+        }
+      }
+    }
+    document.getElementById('resultado').textContent = fallas.length
+      ? 'FALLA\n' + fallas.join('\n')
+      : 'OK ' + (estilos.length * acentos.length * 2 - 8) ;
+  </script>
+</body>
+</html>

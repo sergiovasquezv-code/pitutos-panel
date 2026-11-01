@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="es-CL">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MiPOS</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230f766e'/><text x='16' y='22' font-size='17' font-family='Arial' font-weight='bold' fill='white' text-anchor='middle'>$</text></svg>">
+  <link rel="stylesheet" href="styles.css?v=20261101-contraste-logo">
+  <script src="app.js?v=20261101-contraste-logo"></script>
+</head>
+<body>
+  <div id="app">
+    <div class="arranque" id="arranque" role="status" aria-live="polite">
+      <div class="arranque-tarjeta">
+        <div class="arranque-marca">
+          <svg viewBox="0 0 40 40" class="logo-svg" aria-hidden="true"><path d="M6 20 17 6h17v28H17z" fill="var(--etiqueta)"/><circle cx="16" cy="20" r="3" fill="var(--tinta)"/><text x="27" y="26" text-anchor="middle" font-size="15" font-weight="800" fill="var(--tinta)" font-family="Bricolage, sans-serif">$</text></svg>
+          <strong>MiPOS</strong>
+        </div>
+        <p class="arranque-texto" id="arranque-texto">Abriendo MiPOS</p>
+        <p class="arranque-aviso" id="arranque-aviso" hidden></p>
+        <div class="cargando-anillo" id="arranque-giro" aria-hidden="true"></div>
+      </div>
+    </div>
+  </div>
+  <div id="toasts"></div>
+  <script src="inventario.js?v=20261012-guardado"></script>
+  <script src="clientes.js?v=20261012-transferencias"></script>
+  <script src="reportes.js?v=20261012-valoracion"></script>
+  <script src="cierres.js"></script>
+  <script src="proveedores.js"></script>
+  <script src="fase3.js?v=20261012-instalacion-simple"></script>
+  <script src="fase4.js?v=20261012-finanzas-guardado"></script>
+  <script src="soporte.js"></script>
+  <script src="equipos.js"></script>
+  <script src="sinred.js?v=20261012-ventas-iniciadas"></script>
+  <script src="ayuda.js?v=20261029-guardar-producto"></script>
+</body>
+</html>
