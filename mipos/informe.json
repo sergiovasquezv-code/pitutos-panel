@@ -1,0 +1,336 @@
+{
+  "version_mipos": "4.0.92",
+  "tienda": "Isadora",
+  "productos": 3651,
+  "categorias": 23,
+  "con_codigo_de_barras": 3165,
+  "con_ref_porque_no_hay_barra": 433,
+  "con_ref_porque_la_barra_estaba_repetida": 53,
+  "vendidos_por_peso": 49,
+  "precio_variable_en_cero": 116,
+  "costos_placeholder_en_cero": 2,
+  "stock_negativo": 110,
+  "movimientos_de_stock": 319,
+  "barras_repetidas": [
+    {
+      "codigo_barras": "6972229782057",
+      "ref": "12226",
+      "nombre": "Arena bontonita cuidad animal",
+      "quedo_con": "12226"
+    },
+    {
+      "codigo_barras": "7802955001117",
+      "ref": "12489",
+      "nombre": "Danone yogur batido 110 gms vainilla 4 *1000",
+      "quedo_con": "12489"
+    },
+    {
+      "codigo_barras": "7501072210289",
+      "ref": "13500",
+      "nombre": "Dog chow pollo",
+      "quedo_con": "13500"
+    },
+    {
+      "codigo_barras": "70330607880",
+      "ref": "12497",
+      "nombre": "Encendedor big",
+      "quedo_con": "12497"
+    },
+    {
+      "codigo_barras": "7501072209818",
+      "ref": "13118",
+      "nombre": "Felix pescado",
+      "quedo_con": "13118"
+    },
+    {
+      "codigo_barras": "7891000241080",
+      "ref": "13539",
+      "nombre": "Felix salmon",
+      "quedo_con": "13539"
+    },
+    {
+      "codigo_barras": "7501072209788",
+      "ref": "12621",
+      "nombre": "Felix sobre 85g carne",
+      "quedo_con": "12621"
+    },
+    {
+      "codigo_barras": "6938402173104",
+      "ref": "13314",
+      "nombre": "Goma eva (1)",
+      "quedo_con": "13314"
+    },
+    {
+      "codigo_barras": "7809611709585",
+      "ref": "11475",
+      "nombre": "Hamburguesa eco. 4 *1100",
+      "quedo_con": "11475"
+    },
+    {
+      "codigo_barras": "5690162519462",
+      "ref": "13308",
+      "nombre": "Hoja (1)",
+      "quedo_con": "13308"
+    },
+    {
+      "codigo_barras": "7891000248768",
+      "ref": "12926",
+      "nombre": "Kit kat 3*2000",
+      "quedo_con": "12926"
+    },
+    {
+      "codigo_barras": "7891000248768",
+      "ref": "10536",
+      "nombre": "KIT KAT 41,5 GR 2*1500",
+      "quedo_con": "10536"
+    },
+    {
+      "codigo_barras": "22200963435",
+      "ref": "11763",
+      "nombre": "LADY SPEED STICK INVISIBLE DRY POWER",
+      "quedo_con": "11763"
+    },
+    {
+      "codigo_barras": "7897653549146",
+      "ref": "13258",
+      "nombre": "Laminas panini",
+      "quedo_con": "13258"
+    },
+    {
+      "codigo_barras": "50000290598",
+      "ref": "12242",
+      "nombre": "Lata felix pate pescado y atun",
+      "quedo_con": "12242"
+    },
+    {
+      "codigo_barras": "50000290482",
+      "ref": "12240",
+      "nombre": "Lata felix pate salmon",
+      "quedo_con": "12240"
+    },
+    {
+      "codigo_barras": "50000290680",
+      "ref": "12241",
+      "nombre": "Lata felix patecpavo y medudencia",
+      "quedo_con": "12241"
+    },
+    {
+      "codigo_barras": "40000536789",
+      "ref": "12503",
+      "nombre": "M&M amarillo",
+      "quedo_con": "12503"
+    },
+    {
+      "codigo_barras": "40000536819",
+      "ref": "11316",
+      "nombre": "m&m chocolate",
+      "quedo_con": "11316"
+    },
+    {
+      "codigo_barras": "41789001925",
+      "ref": "11076",
+      "nombre": "maruchan carnes de res",
+      "quedo_con": "11076"
+    },
+    {
+      "codigo_barras": "7805040005281",
+      "ref": "12994",
+      "nombre": "Mata suegra",
+      "quedo_con": "12994"
+    },
+    {
+      "codigo_barras": "40000002376",
+      "ref": "12504",
+      "nombre": "Mini M&M azul",
+      "quedo_con": "12504"
+    },
+    {
+      "codigo_barras": "8445291584563",
+      "ref": "12351",
+      "nombre": "Nescafe Capuccino sobre 14 g",
+      "quedo_con": "12351"
+    },
+    {
+      "codigo_barras": "8445291585355",
+      "ref": "12349",
+      "nombre": "Nescafe doble moka",
+      "quedo_con": "12349"
+    },
+    {
+      "codigo_barras": "8445291585324",
+      "ref": "13220",
+      "nombre": "Nescafe moka 2x1000",
+      "quedo_con": "13220"
+    },
+    {
+      "codigo_barras": "7806505978447",
+      "ref": "13316",
+      "nombre": "Papel lustre (1)",
+      "quedo_con": "13316"
+    },
+    {
+      "codigo_barras": "7801620010935",
+      "ref": "12322",
+      "nombre": "Pepsi zero 1'25",
+      "quedo_con": "12322"
+    },
+    {
+      "codigo_barras": "41333016634",
+      "ref": "11937",
+      "nombre": "PILAS DURACEL AA",
+      "quedo_con": "11937"
+    },
+    {
+      "codigo_barras": "39800011398",
+      "ref": "12697",
+      "nombre": "Pilas energeizer",
+      "quedo_con": "12697"
+    },
+    {
+      "codigo_barras": "6922235801389",
+      "ref": "12445",
+      "nombre": "Popping boba verlde",
+      "quedo_con": "12445"
+    },
+    {
+      "codigo_barras": "7802215503429",
+      "ref": "13295",
+      "nombre": "Promo  mini palmera",
+      "quedo_con": "13295"
+    },
+    {
+      "codigo_barras": "7801620010966",
+      "ref": "12936",
+      "nombre": "Promo 2 por 2000",
+      "quedo_con": "12936"
+    },
+    {
+      "codigo_barras": "8445291584891",
+      "ref": "12917",
+      "nombre": "Promo 2*1000",
+      "quedo_con": "12917"
+    },
+    {
+      "codigo_barras": "6902024082717",
+      "ref": "13245",
+      "nombre": "Promo 2*2800 tomy max",
+      "quedo_con": "13245"
+    },
+    {
+      "codigo_barras": "7613031650729",
+      "ref": "12542",
+      "nombre": "Promo 4x1000",
+      "quedo_con": "12542"
+    },
+    {
+      "codigo_barras": "7613031651443",
+      "ref": "12730",
+      "nombre": "Promo 4x1000",
+      "quedo_con": "12730"
+    },
+    {
+      "codigo_barras": "7613031649815",
+      "ref": "12766",
+      "nombre": "Promo 4x1000",
+      "quedo_con": "12766"
+    },
+    {
+      "codigo_barras": "7891000115657",
+      "ref": "12577",
+      "nombre": "Promo dog chow",
+      "quedo_con": "12577"
+    },
+    {
+      "codigo_barras": "7501072209849",
+      "ref": "12984",
+      "nombre": "Promo felix",
+      "quedo_con": "12984"
+    },
+    {
+      "codigo_barras": "7802215503405",
+      "ref": "13293",
+      "nombre": "Promo mini mantequilla",
+      "quedo_con": "13293"
+    },
+    {
+      "codigo_barras": "8445291886551",
+      "ref": "13511",
+      "nombre": "Promo nescafe capuchino",
+      "quedo_con": "13511"
+    },
+    {
+      "codigo_barras": "7797453000802",
+      "ref": "12616",
+      "nombre": "Promocion Dog chow sobre 3*2000",
+      "quedo_con": "12616"
+    },
+    {
+      "codigo_barras": "5680160025188",
+      "ref": "13335",
+      "nombre": "purpurina x bolsa",
+      "quedo_con": "13335"
+    },
+    {
+      "codigo_barras": "7798040463598",
+      "ref": "11334",
+      "nombre": "push pop 2*1000",
+      "quedo_con": "11334"
+    },
+    {
+      "codigo_barras": "40000514251",
+      "ref": "11283",
+      "nombre": "SNICKERS 250 GRAMOS",
+      "quedo_con": "11283"
+    },
+    {
+      "codigo_barras": "7797453000796",
+      "ref": "10870",
+      "nombre": "Sobre CARNE ADULTO PEDIGREE 100G",
+      "quedo_con": "10870"
+    },
+    {
+      "codigo_barras": "7797453000796",
+      "ref": "12619",
+      "nombre": "Sobre pedrigree 3*2000",
+      "quedo_con": "12619"
+    },
+    {
+      "codigo_barras": "7613030612339",
+      "ref": "12514",
+      "nombre": "Super 8 3*1000",
+      "quedo_con": "12514"
+    },
+    {
+      "codigo_barras": "8445291716841",
+      "ref": "13503",
+      "nombre": "Triton",
+      "quedo_con": "13503"
+    },
+    {
+      "codigo_barras": "8445290649362",
+      "ref": "10452",
+      "nombre": "TRIX 100G promo",
+      "quedo_con": "10452"
+    },
+    {
+      "codigo_barras": "7797453000420",
+      "ref": "12618",
+      "nombre": "Whiskas sobre carne 3*2000",
+      "quedo_con": "12618"
+    },
+    {
+      "codigo_barras": "7802900002022",
+      "ref": "10327",
+      "nombre": "YOGHURT SOPROLE PROTEIN SABOR CHIRIMOYA",
+      "quedo_con": "10327"
+    },
+    {
+      "codigo_barras": "7802800001934",
+      "ref": "12520",
+      "nombre": "Zuko piña",
+      "quedo_con": "12520"
+    }
+  ],
+  "acceso": "Al abrir esta base en MiPOS, el usuario es admin y la clave es 1234. Pide cambiarla.",
+  "archivo": "/workspace/mipos/mipos.db"
+}
