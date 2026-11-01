@@ -7,7 +7,10 @@ tablas, columnas agregadas por migración, triggers e índices. El código de
 cada producto queda en `productos.codigo`, que es lo que lee el lector de
 barras.
 
-Uso:
+En el computador de la caja, que no tiene Python, se usa
+Convertir-Loyverse-a-MiPOS.html (doble clic en Chrome o Edge).
+
+Uso de este archivo, solo si hay Python:
   python3 convertir/convertir.py                  # convierte ya
   python3 convertir/convertir.py --boton          # página con el botón
   python3 convertir/convertir.py ruta/al.csv
