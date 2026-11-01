@@ -540,7 +540,7 @@ const PAGINA_BASE = `<!DOCTYPE html>
         \${
           mostrarPago
             ? \`<div class="card" style="margin-top:10px;">
-                 <div class="monto-label">Valor del equipo</div>
+                 <div class="monto-label">\${nombre}</div>
                  <div class="monto-grande">\${clp(equipo.monto_total)}</div>
                  <p class="text-muted" style="font-size:12.5px;margin-top:6px;">\${
                    equipo.pagado_completo
