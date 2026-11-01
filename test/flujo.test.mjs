@@ -6,7 +6,7 @@ import { onRequestGet as listarParametros, onRequestPost as crearOpcion } from "
 import { onRequestDelete as quitarOpcion } from "../functions/api/parametros/opciones/[id].js";
 import { onRequestGet as verElecciones, onRequestPut as marcarEleccion } from "../functions/api/trabajos/[id]/elecciones.js";
 import { onRequestPost as crearTrabajo } from "../functions/api/trabajos/index.js";
-import { gruposCierreVisibles, informeDesdeSeleccion, pasosAbiertos, seccionesCliente } from "../public/js/flujo.js";
+import { cuentaVisita, gruposCierreVisibles, informeDesdeSeleccion, pasosAbiertos, seccionesCliente } from "../public/js/flujo.js";
 import { clp } from "../public/js/format.js";
 
 const schema = readFileSync(new URL("../schema.sql", import.meta.url), "utf8");
@@ -65,6 +65,19 @@ test("los pasos se abren uno detrás del otro", () => {
     pasosAbiertos({ tipoMarcado: true, hechoMarcado: false, tieneLineas: true, cierreEstadoMarcado: false, esCotizacion: true }).informe,
     true
   );
+});
+
+test("el cobro del enlace es un solo saldo, la suma de la ram y el soporte", () => {
+  const cuenta = cuentaVisita({
+    monto: 0,
+    saldo: 0,
+    equipos: [
+      { monto_total: 20000, saldo: 20000 },
+      { monto_total: 30000, saldo: 30000 },
+    ],
+  });
+  assert.equal(cuenta.total, 50000);
+  assert.equal(cuenta.pendiente, 50000);
 });
 
 test("en el cliente aparece un bloque y el siguiente se abre al avanzar", () => {

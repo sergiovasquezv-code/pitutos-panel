@@ -44,6 +44,15 @@ export function seccionesCliente({ trabajos = 0, equipos = 0, mensualidades = 0,
   };
 }
 
+// Lo que se cobra en el enlace: líneas del trabajo más los productos.
+// El saldo es uno solo. El saldo de un producto no reemplaza al total.
+export function cuentaVisita({ monto = 0, saldo = 0, equipos = [] }) {
+  const lista = equipos || [];
+  const total = (Number(monto) || 0) + lista.reduce((s, e) => s + (Number(e.monto_total) || 0), 0);
+  const pendiente = (Number(saldo) || 0) + lista.reduce((s, e) => s + (Number(e.saldo) || 0), 0);
+  return { total, pendiente };
+}
+
 export function informeDesdeSeleccion(ctx) {
   const nombre = String(ctx.nombre || "")
     .trim()

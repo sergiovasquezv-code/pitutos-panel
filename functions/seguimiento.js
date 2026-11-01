@@ -370,6 +370,7 @@ const PAGINA_BASE = `<!DOCTYPE html>
   </div>
 
   <script type="module">
+    import { cuentaVisita } from "/js/flujo.js";
     function escapeHtml(str) {
       return String(str ?? "").replace(/[&<>"']/g, (c) => ({
         "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
@@ -542,11 +543,13 @@ const PAGINA_BASE = `<!DOCTYPE html>
             ? \`<div class="card" style="margin-top:10px;">
                  <div class="monto-label">\${nombre}</div>
                  <div class="monto-grande">\${clp(equipo.monto_total)}</div>
-                 <p class="text-muted" style="font-size:12.5px;margin-top:6px;">\${
+                 \${
                    equipo.pagado_completo
-                     ? "Pagado por completo."
-                     : \`Abonado \${clp(equipo.abonado)} · saldo pendiente: \${clp(equipo.saldo)}.\`
-                 }</p>
+                     ? \`<p class="text-muted" style="font-size:12.5px;margin-top:6px;">Pagado por completo.</p>\`
+                     : equipo.abonado > 0
+                       ? \`<p class="text-muted" style="font-size:12.5px;margin-top:6px;">Abonado \${clp(equipo.abonado)} · saldo de este producto: \${clp(equipo.saldo)}.</p>\`
+                       : ""
+                 }
                </div>\`
             : ""
         }
@@ -718,10 +721,12 @@ const PAGINA_BASE = `<!DOCTYPE html>
       // El card de "Detalle y pago" solo aparece si hay algo que mostrar
       // (ítems del desglose, garantía de algún equipo, y/o un monto puesto
       // en el trabajo) — si no, no tiene sentido mostrar un card vacío.
-      const totalVisita =
-        (Number(trabajo.monto) || 0) + (equipos || []).reduce((s, e) => s + (Number(e.monto_total) || 0), 0);
-      const totalHtml = totalVisita
-        ? \`<div class="monto-label">Total</div><div class="monto-grande">\${clp(totalVisita)}</div>\`
+      const cuenta = cuentaVisita({ monto: trabajo.monto, saldo: trabajo.saldo, equipos });
+      const totalHtml = cuenta.total
+        ? \`<div class="monto-label">Total</div><div class="monto-grande">\${clp(cuenta.total)}</div>
+           <p class="text-muted" style="font-size:12.5px;margin-top:6px;">\${
+             cuenta.pendiente > 0 ? \`Saldo pendiente: <strong>\${clp(cuenta.pendiente)}</strong>.\` : "Pagado por completo."
+           }</p>\`
         : "";
       const detalleHtml =
         items.length || equipos.length || trabajo.monto
@@ -729,7 +734,6 @@ const PAGINA_BASE = `<!DOCTYPE html>
               <h2 style="font-size:15.5px;margin:0 0 4px;">Detalle y pago</h2>
               \${totalHtml}
               \${items.length ? items.map(renderItem).join("") : ""}
-              \${bannerPago(trabajo)}
               \${equipos.length ? equipos.map(renderGarantiaEquipo).join("") : ""}
             </div>\`
           : "";
