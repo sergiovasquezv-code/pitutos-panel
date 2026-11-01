@@ -8,7 +8,7 @@ export async function onRequestGet({ env, params }) {
   await asegurarRealizado(db);
   const trabajo = await db
     .prepare(
-      `SELECT trabajos.id, trabajos.tipo, trabajos.descripcion, trabajos.realizado, trabajos.estado, trabajos.monto,
+      `SELECT trabajos.id, trabajos.cliente_id, trabajos.tipo, trabajos.descripcion, trabajos.realizado, trabajos.estado, trabajos.monto,
               trabajos.fecha_creacion, trabajos.fecha_cierre, trabajos.fecha_entrega, trabajos.mostrar_detalle_cliente,
               clientes.nombre AS cliente_nombre
        FROM trabajos JOIN clientes ON clientes.id = trabajos.cliente_id
@@ -60,12 +60,18 @@ export async function onRequestGet({ env, params }) {
     // detalle completo que trae la ficha de garantía propia del equipo
     // (fotos, historial de pagos, condiciones) para que el cliente lo vea
     // todo aquí mismo, sin tener que abrir un link aparte.
+    // El producto vinculado a este trabajo, y también el que se registró
+    // suelto en el mismo cliente (por ejemplo el soporte a $30.000). El que
+    // ya pertenece a otro trabajo no entra en este enlace.
     const equiposRaw = (
       await db
         .prepare(
-          "SELECT id, tipo_equipo, marca_modelo, fecha_venta, meses_garantia, precio, public_token FROM equipos WHERE trabajo_id = ? ORDER BY creado_en ASC, id ASC"
+          `SELECT id, tipo_equipo, marca_modelo, fecha_venta, meses_garantia, precio, public_token
+           FROM equipos
+           WHERE cliente_id = ? AND (trabajo_id = ? OR trabajo_id IS NULL)
+           ORDER BY creado_en ASC, id ASC`
         )
-        .bind(trabajo.id)
+        .bind(trabajo.cliente_id, trabajo.id)
         .all()
     ).results;
     equipos = await Promise.all(
@@ -97,7 +103,7 @@ export async function onRequestGet({ env, params }) {
     if (fecha && fecha > ultimaActualizacion) ultimaActualizacion = fecha;
   }
 
-  const { id, mostrar_detalle_cliente, ...trabajoPublico } = trabajo;
+  const { id, cliente_id, mostrar_detalle_cliente, ...trabajoPublico } = trabajo;
   if (!mostrarDetalle) trabajoPublico.monto = 0;
   return json({
     negocio: env.NOMBRE_NEGOCIO || "Pitutos Informáticos",

@@ -698,10 +698,16 @@
       // El card de "Detalle y pago" solo aparece si hay algo que mostrar
       // (ítems del desglose, garantía de algún equipo, y/o un monto puesto
       // en el trabajo) — si no, no tiene sentido mostrar un card vacío.
+      const totalVisita =
+        (Number(trabajo.monto) || 0) + (equipos || []).reduce((s, e) => s + (Number(e.monto_total) || 0), 0);
+      const totalHtml = totalVisita
+        ? `<div class="monto-label">Total</div><div class="monto-grande">${clp(totalVisita)}</div>`
+        : "";
       const detalleHtml =
         items.length || equipos.length || trabajo.monto
           ? `<div class="card">
               <h2 style="font-size:15.5px;margin:0 0 4px;">Detalle y pago</h2>
+              ${totalHtml}
               ${items.length ? items.map(renderItem).join("") : ""}
               ${bannerPago(trabajo)}
               ${equipos.length ? equipos.map(renderGarantiaEquipo).join("") : ""}

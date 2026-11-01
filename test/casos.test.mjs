@@ -274,6 +274,31 @@ test("lo realizado se guarda aparte del reclamo y una base vieja crea la columna
   assert.equal(publico.trabajo.descripcion.includes("punto de venta"), true);
 });
 
+test("el seguimiento suma el producto suelto del cliente y deja fuera el de otro trabajo", async () => {
+  const db = await base();
+  await db
+    .prepare(
+      "INSERT INTO trabajos (cliente_id, tipo, descripcion, estado, monto, fecha_creacion, public_token, mostrar_detalle_cliente) VALUES (1, 'Soporte técnico', 'Visita', 'Listo', 0, '2026-10-31T15:00:00.000Z', 'tok-visita', 1)"
+    )
+    .run();
+  await db
+    .prepare(
+      "INSERT INTO trabajos (cliente_id, tipo, descripcion, estado, monto, fecha_creacion, public_token, mostrar_detalle_cliente) VALUES (1, 'Venta', 'Otra', 'Listo', 0, '2026-10-31T16:00:00.000Z', 'tok-otra', 1)"
+    )
+    .run();
+  const equipo =
+    "INSERT INTO equipos (cliente_id, trabajo_id, tipo_equipo, precio, fecha_venta, meses_garantia, creado_en) VALUES (?,?,?,?,?,?,?)";
+  await db.prepare(equipo).bind(1, 1, "Memoria Ram", 20000, "2026-11-01", 3, "2026-11-01T15:00:00.000Z").run();
+  await db.prepare(equipo).bind(1, null, "Soporte tecnico", 30000, "2026-11-01", 0, "2026-11-01T15:05:00.000Z").run();
+  await db.prepare(equipo).bind(1, 2, "Monitor", 40000, "2026-11-01", 3, "2026-11-01T15:06:00.000Z").run();
+
+  const publico = await (await verSeguimiento({ env: { DB: db }, params: { token: "tok-visita" } })).json();
+  const nombres = publico.equipos.map((e) => e.tipo_equipo).sort();
+  assert.deepEqual(nombres, ["Memoria Ram", "Soporte tecnico"]);
+  const total = publico.equipos.reduce((s, e) => s + e.monto_total, 0) + publico.trabajo.monto;
+  assert.equal(total, 50000);
+});
+
 test("en una base sin la columna cantidad, la primera línea la crea", async () => {
   const sinCantidad = schema.replace("\n    cantidad INTEGER NOT NULL DEFAULT 1,", "");
   assert.equal(sinCantidad.includes("cantidad INTEGER"), false);
