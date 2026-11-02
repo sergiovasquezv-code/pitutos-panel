@@ -3,6 +3,7 @@
 import { anotar, asegurarTablasVenta, base, claveNueva, diasPrueba, diasSinInternet, error, firmarLicencia, hoy, json, leerCuerpo,
   normalizarEquipo, pruebasPorConexion, sumarDias, recordatoriosDelDia, revisarPago, texto, ahora, asegurarTablasSoporte, adjuntoValido, correo, correoRespuesta,
   asociarLicenciasVigentesAPruebas } from '../../../mipos-lib/licencias.js';
+import { mapaEstados, pedir as pedirArchivo, rutaAdmin } from '../../_lib/respaldos.js';
 
 function igual(a, b) {
   const x = new TextEncoder().encode(a), y = new TextEncoder().encode(b);
@@ -41,7 +42,11 @@ async function resumen(db, env) {
   const soporte = await db.prepare("SELECT SUM(estado<>'resuelto') AS abiertos, SUM(sin_leer_soporte>0 AND estado<>'resuelto') AS sin_leer FROM mipos_tickets").first();
   const compras = (await db.prepare('SELECT c.*, k.clave FROM mipos_compras c LEFT JOIN mipos_claves k ON k.id=c.clave_id ORDER BY c.id DESC LIMIT 300').all()).results;
   for (const a of acts) a.puestos = puestos.filter(p => p.clave_id === a.clave_id && p.servidor_equipo === a.equipo);
-  for (const c of claves) c.equipos = acts.filter(a => a.clave_id === c.id);
+  const respaldos = await mapaEstados(db, 'mipos');
+  for (const c of claves) {
+    c.equipos = acts.filter(a => a.clave_id === c.id);
+    c.respaldo = respaldos[c.id] || null;
+  }
   const pruebasConLicencia = asociarLicenciasVigentesAPruebas(pruebas, claves, acts, hoy());
   let firma = 'ok';
   try { await firmarLicencia(env, { prueba: 1 }); } catch (e) { firma = e.message; }
@@ -125,11 +130,14 @@ export async function onRequest({ request, env, params, waitUntil }) {
       await anotar(db, 'pc_liberado', { clave_id: +p[1], equipo });
       return json({ ok: true });
     }
+    p = ruta.match(/^claves\/(\d+)\/respaldo\/descarga$/);
+    if (p && m === 'POST') return rutaAdmin(db, env, 'mipos', m, ruta);
     p = ruta.match(/^claves\/(\d+)\/respaldo$/);
     if (p && m === 'POST') {
       r = await db.prepare("UPDATE mipos_activaciones SET respaldo_pedido=? WHERE clave_id=? AND estado='activa'").bind(ahora(), +p[1]).run();
       if (!r.meta.changes) return error(404, 'No hay un servidor activado para respaldar');
       await anotar(db, 'respaldo_pedido', { clave_id: +p[1], detalle: 'Backup pedido desde el panel' });
+      await pedirArchivo(db, env, 'mipos', +p[1]);
       return json({ ok: true, servidores: r.meta.changes });
     }
 
