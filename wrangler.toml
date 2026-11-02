@@ -20,6 +20,11 @@ database_id = "13889caa-fd00-4600-865a-9146c85bad44"
 binding = "FOTOS"
 bucket_name = "pitutos-fotos"
 
+# Respaldo de MiPOS. Privado: la base se sube con URL firmada y no queda pública.
+[[r2_buckets]]
+binding = "RESPALDOS"
+bucket_name = "pitutos-respaldos"
+
 [vars]
 NOMBRE_NEGOCIO = "Mis Pitutos Informáticos"
 # Correo donde quieres recibir el aviso cuando un cliente marca un avance
@@ -29,3 +34,5 @@ EMAIL_NOTIFICACIONES = "sergiovasquezv@gmail.com"
 # Se usa para el botón "¿Tienes alguna consulta?" que ve el cliente en el
 # link combinado — reemplaza este número por el tuyo real.
 NEGOCIO_TELEFONO = "56912345678"
+RESPALDOS_BUCKET = "pitutos-respaldos"
+R2_ACCOUNT_ID = "57b841301e7d5e1fb410e683f491a9dc"
