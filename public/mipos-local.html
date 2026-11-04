@@ -43,9 +43,11 @@ button:disabled { opacity: .6; cursor: default; }
 .medios, .dias { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .medios li, .dias li { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--borde); padding-bottom: 8px; }
 .scroll { max-height: 60vh; overflow: auto; }
+.busca-fija { position: sticky; top: 0; z-index: 3; background: var(--panel); padding: 4px 0 10px; }
+#buscar { border: 2px solid var(--acento); background: var(--bg); color: var(--texto); font-size: 1rem; }
 table { width: 100%; border-collapse: collapse; }
 th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--borde); vertical-align: top; }
-th { position: sticky; top: 0; background: var(--panel); font-size: .82rem; color: var(--suave); }
+th { position: sticky; top: 78px; z-index: 2; background: var(--panel); font-size: .82rem; color: var(--suave); }
 td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .badge { display: inline-block; border-radius: 999px; padding: 1px 8px; font-size: .75rem; font-weight: 700; margin-left: 6px; }
 .rojo { background: #fde8e8; color: #9b1c1c; }
@@ -168,10 +170,13 @@ button.dia.activo { background: var(--acento); color: #fff; border-color: transp
           <p class="nota" id="recorte"></p>
         </div>
         <p class="nota">Puedes cambiar el nombre, el precio de venta, o sumar y restar stock. El computador del local lo aplica una sola vez, cuando tenga internet. El ticket que ya está armado conserva el nombre y el precio con los que se cargó.</p>
-        <label>Buscar en el stock
-          <input id="buscar" type="search" placeholder="Código o nombre">
-        </label>
         <div class="scroll">
+          <div class="busca-fija">
+            <label>Buscar producto
+              <input id="buscar" type="search" placeholder="Escribe el código o el nombre" autocomplete="off">
+            </label>
+            <p class="nota" id="busca-cuenta"></p>
+          </div>
           <table>
             <thead>
               <tr><th>Código</th><th>Nombre</th><th class="num">Precio de venta</th><th class="num">Cantidad</th><th></th></tr>
@@ -274,11 +279,19 @@ function cuerpoAuth(extra) {
   return body;
 }
 
+function textoBusqueda(valor) {
+  return String(valor || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
 function pintarStock() {
-  const q = $("buscar").value.trim().toLowerCase();
+  const q = textoBusqueda($("buscar").value.trim());
   const cuerpo = $("stock");
   limpiar(cuerpo);
-  filasPintadas = stockActual.filter(p => !q || `${p.codigo} ${p.nombre}`.toLowerCase().includes(q));
+  filasPintadas = stockActual.filter(p => !q || textoBusqueda(`${p.codigo} ${p.nombre}`).includes(q));
+  const cuenta = $("busca-cuenta");
+  if (cuenta) {
+    const total = stockActual.length;
+    cuenta.textContent = !total ? "" : (q ? `${filasPintadas.length.toLocaleString("es-CL")} de ${total.toLocaleString("es-CL")}` : `${total.toLocaleString("es-CL")} productos`);
+  }
   filasPintadas.forEach((p, i) => {
     const tr = document.createElement("tr");
     for (const [texto, num] of [[p.codigo || "—", false], [p.nombre || "", false], [clp(p.precio), true], [cant(p.cantidad), true]]) {
