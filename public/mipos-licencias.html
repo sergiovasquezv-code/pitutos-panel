@@ -116,7 +116,7 @@ th { font-size: .78rem; color: var(--suave); background: var(--panel-2); }
 .t-resumen:hover { background: var(--panel-2); }
 .t-resumen:focus-visible { outline: 2px solid var(--acento); outline-offset: -2px; }
 .t-resumen h3 { margin: 0; font-size: 1rem; flex: 1 1 160px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.t-resumen .clave { font-size: .85rem; padding: 2px 8px; }
+.t-resumen .clave { font-size: .85rem; padding: 2px 8px; user-select: text; cursor: text; }
 .t-resumen .srv { color: var(--suave); font-size: .82rem; font-weight: 650; white-space: nowrap; }
 .luz { width: 11px; height: 11px; border-radius: 50%; flex: none; background: var(--borde); }
 .luz.ok { background: var(--ok); }
@@ -184,8 +184,36 @@ function modal(html) {
   setTimeout(() => { const f = $('[autofocus]', ov) || $('input', ov); if (f) f.focus(); }, 30);
   return m;
 }
+function copiarConSeleccion(t) {
+  const ta = document.createElement('textarea');
+  ta.value = t;
+  ta.setAttribute('readonly', '');
+  ta.style.position = 'fixed';
+  ta.style.top = '0';
+  ta.style.left = '0';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+  ta.remove();
+  return ok;
+}
 async function copiar(t) {
-  try { await navigator.clipboard.writeText(t); toast('Copiado'); } catch (e) { prompt('Copia el texto:', t); }
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(t);
+      toast('Copiado');
+      return;
+    }
+  } catch (e) { /* el navegador no dejó el portapapeles: se intenta de otra forma */ }
+  if (copiarConSeleccion(t)) { toast('Copiado'); return; }
+  const m = modal(`<h2>Clave</h2><input id="copiar-manual" readonly value="${esc(t)}" style="font-family:Consolas,monospace;font-size:1.1rem;text-align:center">
+    <div class="det">Selecciónala y cópiala con Ctrl+C.</div>
+    <div class="acciones" style="justify-content:flex-end"><button class="btn primario" data-cerrar>Listo</button></div>`);
+  const input = $('#copiar-manual', m.el);
+  if (input) { input.focus(); input.select(); }
 }
 function telefono(c) {
   const d = String(c || '').replace(/\D/g, '');
@@ -345,7 +373,7 @@ function vistaClaves() {
         <div class="t-resumen" role="button" tabindex="0" aria-expanded="${abierta}">
           <i class="luz ${luz[0]}" title="${luz[1]}"></i><h3 title="${esc(k.cliente)}">${esc(k.cliente)}</h3>
           <span class="clave">${esc(k.clave)}</span>${badgeVence(k)}<span class="srv" title="Servidores activados">${activos.length}/${k.max_equipos} srv</span>
-          <button class="btn chico" data-copiar="${esc(k.clave)}">Copiar</button>
+          <button type="button" class="btn chico" data-copiar="${esc(k.clave)}">Copiar</button>
           <a class="btn chico verde" href="${linkWhatsApp(k)}" target="_blank" rel="noopener">WhatsApp</a><span class="flecha"></span></div>
         <div class="t-fijo">
           <div class="meta"><span>Creada: ${fecha(k.creado)}${antiguedad ? ` · <b>${esc(antiguedad)}</b>` : ''}</span></div>
@@ -376,14 +404,18 @@ function vistaClaves() {
         det.hidden = !abrir; t.classList.toggle('abierta', abrir); cab.setAttribute('aria-expanded', String(abrir));
         E.abierta = abrir ? k.id : null;
       };
-      cab.addEventListener('click', e => { if (!e.target.closest('button, a')) alternar(); });
+      cab.addEventListener('click', e => { if (!e.target.closest('button, a, .clave')) alternar(); });
+      $$('[data-copiar]', t).forEach(b => b.addEventListener('click', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        copiar(k.clave);
+      }));
       cab.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target === cab) { e.preventDefault(); alternar(); } });
       const accion = (sel, fn) => $$(sel, t).forEach(b => b.addEventListener('click', async () => {
         b.disabled = true;
         try { await fn(b); } catch (e) { toast(e.message, 'error'); }
         b.disabled = false;
       }));
-      accion('[data-copiar]', b => copiar(b.dataset.copiar));
       accion('[data-editar]', () => formClave(k));
       accion('[data-archivar]', async () => {
         const archivar = !k.archivada;
