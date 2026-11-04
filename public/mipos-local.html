@@ -167,7 +167,7 @@ button.dia.activo { background: var(--acento); color: #fff; border-color: transp
           <h2>Stock</h2>
           <p class="nota" id="recorte"></p>
         </div>
-        <p class="nota">Puedes cambiar el precio de venta o sumar y restar stock. El computador del local lo aplica una sola vez, cuando tenga internet. El ticket que ya está armado en la caja no cambia: esas líneas se cobran como están. El precio nuevo queda en la ficha y vale para la siguiente venta.</p>
+        <p class="nota">Puedes cambiar el nombre, el precio de venta, o sumar y restar stock. El computador del local lo aplica una sola vez, cuando tenga internet. El ticket que ya está armado conserva el nombre y el precio con los que se cargó.</p>
         <label>Buscar en el stock
           <input id="buscar" type="search" placeholder="Código o nombre">
         </label>
@@ -184,6 +184,11 @@ button.dia.activo { background: var(--acento); color: #fff; border-color: transp
           <h2 id="correccion-titulo"></h2>
           <p class="nota" id="correccion-ayuda"></p>
           <form id="form-correccion">
+            <div id="campo-nombre" class="oculto">
+              <label>Nombre nuevo
+                <input id="nuevo-nombre" maxlength="80" autocomplete="off" placeholder="Arroz grado 1">
+              </label>
+            </div>
             <div id="campo-precio">
               <label>Nuevo precio de venta, en pesos
                 <input id="nuevo-precio" inputmode="numeric" autocomplete="off" placeholder="1500">
@@ -284,7 +289,7 @@ function pintarStock() {
     }
     const acciones = document.createElement("td");
     acciones.className = "num";
-    for (const [accion, etiqueta] of [["precio", "Precio"], ["stock", "Stock"]]) {
+    for (const [accion, etiqueta] of [["nombre", "Nombre"], ["precio", "Precio"], ["stock", "Stock"]]) {
       const b = document.createElement("button");
       b.type = "button";
       b.className = "secundario chico";
@@ -308,9 +313,12 @@ function pintarPendientes(lista) {
     return;
   }
   for (const o of lista) {
+    const producto = o.nombre || o.codigo || "producto";
     const que = o.tipo === "stock"
-      ? `${Number(o.delta) < 0 ? "Restar" : "Sumar"} ${cant(Math.abs(Number(o.delta) || 0))} de ${o.nombre || o.codigo || "producto"}${o.motivo ? " · " + o.motivo : ""}`
-      : `Precio de ${o.nombre || o.codigo || "producto"}: ${clp(o.precio)}`;
+      ? `${Number(o.delta) < 0 ? "Restar" : "Sumar"} ${cant(Math.abs(Number(o.delta) || 0))} de ${producto}${o.motivo ? " · " + o.motivo : ""}`
+      : o.tipo === "nombre"
+        ? `Nombre de ${producto}: ${o.motivo}`
+        : `Precio de ${producto}: ${clp(o.precio)}`;
     const estado = o.estado === "pendiente"
       ? "En espera de que el computador lo aplique"
       : (o.detalle || (o.estado === "aplicada" ? "Aplicada en el computador" : "No se aplicó"));
@@ -549,17 +557,23 @@ function salir() {
 function abrirCorreccion(accion, p) {
   correccion = { accion, codigo: p.codigo || "", nombre: p.nombre || "" };
   $("correccion").classList.remove("oculto");
-  $("correccion-titulo").textContent = accion === "precio" ? `Precio de venta de ${p.nombre}` : `Stock de ${p.nombre}`;
-  $("correccion-ayuda").textContent = accion === "precio"
-    ? "Queda en la ficha. La próxima venta usa este precio. El ticket que ya está en la caja se cobra como está."
-    : "Se suma o se resta en el computador. No deja el stock en el número de esta pantalla.";
+  const titulos = { nombre: `Nombre de ${p.nombre}`, precio: `Precio de venta de ${p.nombre}`, stock: `Stock de ${p.nombre}` };
+  const ayudas = {
+    nombre: "Queda en la ficha. La próxima venta usa este nombre. El ticket que ya está armado conserva el nombre con el que se cargó.",
+    precio: "Queda en la ficha. La próxima venta usa este precio. El ticket que ya está en la caja se cobra como está.",
+    stock: "Se suma o se resta en el computador. No deja el stock en el número de esta pantalla.",
+  };
+  $("correccion-titulo").textContent = titulos[accion] || p.nombre;
+  $("correccion-ayuda").textContent = ayudas[accion] || "";
+  $("campo-nombre").classList.toggle("oculto", accion !== "nombre");
   $("campo-precio").classList.toggle("oculto", accion !== "precio");
   $("campo-stock").classList.toggle("oculto", accion !== "stock");
+  $("nuevo-nombre").value = p.nombre || "";
   $("nuevo-precio").value = "";
   $("cant-stock").value = "";
   $("motivo-stock").value = "";
   $("modo-stock").value = "sumar";
-  (accion === "precio" ? $("nuevo-precio") : $("cant-stock")).focus();
+  (accion === "nombre" ? $("nuevo-nombre") : accion === "precio" ? $("nuevo-precio") : $("cant-stock")).focus();
 }
 
 $("entrada").addEventListener("submit", (ev) => {
@@ -605,7 +619,19 @@ $("form-correccion").addEventListener("submit", async (ev) => {
   if (!correccion) return;
   $("aviso").textContent = "";
   const body = { accion: correccion.accion, codigo: correccion.codigo, nombre: correccion.nombre };
-  if (correccion.accion === "precio") {
+  if (correccion.accion === "nombre") {
+    const nuevo = $("nuevo-nombre").value.trim().replace(/\s+/g, " ");
+    if (!nuevo) {
+      $("aviso").textContent = "Escribe el nombre nuevo.";
+      return;
+    }
+    if (nuevo.toLowerCase() === correccion.nombre.toLowerCase()) {
+      $("aviso").textContent = "El nombre es el mismo.";
+      return;
+    }
+    body.nombre_nuevo = nuevo;
+    body.tipo = "nombre";
+  } else if (correccion.accion === "precio") {
     const t = $("nuevo-precio").value.trim().replace(/\./g, "");
     if (!/^\d+$/.test(t) || Number(t) < 1) {
       $("aviso").textContent = "Escribe el precio en pesos, sin centavos. Puedes usar punto de miles.";

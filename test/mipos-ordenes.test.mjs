@@ -26,6 +26,10 @@ test('la corrección de stock es una suma o una resta', () => {
   assert.deepEqual(limpiarOrden({ tipo: 'precio', codigo: '780', nombre: 'Arroz', precio: 1500 }).orden, {
     tipo: 'precio', codigo: '780', nombre: 'Arroz', precio: 1500, delta: null, motivo: '',
   });
+  assert.match(limpiarOrden({ tipo: 'nombre', codigo: '780', nombre: 'Arroz', nombre_nuevo: 'Arroz' }).error, /mismo/);
+  assert.deepEqual(limpiarOrden({ tipo: 'nombre', codigo: '780', nombre: 'Arroz', nombre_nuevo: 'Arroz grano' }).orden, {
+    tipo: 'nombre', codigo: '780', nombre: 'Arroz', precio: null, delta: null, motivo: 'Arroz grano',
+  });
 });
 
 test('la página sigue dejando entrar solo con la clave', () => {

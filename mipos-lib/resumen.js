@@ -192,6 +192,9 @@ function sumarDiasClave(dias, desde, hasta) {
 }
 
 function ayudaDe(dias, dia, stock) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dia || '')) {
+    return { promedio7: null, dias7: 0, mas_plata: [], mas_unidades: [], sin_venta_7: [], sin_venta_30: [] };
+  }
   const previos = (dias || []).filter(d => d && d.dia < dia).slice(0, 7);
   const base = previos.filter(d => Number.isInteger(d.total));
   const promedio7 = base.length ? Math.round(base.reduce((a, d) => a + d.total, 0) / base.length) : null;

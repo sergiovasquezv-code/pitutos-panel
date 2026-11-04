@@ -82,7 +82,7 @@ export async function onRequestPost({ request, env }) {
       const guardado = await guardarAcceso(db, clave.fila.id, d.correo, d.clave_acceso, clave.claveTxt || '');
       if (guardado.error) return error(400, guardado.error);
       aviso = 'Listo. La próxima puedes entrar con ese correo. La clave de producto sigue sirviendo.';
-    } else if (d.accion === 'precio' || d.accion === 'stock') {
+    } else if (d.accion === 'precio' || d.accion === 'stock' || d.accion === 'nombre') {
       const orden = await crearOrden(db, clave.fila.id, d);
       if (orden.error) return error(400, orden.error);
       aviso = 'Quedó guardado. El computador del local lo aplica cuando tenga internet.';

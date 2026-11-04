@@ -24,11 +24,17 @@ function cantidadPositiva(n) {
 export function limpiarOrden(d) {
   if (!d || typeof d !== 'object' || Array.isArray(d)) return { error: 'La corrección está vacía' };
   if (JSON.stringify(d).includes('SQLite format')) return { error: 'La corrección no puede llevar la base de datos' };
-  const tipo = d.tipo === 'precio' || d.tipo === 'stock' ? d.tipo : '';
+  const tipo = d.tipo === 'precio' || d.tipo === 'stock' || d.tipo === 'nombre' ? d.tipo : '';
   if (!tipo) return { error: 'La corrección no es válida' };
   const codigo = texto(d.codigo, 40);
   const nombre = texto(d.nombre, 80);
   if (!codigo && !nombre) return { error: 'Falta el producto' };
+  if (tipo === 'nombre') {
+    const nuevo = texto(d.nombre_nuevo, 80);
+    if (!nuevo) return { error: 'Escribe el nombre nuevo' };
+    if (nuevo.toLowerCase() === nombre.toLowerCase()) return { error: 'El nombre es el mismo' };
+    return { orden: { tipo, codigo, nombre, precio: null, delta: null, motivo: nuevo } };
+  }
   if (tipo === 'precio') {
     const precio = entero(d.precio, 100_000_000, 1);
     if (precio == null) return { error: 'El precio de venta no es válido' };
@@ -58,7 +64,7 @@ function segura(fila) {
   const estado = fila.estado === 'aplicada' || fila.estado === 'rechazada' ? fila.estado : 'pendiente';
   return {
     id: Number(fila.id),
-    tipo: fila.tipo === 'stock' ? 'stock' : 'precio',
+    tipo: fila.tipo === 'stock' || fila.tipo === 'nombre' ? fila.tipo : 'precio',
     codigo: texto(fila.codigo, 40),
     nombre: texto(fila.nombre, 80),
     precio: fila.precio == null ? null : Number(fila.precio),
@@ -153,7 +159,7 @@ export async function sincronizar(db, claveId, confirmar) {
   return {
     ordenes: (filas.results || []).map(f => ({
       id: Number(f.id),
-      tipo: f.tipo === 'stock' ? 'stock' : 'precio',
+      tipo: f.tipo === 'stock' || f.tipo === 'nombre' ? f.tipo : 'precio',
       codigo: texto(f.codigo, 40),
       nombre: texto(f.nombre, 80),
       precio: f.precio == null ? null : Number(f.precio),
