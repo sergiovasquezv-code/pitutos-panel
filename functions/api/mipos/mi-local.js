@@ -38,10 +38,10 @@ async function claveDe(db, d) {
   return { error: MENSAJE_CLAVE, status: 400 };
 }
 
-async function armarVista(db, clave) {
+async function armarVista(db, clave, dia = '') {
   const fila = await db.prepare(SQL.resumen).bind(clave.id).first();
   const dias = (await db.prepare(SQL.dias).bind(clave.id, corteHistorial(hoy())).all()).results || [];
-  const vista = vistaLocal(clave, fila, dias);
+  const vista = vistaLocal(clave, fila, dias, texto(dia, 10));
   const correo = await correoDe(db, clave.id);
   vista.acceso = correo ? { correo } : null;
   vista.pendientes = await listarParaDueno(db, clave.id);
@@ -59,7 +59,7 @@ async function entrarConCorreo(db, d, ip) {
   const clave = await clavePorId(db, acceso.clave_id);
   if (clave.error) return error(clave.status, clave.error);
   await limpiarFallos(db, ip);
-  const vista = await armarVista(db, clave.fila);
+  const vista = await armarVista(db, clave.fila, d.dia);
   vista.token = await crearSesion(db, clave.fila.id);
   return json(vista);
 }
@@ -89,7 +89,7 @@ export async function onRequestPost({ request, env }) {
     } else if (d.accion) {
       return error(400, 'Eso no se puede hacer desde aquí.');
     }
-    const vista = await armarVista(db, clave.fila);
+    const vista = await armarVista(db, clave.fila, d.dia);
     if (aviso) vista.aviso = aviso;
     return json(vista);
   } catch (e) {

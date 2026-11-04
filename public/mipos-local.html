@@ -47,6 +47,13 @@ table { width: 100%; border-collapse: collapse; }
 th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--borde); vertical-align: top; }
 th { position: sticky; top: 0; background: var(--panel); font-size: .82rem; color: var(--suave); }
 td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.badge { display: inline-block; border-radius: 999px; padding: 1px 8px; font-size: .75rem; font-weight: 700; margin-left: 6px; }
+.rojo { background: #fde8e8; color: #9b1c1c; }
+.amarillo { background: #fff4d6; color: #8a5a00; }
+tr.anulada td { color: var(--suave); }
+.linea { color: var(--suave); font-size: .85rem; }
+button.dia { background: transparent; color: var(--texto); border: 1px solid var(--borde); }
+button.dia.activo { background: var(--acento); color: #fff; border-color: transparent; }
 .oculto { display: none; }
 .grid { display: grid; gap: 10px; }
 @media (min-width: 700px) { .grid3 { grid-template-columns: 140px 1fr 1.4fr; } }
@@ -131,8 +138,29 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
         <ul class="medios" id="medios"></ul>
       </article>
       <article class="tarjeta">
-        <h2>Totales de los últimos 90 días</h2>
-        <ul class="dias" id="dias"></ul>
+        <h2>Ventas del día</h2>
+        <p class="nota" id="ventas-nota"></p>
+        <div class="scroll">
+          <table>
+            <thead>
+              <tr><th>N°</th><th>Hora</th><th>Cajero</th><th>Detalle</th><th class="num">Total</th></tr>
+            </thead>
+            <tbody id="ventas-dia"></tbody>
+          </table>
+        </div>
+      </article>
+      <article class="tarjeta">
+        <h2>Para el negocio</h2>
+        <p class="nota" id="ritmo"></p>
+        <h2>Se vendió más en 7 días</h2>
+        <ul class="medios" id="mas"></ul>
+        <h2>Con stock y sin venta en 30 días</h2>
+        <ul class="medios" id="poco"></ul>
+      </article>
+      <article class="tarjeta">
+        <h2>Historial de 90 días</h2>
+        <p class="nota">Elige un día para ver sus ventas. Un día que ya pasó no se edita desde aquí.</p>
+        <div class="fila" id="dias"></div>
       </article>
       <article class="tarjeta">
         <div class="cab">
@@ -184,7 +212,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
         <h2 style="margin-top:18px">Correcciones</h2>
         <ul class="medios" id="pendientes"></ul>
       </article>
-      <p class="nota">Este resumen no guarda cada venta: solo el total, los medios de pago y el stock.</p>
+      <p class="nota">La web muestra el mismo detalle que la caja. Anular y devolver se hace en el computador del local.</p>
     </div>
   </section>
   <p class="aviso" id="aviso" role="status"></p>
@@ -200,6 +228,7 @@ const MEDIOS = {
 const $ = (id) => document.getElementById(id);
 let claveGuardada = "";
 let tokenGuardado = "";
+let diaVisto = "";
 let stockActual = [];
 let filasPintadas = [];
 let correccion = null;
@@ -298,6 +327,126 @@ function mostrarAcceso(acceso) {
   }
 }
 
+function pintarVentas(datos) {
+  const cuerpo = $("ventas-dia");
+  const nota = $("ventas-nota");
+  limpiar(cuerpo);
+  const lista = Array.isArray(datos.lista) ? datos.lista : [];
+  const anuladas = Number(datos.anuladas) || lista.filter(v => v.estado === "anulada").length;
+  const devuelto = Number(datos.devuelto) || 0;
+  if (!datos.tiene_detalle && !lista.length && Number(datos.total)) {
+    nota.textContent = "Este día quedó guardado solo con el total. El detalle de cada venta llega con el próximo resumen del computador.";
+    return;
+  }
+  const partes = [];
+  if (anuladas) partes.push(anuladas === 1 ? "1 anulada, no suma al total" : `${anuladas} anuladas, no suman al total`);
+  if (devuelto) partes.push(`devuelto ${clp(devuelto)}`);
+  nota.textContent = partes.join(" · ");
+  if (!lista.length) {
+    const tr = document.createElement("tr");
+    const td = document.createElement("td");
+    td.colSpan = 5;
+    td.textContent = "Ese día no hay ventas.";
+    tr.append(td);
+    cuerpo.append(tr);
+    return;
+  }
+  for (const v of lista) {
+    const tr = document.createElement("tr");
+    if (v.estado === "anulada") tr.className = "anulada";
+    const folio = document.createElement("td");
+    folio.textContent = String(v.folio || "");
+    if (v.estado === "anulada") {
+      const marca = document.createElement("span");
+      marca.className = "badge rojo";
+      marca.textContent = "ANULADA";
+      folio.append(marca);
+    } else if (Number(v.devuelto) >= Number(v.total) && Number(v.total) > 0) {
+      const marca = document.createElement("span");
+      marca.className = "badge amarillo";
+      marca.textContent = "devuelta";
+      folio.append(marca);
+    } else if (Number(v.devuelto) > 0) {
+      const marca = document.createElement("span");
+      marca.className = "badge amarillo";
+      marca.textContent = "devolución parcial";
+      folio.append(marca);
+    }
+    const hora = document.createElement("td");
+    hora.textContent = v.hora || "";
+    const cajero = document.createElement("td");
+    cajero.textContent = v.cajero || "";
+    if (v.cliente) {
+      const det = document.createElement("div");
+      det.className = "linea";
+      det.textContent = "Cliente: " + v.cliente;
+      cajero.append(det);
+    }
+    const detalle = document.createElement("td");
+    const lineas = Array.isArray(v.items) ? v.items : [];
+    if (!lineas.length) detalle.textContent = (v.metodos || []).map(m => MEDIOS[m] || m).join(", ");
+    for (const it of lineas) {
+      const p = document.createElement("div");
+      p.textContent = `${cant(it.cantidad)} ${it.nombre} · ${clp(it.total)}`;
+      detalle.append(p);
+    }
+    if (v.estado === "anulada") {
+      const aviso = document.createElement("div");
+      aviso.className = "linea";
+      const quien = v.anulada_por ? ` por ${v.anulada_por}` : "";
+      const cuando = v.anulada_hora ? ` a las ${v.anulada_hora}` : "";
+      aviso.textContent = `Anulada${cuando}${quien}${v.motivo ? ". Motivo: " + v.motivo : ""}`;
+      detalle.append(aviso);
+    }
+    const total = document.createElement("td");
+    total.className = "num";
+    total.textContent = clp(v.total);
+    tr.append(folio, hora, cajero, detalle, total);
+    cuerpo.append(tr);
+  }
+}
+
+function pintarAyuda(datos) {
+  const ayuda = datos.ayuda || {};
+  const ritmo = $("ritmo");
+  const dia = datos.dia ? fechaDe(datos.dia) : "Ese día";
+  if (ayuda.dias7 > 0 && ayuda.promedio7 != null) {
+    const diff = Number(datos.total || 0) - Number(ayuda.promedio7);
+    const sentido = diff >= 0 ? `${clp(diff)} sobre` : `${clp(Math.abs(diff))} bajo`;
+    ritmo.textContent = `${dia} va ${sentido} el promedio de los ${ayuda.dias7} días anteriores (${clp(ayuda.promedio7)}).`;
+  } else {
+    ritmo.textContent = "El promedio aparece cuando haya días anteriores guardados.";
+  }
+  const mas = $("mas");
+  limpiar(mas);
+  const plata = Array.isArray(ayuda.mas_plata) ? ayuda.mas_plata : [];
+  if (!plata.length) filaMonto(mas, "Todavía no hay productos vendidos en esta semana.", "");
+  else for (const p of plata) filaMonto(mas, p.nombre, `${cant(p.cantidad)} · ${clp(p.monto)}`);
+  const poco = $("poco");
+  limpiar(poco);
+  const quietos = Array.isArray(ayuda.sin_venta_30) && ayuda.sin_venta_30.length ? ayuda.sin_venta_30 : (ayuda.sin_venta_7 || []);
+  if (!quietos.length) filaMonto(poco, "Aparece cuando el resumen trae lo vendido y el stock.", "");
+  else for (const p of quietos) filaMonto(poco, p.nombre, `stock ${cant(p.cantidad)}`);
+}
+
+function pintarHistorial(datos) {
+  const box = $("dias");
+  limpiar(box);
+  const lista = Array.isArray(datos.historial) ? datos.historial : [];
+  if (!lista.length) {
+    box.textContent = "Aún no hay días guardados.";
+    return;
+  }
+  for (const d of lista) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "dia" + (d.dia === datos.dia ? " activo" : "");
+    b.dataset.dia = d.dia;
+    b.textContent = `${fechaDe(d.dia)} · ${clp(d.total)}`;
+    box.append(b);
+  }
+}
+
 function pintar(datos) {
   $("entrada").classList.add("oculto");
   $("entrada-correo").classList.add("oculto");
@@ -315,6 +464,7 @@ function pintar(datos) {
   $("vacio").classList.add("oculto");
   $("datos").classList.remove("oculto");
   $("llegada").textContent = "Último resumen: " + horaDe(datos.recibido);
+  diaVisto = datos.dia || "";
   $("total").textContent = clp(datos.total);
   const n = Number(datos.ventas) || 0;
   $("dia").textContent = (datos.dia ? "Día " + fechaDe(datos.dia) + " · " : "") + (n === 1 ? "1 venta" : n + " ventas");
@@ -322,10 +472,9 @@ function pintar(datos) {
   limpiar(medios);
   if (!datos.medios || !datos.medios.length) filaMonto(medios, "Ese día no hay ventas.", "");
   else for (const m of datos.medios) filaMonto(medios, MEDIOS[m.metodo] || m.metodo, clp(m.monto));
-  const dias = $("dias");
-  limpiar(dias);
-  if (!datos.historial || !datos.historial.length) filaMonto(dias, "Aún no hay días guardados.", "");
-  else for (const d of datos.historial) filaMonto(dias, fechaDe(d.dia), clp(d.total));
+  pintarVentas(datos);
+  pintarAyuda(datos);
+  pintarHistorial(datos);
   stockActual = Array.isArray(datos.stock) ? datos.stock : [];
   const mostrados = stockActual.length;
   const totalStock = Number(datos.stock_total) || mostrados;
@@ -385,6 +534,7 @@ async function entrarCon(body) {
 function salir() {
   claveGuardada = "";
   tokenGuardado = "";
+  diaVisto = "";
   correccion = null;
   $("acceso-nuevo").dataset.abierto = "";
   sessionStorage.removeItem("mipos.clave.local");
@@ -430,8 +580,13 @@ $("entrada-correo").addEventListener("submit", (ev) => {
   entrarCon({ correo: $("correo-entrada").value.trim(), clave_acceso: $("clave-entrada").value });
 });
 $("actualizar").addEventListener("click", () => {
-  if (claveGuardada) entrarCon({ clave: claveGuardada });
-  else if (tokenGuardado) entrarCon({ token: tokenGuardado });
+  if (claveGuardada || tokenGuardado) entrarCon(cuerpoAuth(diaVisto ? { dia: diaVisto } : {}));
+});
+$("dias").addEventListener("click", (ev) => {
+  const b = ev.target.closest("button[data-dia]");
+  if (!b || !(claveGuardada || tokenGuardado)) return;
+  diaVisto = b.dataset.dia;
+  entrarCon(cuerpoAuth({ dia: diaVisto }));
 });
 $("salir").addEventListener("click", salir);
 $("buscar").addEventListener("input", pintarStock);

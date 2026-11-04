@@ -1,5 +1,5 @@
 // POST /api/mipos/resumen — lo llama el PC con la clave ya activada, igual que /respaldo.
-// Guarda un solo resumen por local (total del día, medios y stock). No guarda cada venta.
+// Guarda el día como lo ve la caja: total, cada venta (también anulada) y stock.
 import { asegurarTablas, base, error, hoy, json, leerCuerpo, normalizarEquipo, problemaClave } from '../../../mipos-lib/licencias.js';
 import { asegurarResumen, guardarResumen, limpiarResumen } from '../../../mipos-lib/resumen.js';
 

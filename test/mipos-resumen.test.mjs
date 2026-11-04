@@ -103,8 +103,66 @@ test('la vista de una clave no incluye la otra ni el contacto', () => {
   assert.equal(crudo.includes('precio_costo'), false);
   assert.equal(crudo.includes('dueno@'), false);
   assert.equal(vista.negocio, 'Almacén Luz');
-  assert.deepEqual(vista.historial, [{ dia: hoy, total: 3500 }, { dia: '2026-11-03', total: 8000 }]);
+  assert.deepEqual(vista.historial, [
+    { dia: hoy, total: 3500, ventas: 0, anuladas: 0 },
+    { dia: '2026-11-03', total: 8000, ventas: 0, anuladas: 0 },
+  ]);
   assert.deepEqual(vista.medios, [{ metodo: 'efectivo', monto: 3500 }]);
   assert.deepEqual(vista.stock, [{ codigo: '780', nombre: 'Arroz', precio: 1200, cantidad: 4 }]);
   assert.equal('id' in vista, false);
+});
+
+test('la venta anulada queda en el detalle y no suma al total', () => {
+  const venta = {
+    folio: 12,
+    hora: '10:15',
+    cajero: 'Ana',
+    cliente: 'Rosa',
+    estado: 'anulada',
+    total: 4000,
+    devuelto: 0,
+    metodos: ['efectivo'],
+    items: [{ nombre: 'Pan', cantidad: 2, total: 4000, precio_costo: 10, telefono: '+569777' }],
+    anulada_hora: '10:20',
+    anulada_por: 'Admin',
+    motivo: 'Se equivocó de producto',
+    telefono: '+569777',
+  };
+  const limpio = limpiarResumen({
+    dia: hoy,
+    total: 9000,
+    ventas: 1,
+    anuladas: 1,
+    devuelto: 0,
+    medios: [{ metodo: 'efectivo', monto: 9000 }],
+    lista: [
+      { folio: 13, hora: '11:00', cajero: 'Ana', cliente: 'Rosa', estado: 'completada', total: 9000, metodos: ['efectivo'], items: [{ nombre: 'Leche', cantidad: 1, total: 9000 }] },
+      venta,
+    ],
+    productos: [{ codigo: '1', nombre: 'Leche', cantidad: 1, monto: 9000, telefono: '+569777' }],
+    stock: [],
+  }, hoy);
+  assert.equal(limpio.error, undefined);
+  assert.equal(limpio.resumen.total, 9000);
+  assert.equal(limpio.resumen.lista[1].estado, 'anulada');
+  assert.equal(limpio.resumen.lista[1].motivo, 'Se equivocó de producto');
+  assert.equal(limpio.resumen.lista[1].cliente, 'Rosa');
+  const crudo = JSON.stringify(limpio.resumen);
+  assert.equal(crudo.includes('+569'), false);
+  assert.equal(crudo.includes('precio_costo'), false);
+  const vista = vistaLocal({ cliente: 'Local' }, {
+    negocio: 'Local', recibido: '2026-11-04T18:00:00.000Z', dia: hoy, total: 9000, ventas: 1,
+    medios: [], stock: [{ codigo: '1', nombre: 'Leche', precio: 9000, cantidad: 3 }], stock_total: 1,
+  }, [{
+    dia: hoy,
+    total: 9000,
+    detalle: {
+      ventas: 1, anuladas: 1, devuelto: 0, medios: [{ metodo: 'efectivo', monto: 9000 }],
+      lista: limpio.resumen.lista, productos: limpio.resumen.productos,
+    },
+  }]);
+  assert.equal(vista.lista[1].estado, 'anulada');
+  assert.equal(vista.total, 9000);
+  assert.equal(vista.ayuda.mas_plata[0].nombre, 'Leche');
+  assert.equal(JSON.stringify(vista).includes('+569'), false);
 });
