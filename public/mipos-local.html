@@ -1,0 +1,531 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<title>Mi local — MiPOS</title>
+<style>
+:root {
+  --bg: #f3f4f8; --panel: #fff; --texto: #161a2e; --suave: #5f6580; --borde: #e3e5ee;
+  --acento: #2f5bff; --ok: #0a8f62; --aviso: #8a5a00;
+  --sombra: 0 1px 2px rgba(20, 24, 50, .06), 0 8px 24px rgba(20, 24, 50, .06);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1220; --panel: #171b2e; --texto: #eef0fa; --suave: #9aa1bf; --borde: #2a3050;
+    --acento: #6b8bff; --ok: #3ccf98; --aviso: #ffbe55;
+    --sombra: 0 8px 24px rgba(0, 0, 0, .25);
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--texto); font: 16px/1.45 system-ui, "Segoe UI", sans-serif; }
+main { max-width: 880px; margin: 0 auto; padding: 28px 16px 64px; }
+h1 { margin: 0; font-size: 1.6rem; }
+h2 { margin: 0 0 10px; font-size: 1rem; }
+.marca { color: var(--suave); font-size: .85rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.sub { color: var(--suave); margin: 6px 0 0; }
+.tarjeta { background: var(--panel); border: 1px solid var(--borde); border-radius: 16px; box-shadow: var(--sombra); padding: 16px; margin-top: 14px; }
+label { display: grid; gap: 6px; font-weight: 650; color: var(--suave); font-size: .9rem; }
+input, select { width: 100%; border: 1px solid var(--borde); background: var(--bg); color: inherit; border-radius: 10px; padding: 10px 12px; font: inherit; }
+button { border: 0; border-radius: 11px; padding: 10px 16px; font: inherit; font-weight: 700; cursor: pointer; }
+button.chico { padding: 6px 10px; font-size: .85rem; }
+button:disabled { opacity: .6; cursor: default; }
+.primario { background: var(--acento); color: #fff; }
+.secundario { background: transparent; color: var(--texto); border: 1px solid var(--borde); }
+.fila { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; margin-top: 12px; }
+.cab { display: flex; justify-content: space-between; gap: 12px; align-items: center; flex-wrap: wrap; }
+.total { font-size: 2.2rem; font-variant-numeric: tabular-nums; margin: 4px 0; }
+.nota { color: var(--suave); margin: 0; }
+.ok { color: var(--ok); }
+.aviso { color: var(--aviso); min-height: 1.2em; }
+.medios, .dias { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.medios li, .dias li { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--borde); padding-bottom: 8px; }
+.scroll { max-height: 60vh; overflow: auto; }
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--borde); vertical-align: top; }
+th { position: sticky; top: 0; background: var(--panel); font-size: .82rem; color: var(--suave); }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.oculto { display: none; }
+.grid { display: grid; gap: 10px; }
+@media (min-width: 700px) { .grid3 { grid-template-columns: 140px 1fr 1.4fr; } }
+</style>
+</head>
+<body>
+<main>
+  <p class="marca">MiPOS</p>
+  <h1>Mi local</h1>
+  <p class="sub">Entra con la clave de producto. Si quieres, puedes guardar un correo y una contraseña para la próxima vez. Si no los escribes, la clave sigue sirviendo.</p>
+
+  <form id="entrada" class="tarjeta">
+    <label>Clave de producto
+      <input id="clave" name="clave" autocomplete="off" spellcheck="false" maxlength="40" placeholder="MIPOS-XXXX-XXXX-XXXX" required>
+    </label>
+    <div class="fila">
+      <button class="primario" id="entrar" type="submit">Ver mi local</button>
+      <button class="secundario" id="mostrar-correo" type="button">Entrar con correo</button>
+    </div>
+  </form>
+
+  <form id="entrada-correo" class="tarjeta oculto">
+    <label>Correo
+      <input id="correo-entrada" type="email" autocomplete="username" maxlength="120" required>
+    </label>
+    <label>Contraseña
+      <input id="clave-entrada" type="password" autocomplete="current-password" maxlength="72" required>
+    </label>
+    <div class="fila">
+      <button class="primario" id="entrar-correo" type="submit">Entrar</button>
+      <button class="secundario" id="volver-clave" type="button">Volver a la clave</button>
+    </div>
+  </form>
+
+  <section id="local" class="oculto">
+    <div class="cab">
+      <div>
+        <h2 id="negocio">Mi local</h2>
+        <p class="nota" id="llegada"></p>
+      </div>
+      <div class="fila">
+        <button class="secundario" id="actualizar" type="button">Actualizar</button>
+        <button class="secundario" id="salir" type="button">Salir</button>
+      </div>
+    </div>
+
+    <article id="caja-acceso" class="tarjeta">
+      <div id="acceso-nuevo">
+        <h2>Correo y contraseña, si quieres</h2>
+        <p class="nota">No es obligatorio. La próxima puedes entrar con esto. Si no lo guardas, la clave de producto sigue sirviendo.</p>
+        <form id="form-acceso" class="grid">
+          <label>Correo
+            <input id="correo-nuevo" type="email" autocomplete="username" maxlength="120">
+          </label>
+          <label>Contraseña
+            <input id="clave-nueva" type="password" autocomplete="new-password" minlength="8" maxlength="72">
+          </label>
+          <label>Repetir contraseña
+            <input id="clave-nueva-2" type="password" autocomplete="new-password" minlength="8" maxlength="72">
+          </label>
+          <div class="fila">
+            <button class="primario" id="guardar-acceso" type="submit">Guardar para la próxima vez</button>
+          </div>
+        </form>
+      </div>
+      <div id="acceso-listo" class="oculto">
+        <h2>Entrada con correo</h2>
+        <p class="nota" id="acceso-nota"></p>
+        <button class="secundario chico" id="cambiar-acceso" type="button">Cambiar correo o contraseña</button>
+      </div>
+    </article>
+
+    <div id="vacio" class="tarjeta oculto"></div>
+    <div id="datos">
+      <article class="tarjeta">
+        <h2>Total llevado</h2>
+        <p class="total" id="total"></p>
+        <p class="nota" id="dia"></p>
+      </article>
+      <article class="tarjeta">
+        <h2>Medios de pago</h2>
+        <ul class="medios" id="medios"></ul>
+      </article>
+      <article class="tarjeta">
+        <h2>Totales de los últimos 90 días</h2>
+        <ul class="dias" id="dias"></ul>
+      </article>
+      <article class="tarjeta">
+        <div class="cab">
+          <h2>Stock</h2>
+          <p class="nota" id="recorte"></p>
+        </div>
+        <p class="nota">Puedes cambiar el precio de venta o sumar y restar stock. El computador del local lo aplica una sola vez, cuando tenga internet. El ticket que ya está armado en la caja no cambia: esas líneas se cobran como están. El precio nuevo queda en la ficha y vale para la siguiente venta.</p>
+        <label>Buscar en el stock
+          <input id="buscar" type="search" placeholder="Código o nombre">
+        </label>
+        <div class="scroll">
+          <table>
+            <thead>
+              <tr><th>Código</th><th>Nombre</th><th class="num">Precio de venta</th><th class="num">Cantidad</th><th></th></tr>
+            </thead>
+            <tbody id="stock"></tbody>
+          </table>
+        </div>
+        <p class="nota" id="sin-stock"></p>
+        <div id="correccion" class="oculto">
+          <h2 id="correccion-titulo"></h2>
+          <p class="nota" id="correccion-ayuda"></p>
+          <form id="form-correccion">
+            <div id="campo-precio">
+              <label>Nuevo precio de venta, en pesos
+                <input id="nuevo-precio" inputmode="numeric" autocomplete="off" placeholder="1500">
+              </label>
+            </div>
+            <div id="campo-stock" class="oculto grid grid3">
+              <label>Movimiento
+                <select id="modo-stock">
+                  <option value="sumar">Sumar</option>
+                  <option value="restar">Restar</option>
+                </select>
+              </label>
+              <label>Cantidad
+                <input id="cant-stock" inputmode="decimal" autocomplete="off" placeholder="1">
+              </label>
+              <label>Motivo
+                <input id="motivo-stock" maxlength="120" placeholder="Llegó mercadería, se venció, conteo…" autocomplete="off">
+              </label>
+            </div>
+            <div class="fila">
+              <button class="primario" id="guardar-correccion" type="submit">Guardar corrección</button>
+              <button class="secundario" id="cancelar-correccion" type="button">Cancelar</button>
+            </div>
+          </form>
+        </div>
+        <h2 style="margin-top:18px">Correcciones</h2>
+        <ul class="medios" id="pendientes"></ul>
+      </article>
+      <p class="nota">Este resumen no guarda cada venta: solo el total, los medios de pago y el stock.</p>
+    </div>
+  </section>
+  <p class="aviso" id="aviso" role="status"></p>
+</main>
+<script>
+const MEDIOS = {
+  efectivo: "Efectivo",
+  debito: "Débito",
+  credito: "Crédito",
+  transferencia: "Transferencia",
+  fiado: "Fiado",
+};
+const $ = (id) => document.getElementById(id);
+let claveGuardada = "";
+let tokenGuardado = "";
+let stockActual = [];
+let filasPintadas = [];
+let correccion = null;
+
+function clp(n) {
+  const v = Math.round(Number(n) || 0);
+  return (v < 0 ? "-$" : "$") + Math.abs(v).toLocaleString("es-CL");
+}
+function cant(n) {
+  return Number(n || 0).toLocaleString("es-CL", { maximumFractionDigits: 3 });
+}
+function fechaDe(dia) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dia || "")) return "";
+  const [y, m, d] = dia.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("es-CL", { day: "numeric", month: "short", year: "numeric" });
+}
+function horaDe(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleString("es-CL", { timeZone: "America/Santiago", dateStyle: "medium", timeStyle: "short" });
+}
+function limpiar(nodo) {
+  while (nodo.firstChild) nodo.removeChild(nodo.firstChild);
+}
+function filaMonto(ul, izquierda, derecha) {
+  const li = document.createElement("li");
+  const a = document.createElement("span");
+  const b = document.createElement("span");
+  a.textContent = izquierda;
+  b.textContent = derecha;
+  li.append(a, b);
+  ul.append(li);
+}
+function cuerpoAuth(extra) {
+  const body = { ...extra };
+  if (claveGuardada) body.clave = claveGuardada;
+  else if (tokenGuardado) body.token = tokenGuardado;
+  return body;
+}
+
+function pintarStock() {
+  const q = $("buscar").value.trim().toLowerCase();
+  const cuerpo = $("stock");
+  limpiar(cuerpo);
+  filasPintadas = stockActual.filter(p => !q || `${p.codigo} ${p.nombre}`.toLowerCase().includes(q));
+  filasPintadas.forEach((p, i) => {
+    const tr = document.createElement("tr");
+    for (const [texto, num] of [[p.codigo || "—", false], [p.nombre || "", false], [clp(p.precio), true], [cant(p.cantidad), true]]) {
+      const td = document.createElement("td");
+      if (num) td.className = "num";
+      td.textContent = texto;
+      tr.append(td);
+    }
+    const acciones = document.createElement("td");
+    acciones.className = "num";
+    for (const [accion, etiqueta] of [["precio", "Precio"], ["stock", "Stock"]]) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "secundario chico";
+      b.dataset.i = String(i);
+      b.dataset.accion = accion;
+      b.textContent = etiqueta;
+      acciones.append(b);
+    }
+    tr.append(acciones);
+    cuerpo.append(tr);
+  });
+  $("sin-stock").textContent = filasPintadas.length ? "" : (stockActual.length ? "Ningún producto coincide." : "No hay productos activos.");
+}
+
+function pintarPendientes(lista) {
+  const ul = $("pendientes");
+  if (!ul) return;
+  limpiar(ul);
+  if (!lista || !lista.length) {
+    filaMonto(ul, "Todavía no pides una corrección.", "");
+    return;
+  }
+  for (const o of lista) {
+    const que = o.tipo === "stock"
+      ? `${Number(o.delta) < 0 ? "Restar" : "Sumar"} ${cant(Math.abs(Number(o.delta) || 0))} de ${o.nombre || o.codigo || "producto"}${o.motivo ? " · " + o.motivo : ""}`
+      : `Precio de ${o.nombre || o.codigo || "producto"}: ${clp(o.precio)}`;
+    const estado = o.estado === "pendiente"
+      ? "En espera de que el computador lo aplique"
+      : (o.detalle || (o.estado === "aplicada" ? "Aplicada en el computador" : "No se aplicó"));
+    filaMonto(ul, que, estado);
+  }
+}
+
+function mostrarAcceso(acceso) {
+  const listo = !!(acceso && acceso.correo);
+  $("acceso-nuevo").classList.toggle("oculto", listo && $("acceso-nuevo").dataset.abierto !== "1");
+  $("acceso-listo").classList.toggle("oculto", !listo);
+  if (listo) {
+    $("acceso-nota").textContent = `La próxima puedes entrar con ${acceso.correo}. Si no te acuerdas de la contraseña, la clave de producto sigue sirviendo.`;
+  }
+}
+
+function pintar(datos) {
+  $("entrada").classList.add("oculto");
+  $("entrada-correo").classList.add("oculto");
+  $("local").classList.remove("oculto");
+  $("negocio").textContent = datos.negocio || "Mi local";
+  mostrarAcceso(datos.acceso);
+  if (datos.aviso) $("aviso").textContent = datos.aviso;
+  if (datos.sin_datos || !datos.recibido) {
+    $("datos").classList.add("oculto");
+    $("vacio").classList.remove("oculto");
+    $("vacio").textContent = "Todavía no llega un resumen de este local. Cuando MiPOS tenga internet, aparece aquí.";
+    $("llegada").textContent = "";
+    return;
+  }
+  $("vacio").classList.add("oculto");
+  $("datos").classList.remove("oculto");
+  $("llegada").textContent = "Último resumen: " + horaDe(datos.recibido);
+  $("total").textContent = clp(datos.total);
+  const n = Number(datos.ventas) || 0;
+  $("dia").textContent = (datos.dia ? "Día " + fechaDe(datos.dia) + " · " : "") + (n === 1 ? "1 venta" : n + " ventas");
+  const medios = $("medios");
+  limpiar(medios);
+  if (!datos.medios || !datos.medios.length) filaMonto(medios, "Ese día no hay ventas.", "");
+  else for (const m of datos.medios) filaMonto(medios, MEDIOS[m.metodo] || m.metodo, clp(m.monto));
+  const dias = $("dias");
+  limpiar(dias);
+  if (!datos.historial || !datos.historial.length) filaMonto(dias, "Aún no hay días guardados.", "");
+  else for (const d of datos.historial) filaMonto(dias, fechaDe(d.dia), clp(d.total));
+  stockActual = Array.isArray(datos.stock) ? datos.stock : [];
+  const mostrados = stockActual.length;
+  const totalStock = Number(datos.stock_total) || mostrados;
+  $("recorte").textContent = datos.stock_incompleto ? `Se muestran ${mostrados.toLocaleString("es-CL")} de ${totalStock.toLocaleString("es-CL")} productos.` : "";
+  pintarStock();
+  pintarPendientes(datos.pendientes);
+}
+
+function recordar(body, datos) {
+  if (body.clave) {
+    claveGuardada = body.clave;
+    tokenGuardado = "";
+    sessionStorage.setItem("mipos.clave.local", body.clave);
+    sessionStorage.removeItem("mipos.acceso.local");
+  }
+  if (datos.token) {
+    tokenGuardado = datos.token;
+    claveGuardada = "";
+    sessionStorage.setItem("mipos.acceso.local", datos.token);
+    sessionStorage.removeItem("mipos.clave.local");
+  }
+}
+
+async function postLocal(body) {
+  const r = await fetch("/api/mipos/mi-local", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  let datos = {};
+  try { datos = await r.json(); } catch (e) { datos = {}; }
+  if (!r.ok) {
+    const err = new Error(datos.error || "No se pudo abrir el local");
+    err.status = r.status;
+    throw err;
+  }
+  return datos;
+}
+
+async function entrarCon(body) {
+  $("aviso").textContent = "";
+  $("entrar").disabled = true;
+  $("entrar-correo").disabled = true;
+  try {
+    const datos = await postLocal(body);
+    recordar(body, datos);
+    pintar(datos);
+  } catch (e) {
+    if (e.status === 401) salir();
+    $("aviso").textContent = e.message || "No se pudo abrir el local";
+  } finally {
+    $("entrar").disabled = false;
+    $("entrar-correo").disabled = false;
+  }
+}
+
+function salir() {
+  claveGuardada = "";
+  tokenGuardado = "";
+  correccion = null;
+  $("acceso-nuevo").dataset.abierto = "";
+  sessionStorage.removeItem("mipos.clave.local");
+  sessionStorage.removeItem("mipos.acceso.local");
+  $("local").classList.add("oculto");
+  $("entrada").classList.remove("oculto");
+  $("entrada-correo").classList.add("oculto");
+  $("clave").value = "";
+  $("aviso").textContent = "";
+}
+
+function abrirCorreccion(accion, p) {
+  correccion = { accion, codigo: p.codigo || "", nombre: p.nombre || "" };
+  $("correccion").classList.remove("oculto");
+  $("correccion-titulo").textContent = accion === "precio" ? `Precio de venta de ${p.nombre}` : `Stock de ${p.nombre}`;
+  $("correccion-ayuda").textContent = accion === "precio"
+    ? "Queda en la ficha. La próxima venta usa este precio. El ticket que ya está en la caja se cobra como está."
+    : "Se suma o se resta en el computador. No deja el stock en el número de esta pantalla.";
+  $("campo-precio").classList.toggle("oculto", accion !== "precio");
+  $("campo-stock").classList.toggle("oculto", accion !== "stock");
+  $("nuevo-precio").value = "";
+  $("cant-stock").value = "";
+  $("motivo-stock").value = "";
+  $("modo-stock").value = "sumar";
+  (accion === "precio" ? $("nuevo-precio") : $("cant-stock")).focus();
+}
+
+$("entrada").addEventListener("submit", (ev) => {
+  ev.preventDefault();
+  entrarCon({ clave: $("clave").value.trim() });
+});
+$("mostrar-correo").addEventListener("click", () => {
+  $("entrada").classList.add("oculto");
+  $("entrada-correo").classList.remove("oculto");
+  $("correo-entrada").focus();
+});
+$("volver-clave").addEventListener("click", () => {
+  $("entrada-correo").classList.add("oculto");
+  $("entrada").classList.remove("oculto");
+});
+$("entrada-correo").addEventListener("submit", (ev) => {
+  ev.preventDefault();
+  entrarCon({ correo: $("correo-entrada").value.trim(), clave_acceso: $("clave-entrada").value });
+});
+$("actualizar").addEventListener("click", () => {
+  if (claveGuardada) entrarCon({ clave: claveGuardada });
+  else if (tokenGuardado) entrarCon({ token: tokenGuardado });
+});
+$("salir").addEventListener("click", salir);
+$("buscar").addEventListener("input", pintarStock);
+$("stock").addEventListener("click", (ev) => {
+  const b = ev.target.closest("button");
+  if (!b) return;
+  const p = filasPintadas[Number(b.dataset.i)];
+  if (p) abrirCorreccion(b.dataset.accion, p);
+});
+$("cancelar-correccion").addEventListener("click", () => {
+  correccion = null;
+  $("correccion").classList.add("oculto");
+});
+$("form-correccion").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  if (!correccion) return;
+  $("aviso").textContent = "";
+  const body = { accion: correccion.accion, codigo: correccion.codigo, nombre: correccion.nombre };
+  if (correccion.accion === "precio") {
+    const t = $("nuevo-precio").value.trim().replace(/\./g, "");
+    if (!/^\d+$/.test(t) || Number(t) < 1) {
+      $("aviso").textContent = "Escribe el precio en pesos, sin centavos. Puedes usar punto de miles.";
+      return;
+    }
+    body.precio = Number(t);
+    body.tipo = "precio";
+  } else {
+    const n = Number($("cant-stock").value.trim().replace(",", "."));
+    if (!Number.isFinite(n) || n <= 0) {
+      $("aviso").textContent = "Escribe cuánto hay que sumar o restar.";
+      return;
+    }
+    if (!$("motivo-stock").value.trim()) {
+      $("aviso").textContent = "Escribe el motivo.";
+      return;
+    }
+    body.tipo = "stock";
+    body.modo = $("modo-stock").value;
+    body.cantidad = n;
+    body.motivo = $("motivo-stock").value.trim();
+  }
+  $("guardar-correccion").disabled = true;
+  try {
+    const datos = await postLocal(cuerpoAuth(body));
+    correccion = null;
+    $("correccion").classList.add("oculto");
+    pintar(datos);
+  } catch (e) {
+    if (e.status === 401) salir();
+    $("aviso").textContent = e.message || "No se pudo guardar la corrección";
+  } finally {
+    $("guardar-correccion").disabled = false;
+  }
+});
+$("form-acceso").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const a = $("clave-nueva").value;
+  const b = $("clave-nueva-2").value;
+  if (a !== b) {
+    $("aviso").textContent = "Las contraseñas no coinciden.";
+    return;
+  }
+  $("guardar-acceso").disabled = true;
+  try {
+    const datos = await postLocal(cuerpoAuth({
+      accion: "guardar-acceso",
+      correo: $("correo-nuevo").value.trim(),
+      clave_acceso: a,
+    }));
+    $("form-acceso").reset();
+    $("acceso-nuevo").dataset.abierto = "";
+    pintar(datos);
+  } catch (e) {
+    if (e.status === 401) salir();
+    $("aviso").textContent = e.message || "No se pudo guardar";
+  } finally {
+    $("guardar-acceso").disabled = false;
+  }
+});
+$("cambiar-acceso").addEventListener("click", () => {
+  $("acceso-nuevo").dataset.abierto = "1";
+  $("acceso-nuevo").classList.remove("oculto");
+  $("correo-nuevo").focus();
+});
+
+const tokenPrevio = sessionStorage.getItem("mipos.acceso.local");
+const clavePrevia = sessionStorage.getItem("mipos.clave.local");
+if (tokenPrevio) {
+  tokenGuardado = tokenPrevio;
+  entrarCon({ token: tokenPrevio });
+} else if (clavePrevia) {
+  $("clave").value = clavePrevia;
+  entrarCon({ clave: clavePrevia });
+}
+</script>
+</body>
+</html>
