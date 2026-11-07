@@ -43,11 +43,11 @@ button:disabled { opacity: .6; cursor: default; }
 .medios, .dias { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .medios li, .dias li { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--borde); padding-bottom: 8px; }
 .scroll { max-height: 60vh; overflow: auto; }
-.busca-fija { position: sticky; top: 0; z-index: 3; background: var(--panel); padding: 4px 0 10px; }
-#buscar { border: 2px solid var(--acento); background: var(--bg); color: var(--texto); font-size: 1rem; }
+.busca-fija { background: var(--panel); padding: 4px 0 10px; }
+#buscar { border: 2px solid var(--acento); background: var(--bg); color: var(--texto); font-size: 1rem; max-width: 100%; }
 table { width: 100%; border-collapse: collapse; }
 th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--borde); vertical-align: top; }
-th { position: sticky; top: 78px; z-index: 2; background: var(--panel); font-size: .82rem; color: var(--suave); }
+th { position: sticky; top: 0; z-index: 2; background: var(--panel); font-size: .82rem; color: var(--suave); }
 td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .badge { display: inline-block; border-radius: 999px; padding: 1px 8px; font-size: .75rem; font-weight: 700; margin-left: 6px; }
 .rojo { background: #fde8e8; color: #9b1c1c; }
@@ -59,6 +59,28 @@ button.dia.activo { background: var(--acento); color: #fff; border-color: transp
 .oculto { display: none; }
 .grid { display: grid; gap: 10px; }
 @media (min-width: 700px) { .grid3 { grid-template-columns: 140px 1fr 1.4fr; } }
+.pestanas { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-top: 14px; }
+.pestana { position: relative; background: var(--panel); color: var(--texto); border: 1px solid var(--borde); border-radius: 11px; padding: 10px 8px; font-size: .92rem; line-height: 1.15; text-align: center; }
+.pestana.activa, .pestana[aria-selected="true"] { background: var(--acento); color: #fff; border-color: transparent; }
+.punto { position: absolute; top: 6px; right: 6px; width: 8px; height: 8px; border-radius: 50%; background: var(--aviso); box-shadow: 0 0 0 2px var(--panel); }
+.pestana.activa .punto, .pestana[aria-selected="true"] .punto { box-shadow: 0 0 0 2px var(--acento); }
+.punto.oculto { display: none; }
+#stock-fichas { display: none; }
+.ficha { border: 1px solid var(--borde); border-radius: 12px; padding: 12px; display: grid; gap: 8px; }
+.ficha-top, .ficha-pie { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.ficha-codigo { font-weight: 700; overflow-wrap: anywhere; }
+.ficha-precio, .ficha-cant { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ficha-nombre { margin: 0; overflow-wrap: anywhere; }
+.ficha-acciones { display: flex; gap: 6px; flex: 1; min-width: 0; }
+.ficha-acciones button { flex: 1 1 0; min-width: 0; }
+@media (max-width: 720px) {
+  .pestanas { position: sticky; top: 0; z-index: 6; background: var(--bg); margin: 0; padding: 8px 0; }
+  .pestana { min-height: 40px; font-size: .72rem; padding: 8px 1px; white-space: nowrap; }
+  #panel-stock .busca-fija { position: sticky; top: 56px; z-index: 4; background: var(--panel); padding-top: 8px; }
+  #buscar, .busca-fija, .busca-fija label { width: 100%; max-width: 100%; }
+  #stock-tabla { display: none; }
+  #stock-fichas { display: grid; gap: 10px; }
+}
 </style>
 </head>
 <body>
@@ -130,59 +152,97 @@ button.dia.activo { background: var(--acento); color: #fff; border-color: transp
 
     <div id="vacio" class="tarjeta oculto"></div>
     <div id="datos">
-      <article class="tarjeta">
-        <h2>Total llevado</h2>
-        <p class="total" id="total"></p>
-        <p class="nota" id="dia"></p>
-      </article>
-      <article class="tarjeta">
-        <h2>Medios de pago</h2>
-        <ul class="medios" id="medios"></ul>
-      </article>
-      <article class="tarjeta">
-        <h2>Ventas del día</h2>
-        <p class="nota" id="ventas-nota"></p>
-        <div class="scroll">
-          <table>
-            <thead>
-              <tr><th>N°</th><th>Hora</th><th>Cajero</th><th>Detalle</th><th class="num">Total</th></tr>
-            </thead>
-            <tbody id="ventas-dia"></tbody>
-          </table>
-        </div>
-      </article>
-      <article class="tarjeta">
-        <h2>Para el negocio</h2>
-        <p class="nota" id="ritmo"></p>
-        <h2>Se vendió más en 7 días</h2>
-        <ul class="medios" id="mas"></ul>
-        <h2>Con stock y sin venta en 30 días</h2>
-        <ul class="medios" id="poco"></ul>
-      </article>
-      <article class="tarjeta">
-        <h2>Historial de 90 días</h2>
-        <p class="nota">Elige un día para ver sus ventas. Un día que ya pasó no se edita desde aquí.</p>
-        <div class="fila" id="dias"></div>
-      </article>
+      <div class="pestanas" role="tablist">
+        <button class="pestana activa" id="tab-hoy" type="button" role="tab" aria-selected="true" data-panel="panel-hoy">Hoy</button>
+        <button class="pestana" id="tab-historial" type="button" role="tab" aria-selected="false" data-panel="panel-historial">Historial</button>
+        <button class="pestana" id="tab-negocio" type="button" role="tab" aria-selected="false" data-panel="panel-negocio">Negocio</button>
+        <button class="pestana" id="tab-stock" type="button" role="tab" aria-selected="false" data-panel="panel-stock">Stock<span id="stock-punto" class="punto oculto"></span></button>
+      </div>
+
+      <div id="panel-hoy" class="panel-pestana" role="tabpanel">
+        <article class="tarjeta">
+          <h2>Total llevado</h2>
+          <p class="total" id="total"></p>
+          <p class="nota" id="dia"></p>
+        </article>
+        <article class="tarjeta">
+          <h2>Medios de pago</h2>
+          <ul class="medios" id="medios"></ul>
+        </article>
+        <article class="tarjeta">
+          <h2>Ventas del día</h2>
+          <p class="nota" id="ventas-nota"></p>
+          <div class="scroll">
+            <table>
+              <thead>
+                <tr><th>N°</th><th>Hora</th><th>Cajero</th><th>Detalle</th><th class="num">Total</th></tr>
+              </thead>
+              <tbody id="ventas-dia"></tbody>
+            </table>
+          </div>
+        </article>
+        <p class="nota">La web muestra el mismo detalle que la caja. Anular y devolver se hace en el computador del local.</p>
+      </div>
+
+      <div id="panel-historial" class="panel-pestana oculto" role="tabpanel">
+        <article class="tarjeta">
+          <h2>Historial de 90 días</h2>
+          <p class="nota">Elige un día para ver sus ventas. Un día que ya pasó no se edita desde aquí.</p>
+          <div class="fila" id="dias"></div>
+          <div id="historial-detalle" class="oculto">
+            <h2>Total llevado</h2>
+            <p class="total" id="hist-total"></p>
+            <p class="nota" id="hist-dia"></p>
+            <h2>Medios de pago</h2>
+            <ul class="medios" id="hist-medios"></ul>
+            <h2>Ventas del día</h2>
+            <p class="nota" id="hist-ventas-nota"></p>
+            <div class="scroll">
+              <table>
+                <thead>
+                  <tr><th>N°</th><th>Hora</th><th>Cajero</th><th>Detalle</th><th class="num">Total</th></tr>
+                </thead>
+                <tbody id="hist-ventas"></tbody>
+              </table>
+            </div>
+          </div>
+        </article>
+      </div>
+
+      <div id="panel-negocio" class="panel-pestana oculto" role="tabpanel">
+        <article class="tarjeta">
+          <h2>Para el negocio</h2>
+          <p class="nota" id="ritmo"></p>
+          <h2>Se vendió más en 7 días</h2>
+          <ul class="medios" id="mas"></ul>
+          <h2>Con stock y sin venta en 30 días</h2>
+          <ul class="medios" id="poco"></ul>
+        </article>
+      </div>
+
+      <div id="panel-stock" class="panel-pestana oculto" role="tabpanel">
       <article class="tarjeta">
         <div class="cab">
           <h2>Stock</h2>
           <p class="nota" id="recorte"></p>
         </div>
         <p class="nota">Puedes cambiar el nombre, el precio de venta, o sumar y restar stock. El computador del local lo aplica una sola vez, cuando tenga internet. El ticket que ya está armado conserva el nombre y el precio con los que se cargó.</p>
-        <div class="scroll">
-          <div class="busca-fija">
-            <label>Buscar producto
-              <input id="buscar" type="search" placeholder="Escribe el código o el nombre" autocomplete="off">
-            </label>
-            <p class="nota" id="busca-cuenta"></p>
+        <div class="busca-fija">
+          <label>Buscar producto
+            <input id="buscar" type="search" placeholder="Escribe el código o el nombre" autocomplete="off">
+          </label>
+          <p class="nota" id="busca-cuenta"></p>
+        </div>
+        <div id="stock-lista">
+          <div class="scroll" id="stock-tabla">
+            <table>
+              <thead>
+                <tr><th>Código</th><th>Nombre</th><th class="num">Precio de venta</th><th class="num">Cantidad</th><th></th></tr>
+              </thead>
+              <tbody id="stock"></tbody>
+            </table>
           </div>
-          <table>
-            <thead>
-              <tr><th>Código</th><th>Nombre</th><th class="num">Precio de venta</th><th class="num">Cantidad</th><th></th></tr>
-            </thead>
-            <tbody id="stock"></tbody>
-          </table>
+          <div id="stock-fichas"></div>
         </div>
         <p class="nota" id="sin-stock"></p>
         <div id="correccion" class="oculto">
@@ -222,7 +282,7 @@ button.dia.activo { background: var(--acento); color: #fff; border-color: transp
         <h2 style="margin-top:18px">Correcciones</h2>
         <ul class="medios" id="pendientes"></ul>
       </article>
-      <p class="nota">La web muestra el mismo detalle que la caja. Anular y devolver se hace en el computador del local.</p>
+      </div>
     </div>
   </section>
   <p class="aviso" id="aviso" role="status"></p>
@@ -239,6 +299,8 @@ const $ = (id) => document.getElementById(id);
 let claveGuardada = "";
 let tokenGuardado = "";
 let diaVisto = "";
+let diaHoy = "";
+let pedidoDia = "";
 let stockActual = [];
 let filasPintadas = [];
 let correccion = null;
@@ -282,16 +344,28 @@ function cuerpoAuth(extra) {
 function textoBusqueda(valor) {
   return String(valor || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }
+function botonProducto(i, accion, etiqueta) {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = "secundario chico";
+  b.dataset.i = String(i);
+  b.dataset.accion = accion;
+  b.textContent = etiqueta;
+  return b;
+}
 function pintarStock() {
   const q = textoBusqueda($("buscar").value.trim());
   const cuerpo = $("stock");
+  const fichas = $("stock-fichas");
   limpiar(cuerpo);
+  if (fichas) limpiar(fichas);
   filasPintadas = stockActual.filter(p => !q || textoBusqueda(`${p.codigo} ${p.nombre}`).includes(q));
   const cuenta = $("busca-cuenta");
   if (cuenta) {
     const total = stockActual.length;
     cuenta.textContent = !total ? "" : (q ? `${filasPintadas.length.toLocaleString("es-CL")} de ${total.toLocaleString("es-CL")}` : `${total.toLocaleString("es-CL")} productos`);
   }
+  const acciones = [["nombre", "Nombre"], ["precio", "Precio"], ["stock", "Stock"]];
   filasPintadas.forEach((p, i) => {
     const tr = document.createElement("tr");
     for (const [texto, num] of [[p.codigo || "—", false], [p.nombre || "", false], [clp(p.precio), true], [cant(p.cantidad), true]]) {
@@ -300,24 +374,45 @@ function pintarStock() {
       td.textContent = texto;
       tr.append(td);
     }
-    const acciones = document.createElement("td");
-    acciones.className = "num";
-    for (const [accion, etiqueta] of [["nombre", "Nombre"], ["precio", "Precio"], ["stock", "Stock"]]) {
-      const b = document.createElement("button");
-      b.type = "button";
-      b.className = "secundario chico";
-      b.dataset.i = String(i);
-      b.dataset.accion = accion;
-      b.textContent = etiqueta;
-      acciones.append(b);
-    }
-    tr.append(acciones);
+    const celda = document.createElement("td");
+    celda.className = "num";
+    for (const [accion, etiqueta] of acciones) celda.append(botonProducto(i, accion, etiqueta));
+    tr.append(celda);
     cuerpo.append(tr);
+    if (!fichas) return;
+    const ficha = document.createElement("article");
+    ficha.className = "ficha";
+    const top = document.createElement("div");
+    top.className = "ficha-top";
+    const codigo = document.createElement("span");
+    codigo.className = "ficha-codigo";
+    codigo.textContent = p.codigo || "—";
+    const precio = document.createElement("span");
+    precio.className = "ficha-precio";
+    precio.textContent = clp(p.precio);
+    top.append(codigo, precio);
+    const nombre = document.createElement("p");
+    nombre.className = "ficha-nombre";
+    nombre.textContent = p.nombre || "";
+    const pie = document.createElement("div");
+    pie.className = "ficha-pie";
+    const cantidad = document.createElement("span");
+    cantidad.className = "ficha-cant";
+    cantidad.textContent = cant(p.cantidad);
+    const botones = document.createElement("div");
+    botones.className = "ficha-acciones";
+    for (const [accion, etiqueta] of acciones) botones.append(botonProducto(i, accion, etiqueta));
+    pie.append(cantidad, botones);
+    ficha.append(top, nombre, pie);
+    fichas.append(ficha);
   });
   $("sin-stock").textContent = filasPintadas.length ? "" : (stockActual.length ? "Ningún producto coincide." : "No hay productos activos.");
 }
 
 function pintarPendientes(lista) {
+  const punto = $("stock-punto");
+  const hayEspera = Array.isArray(lista) && lista.some(o => o.estado === "pendiente");
+  if (punto) punto.classList.toggle("oculto", !hayEspera);
   const ul = $("pendientes");
   if (!ul) return;
   limpiar(ul);
@@ -348,9 +443,9 @@ function mostrarAcceso(acceso) {
   }
 }
 
-function pintarVentas(datos) {
-  const cuerpo = $("ventas-dia");
-  const nota = $("ventas-nota");
+function pintarVentas(datos, cuerpo, nota) {
+  cuerpo = cuerpo || $("ventas-dia");
+  nota = nota || $("ventas-nota");
   limpiar(cuerpo);
   const lista = Array.isArray(datos.lista) ? datos.lista : [];
   const anuladas = Number(datos.anuladas) || lista.filter(v => v.estado === "anulada").length;
@@ -468,6 +563,17 @@ function pintarHistorial(datos) {
   }
 }
 
+function pintarResumenDia(datos, ids) {
+  $(ids.total).textContent = clp(datos.total);
+  const n = Number(datos.ventas) || 0;
+  $(ids.dia).textContent = (datos.dia ? "Día " + fechaDe(datos.dia) + " · " : "") + (n === 1 ? "1 venta" : n + " ventas");
+  const medios = $(ids.medios);
+  limpiar(medios);
+  if (!datos.medios || !datos.medios.length) filaMonto(medios, "Ese día no hay ventas.", "");
+  else for (const m of datos.medios) filaMonto(medios, MEDIOS[m.metodo] || m.metodo, clp(m.monto));
+  pintarVentas(datos, $(ids.ventas), $(ids.nota));
+}
+
 function pintar(datos) {
   $("entrada").classList.add("oculto");
   $("entrada-correo").classList.add("oculto");
@@ -486,14 +592,20 @@ function pintar(datos) {
   $("datos").classList.remove("oculto");
   $("llegada").textContent = "Último resumen: " + horaDe(datos.recibido);
   diaVisto = datos.dia || "";
-  $("total").textContent = clp(datos.total);
-  const n = Number(datos.ventas) || 0;
-  $("dia").textContent = (datos.dia ? "Día " + fechaDe(datos.dia) + " · " : "") + (n === 1 ? "1 venta" : n + " ventas");
-  const medios = $("medios");
-  limpiar(medios);
-  if (!datos.medios || !datos.medios.length) filaMonto(medios, "Ese día no hay ventas.", "");
-  else for (const m of datos.medios) filaMonto(medios, MEDIOS[m.metodo] || m.metodo, clp(m.monto));
-  pintarVentas(datos);
+  if (!diaHoy && datos.dia) diaHoy = datos.dia;
+  const respuestaDePedido = !!(pedidoDia && datos.dia === pedidoDia);
+  const esDiaActual = !pedidoDia || !diaHoy || datos.dia === diaHoy;
+  if (esDiaActual) {
+    if (datos.dia) diaHoy = datos.dia;
+    pintarResumenDia(datos, { total: "total", dia: "dia", medios: "medios", ventas: "ventas-dia", nota: "ventas-nota" });
+  }
+  const detalle = $("historial-detalle");
+  if (respuestaDePedido && detalle) {
+    detalle.classList.remove("oculto");
+    pintarResumenDia(datos, { total: "hist-total", dia: "hist-dia", medios: "hist-medios", ventas: "hist-ventas", nota: "hist-ventas-nota" });
+  } else if (detalle) {
+    detalle.classList.add("oculto");
+  }
   pintarAyuda(datos);
   pintarHistorial(datos);
   stockActual = Array.isArray(datos.stock) ? datos.stock : [];
@@ -536,6 +648,7 @@ async function postLocal(body) {
 }
 
 async function entrarCon(body) {
+  pedidoDia = body && body.dia ? String(body.dia) : "";
   $("aviso").textContent = "";
   $("entrar").disabled = true;
   $("entrar-correo").disabled = true;
@@ -552,11 +665,25 @@ async function entrarCon(body) {
   }
 }
 
+function elegirPestana(panel) {
+  document.querySelectorAll(".pestana").forEach((btn) => {
+    const on = btn.dataset.panel === panel;
+    btn.classList.toggle("activa", on);
+    btn.setAttribute("aria-selected", on ? "true" : "false");
+  });
+  document.querySelectorAll(".panel-pestana").forEach((nodo) => {
+    nodo.classList.toggle("oculto", nodo.id !== panel);
+  });
+}
+
 function salir() {
   claveGuardada = "";
   tokenGuardado = "";
   diaVisto = "";
+  diaHoy = "";
+  pedidoDia = "";
   correccion = null;
+  elegirPestana("panel-hoy");
   $("acceso-nuevo").dataset.abierto = "";
   sessionStorage.removeItem("mipos.clave.local");
   sessionStorage.removeItem("mipos.acceso.local");
@@ -607,7 +734,10 @@ $("entrada-correo").addEventListener("submit", (ev) => {
   entrarCon({ correo: $("correo-entrada").value.trim(), clave_acceso: $("clave-entrada").value });
 });
 $("actualizar").addEventListener("click", () => {
-  if (claveGuardada || tokenGuardado) entrarCon(cuerpoAuth(diaVisto ? { dia: diaVisto } : {}));
+  if (!(claveGuardada || tokenGuardado)) return;
+  const enHistorial = !$("panel-historial").classList.contains("oculto");
+  const dia = enHistorial && diaVisto && diaVisto !== diaHoy ? diaVisto : "";
+  entrarCon(cuerpoAuth(dia ? { dia } : {}));
 });
 $("dias").addEventListener("click", (ev) => {
   const b = ev.target.closest("button[data-dia]");
@@ -617,7 +747,12 @@ $("dias").addEventListener("click", (ev) => {
 });
 $("salir").addEventListener("click", salir);
 $("buscar").addEventListener("input", pintarStock);
-$("stock").addEventListener("click", (ev) => {
+document.querySelector(".pestanas").addEventListener("click", (ev) => {
+  const b = ev.target.closest(".pestana");
+  if (!b) return;
+  elegirPestana(b.dataset.panel);
+});
+$("stock-lista").addEventListener("click", (ev) => {
   const b = ev.target.closest("button");
   if (!b) return;
   const p = filasPintadas[Number(b.dataset.i)];
@@ -671,6 +806,7 @@ $("form-correccion").addEventListener("submit", async (ev) => {
   try {
     const datos = await postLocal(cuerpoAuth(body));
     correccion = null;
+    pedidoDia = "";
     $("correccion").classList.add("oculto");
     pintar(datos);
   } catch (e) {
@@ -697,6 +833,7 @@ $("form-acceso").addEventListener("submit", async (ev) => {
     }));
     $("form-acceso").reset();
     $("acceso-nuevo").dataset.abierto = "";
+    pedidoDia = "";
     pintar(datos);
   } catch (e) {
     if (e.status === 401) salir();
