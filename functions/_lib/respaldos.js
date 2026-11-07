@@ -347,14 +347,32 @@ export async function fallar(db, env, producto, claveId, equipo, datos) {
   return { ok: true, estado: 'error' };
 }
 
+export function nombreDescarga(producto, cliente, listo) {
+  const marca = producto === 'mivet' ? 'MiVet' : 'MiPOS';
+  const limpio = String(cliente || '')
+    .replace(/[\u0000-\u001f\\/:*?"<>|]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 80);
+  const fecha = /^\d{4}-\d{2}-\d{2}/.test(String(listo || '')) ? String(listo).slice(0, 10) : '';
+  return `${[marca, limpio || 'local', fecha].filter(Boolean).join(' ')}.zip`;
+}
+
+function disposicion(nombre) {
+  const ascii = nombre.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\x20-\x7e]/g, '') || 'MiPOS local.zip';
+  const estrella = encodeURIComponent(nombre).replace(/[!'()*]/g, c => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${estrella}`;
+}
+
 export async function descarga(db, env, producto, claveId) {
   const row = await fila(db, producto, claveId);
   if (!row || row.estado !== 'listo' || !row.object_key) throw fallo(404, 'No hay un respaldo listo para descargar');
-  const nombre = `${producto}-${claveId}.zip`;
+  const clave = await db.prepare(`SELECT cliente FROM ${tablaClaves(producto)} WHERE id=?`).bind(claveId).first();
+  const nombre = nombreDescarga(producto, clave && clave.cliente, row.listo);
   const firmada = await urlFirmada(env, {
     method: 'GET',
     key: row.object_key,
-    queryExtra: { 'response-content-disposition': `attachment; filename="${nombre}"` },
+    queryExtra: { 'response-content-disposition': disposicion(nombre) },
   });
   return { url: firmada.url, expira_en: EXPIRA_SEG, tamano: row.tamano || 0, listo: row.listo, nombre };
 }
