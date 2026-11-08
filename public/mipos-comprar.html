@@ -43,6 +43,7 @@ main { max-width: 1040px; margin: -46px auto 0; padding: 0 16px 60px; position: 
 .plan.elegido { border-color: var(--acento); box-shadow: 0 0 0 4px color-mix(in srgb, var(--acento) 18%, transparent); }
 .plan h3 { margin: 0; font-size: 1.1rem; }
 .plan .precio { font-size: 2rem; font-weight: 900; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.plan .neto { color: var(--suave); font-size: .85rem; font-weight: 500; }
 .plan .periodo { color: var(--suave); font-size: .9rem; }
 .plan ul { margin: 6px 0 0; padding-left: 18px; color: var(--suave); font-size: .9rem; }
 .plan .cinta { position: absolute; top: -11px; right: 14px; background: var(--etiqueta); color: var(--tinta); font-weight: 800; font-size: .75rem; padding: 3px 10px; border-radius: 999px; }
@@ -61,7 +62,8 @@ input:focus { outline: 2px solid color-mix(in srgb, var(--acento) 45%, transpare
 .pagar { border: 0; border-radius: 14px; padding: 15px 20px; font: inherit; font-weight: 800; font-size: 1.1rem; cursor: pointer; color: #fff;
   background: linear-gradient(180deg, #2d8cff, #0063e6); box-shadow: 0 8px 22px rgba(0, 99, 230, .3); }
 .pagar:disabled { opacity: .55; cursor: default; box-shadow: none; }
-.seguro { display: flex; gap: 8px; align-items: center; justify-content: center; color: var(--suave); font-size: .85rem; }
+.seguro, .incluye { display: flex; gap: 8px; align-items: center; justify-content: center; color: var(--suave); font-size: .85rem; }
+.incluye { margin-top: -6px; }
 .pasos { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-top: 22px; }
 .paso { background: var(--panel-2); border-radius: 14px; padding: 14px; font-size: .92rem; }
 .paso b { display: block; color: var(--acento); font-size: 1.4rem; }
@@ -91,7 +93,7 @@ input:focus { outline: 2px solid color-mix(in srgb, var(--acento) 45%, transpare
   <div class="marca"><svg viewBox="0 0 40 40" aria-hidden="true"><path d="M6 20 17 6h17v28H17z" fill="#ffd23f"/><circle cx="16" cy="20" r="3" fill="#161a2e"/><text x="27" y="26" text-anchor="middle" font-size="15" font-weight="800" fill="#161a2e" font-family="system-ui">$</text></svg>
     <div>MiPOS<small>por Mis Pitutos Informáticos</small></div></div>
   <h1 id="titulo">Tu licencia de MiPOS</h1>
-  <p id="bajada">La caja, el inventario y las ventas de tu almacén, en un solo lugar. Paga con Mercado Pago y queda activado al instante.</p>
+  <p id="bajada">La caja, el inventario y las ventas de tu almacén, en un solo lugar. El total de cada plan ya incluye IVA 19%. Paga con Mercado Pago y queda activado al instante.</p>
 </div></header>
 
 <main><div class="caja" id="contenido"><div class="resultado"><div class="anillo"></div><div class="det">Cargando…</div></div></div></main>
@@ -113,6 +115,12 @@ const API = '/api/mipos/';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const clp = n => '$' + Math.round(Number(n) || 0).toLocaleString('es-CL');
+const IVA = 19;
+const conIva = n => Math.round((Math.round(Number(n) || 0) * (100 + IVA)) / 100);
+const TOTALES = { 10000: '$11.900', 100000: '$119.000', 200000: '$238.000' };
+const NETOS = { 10000: '$10.000', 100000: '$100.000', 200000: '$200.000' };
+const totalVisible = n => TOTALES[Math.round(Number(n) || 0)] || clp(conIva(n));
+const netoVisible = n => NETOS[Math.round(Number(n) || 0)] || clp(n);
 const fecha = f => f ? new Date(f + 'T12:00').toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric' }) : 'sin vencimiento';
 const q = new URLSearchParams(location.search);
 const EQUIPO = q.get('equipo') || '';
@@ -133,8 +141,8 @@ async function pintarCompra() {
     [datos, equipo] = await Promise.all([llamar('planes'), EQUIPO ? llamar('info-equipo?equipo=' + encodeURIComponent(EQUIPO)).catch(() => null) : null]);
   } catch (e) { c.innerHTML = `<div class="aviso rojo">${esc(e.message)}</div>`; return; }
   const renovando = equipo && equipo.tiene;
-  if (q.get('clave')) { $('#titulo').textContent = 'Renueva tu licencia'; $('#bajada').textContent = 'Elige cuánto tiempo quieres sumar. Los meses se cuentan desde tu fecha de vencimiento y se aplican solos en tu MiPOS.'; }
-  if (renovando) { $('#titulo').textContent = 'Renueva tu licencia'; $('#bajada').textContent = 'Elige cuánto tiempo quieres sumar. Se aplica sola en tu computador apenas se confirme el pago.'; }
+  if (q.get('clave')) { $('#titulo').textContent = 'Renueva tu licencia'; $('#bajada').textContent = 'Elige cuánto tiempo quieres sumar. Los meses se cuentan desde tu fecha de vencimiento y se aplican solos en tu MiPOS. El total ya incluye IVA 19%.'; }
+  if (renovando) { $('#titulo').textContent = 'Renueva tu licencia'; $('#bajada').textContent = 'Elige cuánto tiempo quieres sumar. Se aplica sola en tu computador apenas se confirme el pago. El total ya incluye IVA 19%.'; }
   if (!datos.venta_activa || !datos.planes.length) {
     c.innerHTML = `<div class="aviso amarillo">La compra en línea no está disponible en este momento.</div>
       <p>Escríbenos y te ayudamos al tiro: <a class="btn" href="mailto:contacto@mispitutosinformaticos.cl">contacto@mispitutosinformaticos.cl</a></p>`;
@@ -150,8 +158,8 @@ async function pintarCompra() {
       const porMes = p.meses > 1 ? Math.round(p.precio / p.meses) : null;
       const ahorro = porMes && mensual && p.cajas === 1 ? Math.round((1 - porMes / mensual) * 100) : 0;
       return `<button type="button" class="plan" data-id="${p.id}">${p.destacado ? '<span class="cinta">Más conveniente</span>' : ''}
-        <h3>${esc(p.nombre)}</h3><div class="precio">${clp(p.precio)}</div><div class="periodo">${periodo(p.meses)}</div>
-        ${porMes ? `<div class="equivale">${clp(porMes)} al mes${ahorro > 0 ? ` · ahorras ${ahorro}%` : ''}</div>` : ''}
+        <h3>${esc(p.nombre)}</h3><div class="precio">${totalVisible(p.precio)}</div><div class="neto">${netoVisible(p.precio)} + IVA 19%</div><div class="periodo">${periodo(p.meses)}</div>
+        ${porMes ? `<div class="neto">neto ${clp(porMes)} al mes, sin IVA${ahorro > 0 ? ` · ahorras ${ahorro}%` : ''}</div>` : ''}
         <ul><li>${p.cajas} caja${p.cajas === 1 ? '' : 's'} para vender a la vez</li><li>Todas las funciones y actualizaciones</li>${p.descripcion ? `<li>${esc(p.descripcion)}</li>` : ''}</ul></button>`;
     }).join('')}</div>
     <form id="f">
@@ -163,6 +171,7 @@ async function pintarCompra() {
       </div>
       <div id="error" class="aviso rojo oculto"></div>
       <button class="pagar" id="pagar">Pagar con Mercado Pago</button>
+      <div class="incluye">incluye IVA</div>
       <div class="seguro">🔒 Pagas en Mercado Pago: tarjetas de crédito o débito, saldo o transferencia. No guardamos los datos de tu tarjeta.</div>
     </form>
     <div class="pasos"><div class="paso"><b>1</b>Elige el plan y paga con Mercado Pago.</div>
@@ -172,7 +181,7 @@ async function pintarCompra() {
   const pintar = () => {
     document.querySelectorAll('.plan').forEach(b => b.classList.toggle('elegido', +b.dataset.id === elegido));
     const p = planes.find(x => x.id === elegido);
-    $('#pagar').textContent = `Pagar ${clp(p.precio)} con Mercado Pago`;
+    $('#pagar').textContent = `Pagar ${totalVisible(p.precio)} con Mercado Pago`;
   };
   document.querySelectorAll('.plan').forEach(b => b.addEventListener('click', () => { elegido = +b.dataset.id; pintar(); }));
   pintar();

@@ -1,7 +1,16 @@
 // POST /api/mipos/comprar {plan_id, nombre, email, telefono (+569XXXXXXXX), equipo?, clave?} -> {pago_url, ref}
-// Crea la compra pendiente y la preferencia de Mercado Pago. El precio sale SIEMPRE del plan guardado, nunca del navegador.
+// Crea la compra pendiente y la preferencia de Mercado Pago.
+// El neto sale SIEMPRE del plan guardado, nunca del navegador. El cobro es ese neto más IVA 19%.
 import { asegurarTablasVenta, base, claveDeEquipo, error, json, leerCuerpo, mp, normalizarClave, normalizarEquipo,
   TERMINOS_VERSION, texto, ahora } from '../../../mipos-lib/licencias.js';
+
+export const IVA_PORCIENTO = 19;
+
+// Pesos enteros. 10000 → 11900, 100000 → 119000, 200000 → 238000.
+export function precioConIva(neto) {
+  const n = Math.round(Number(neto) || 0);
+  return Math.round(n * (100 + IVA_PORCIENTO) / 100);
+}
 
 export async function onRequestPost({ request, env }) {
   try {
@@ -31,12 +40,13 @@ export async function onRequestPost({ request, env }) {
     const ref = crypto.randomUUID();
     const origen = new URL(request.url).origin;
     const pagina = env.MIPOS_URL_PAGINA || `${origen}/mipos-comprar.html`;
+    const cobro = precioConIva(plan.precio);
     await db.prepare('INSERT INTO mipos_compras(ref, plan_id, plan_nombre, precio, meses, cajas, nombre, email, telefono, equipo, clave_id, renovacion, terminos_version, terminos_aceptados, ip, creado) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
-      .bind(ref, plan.id, plan.nombre, plan.precio, plan.meses, plan.cajas, nombre, email, '+569' + cel, equipo, clave ? clave.id : null, clave ? 1 : 0,
+      .bind(ref, plan.id, plan.nombre, cobro, plan.meses, plan.cajas, nombre, email, '+569' + cel, equipo, clave ? clave.id : null, clave ? 1 : 0,
             TERMINOS_VERSION, ahora(), request.headers.get('CF-Connecting-IP') || '', ahora()).run();
     const pref = await mp(env, 'POST', '/checkout/preferences', {
       items: [{ id: `plan-${plan.id}`, title: `MiPOS · ${plan.nombre}${clave ? ' (renovación)' : ''}`,
-                description: `${plan.cajas} caja(s) · ${plan.meses === 0 ? 'Licencia perpetua · pago único' : `${plan.meses} mes(es)`}`, quantity: 1, currency_id: 'CLP', unit_price: plan.precio }],
+                description: `${plan.cajas} caja(s) · ${plan.meses === 0 ? 'Licencia perpetua · pago único' : `${plan.meses} mes(es)`} · IVA incluido`, quantity: 1, currency_id: 'CLP', unit_price: cobro }],
       payer: { email, name: nombre },
       external_reference: ref,
       back_urls: { success: `${pagina}?ref=${ref}`, pending: `${pagina}?ref=${ref}`, failure: `${pagina}?ref=${ref}` },
