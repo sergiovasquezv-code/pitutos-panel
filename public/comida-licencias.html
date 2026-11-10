@@ -58,6 +58,9 @@
     <div class="fila">
       <button type="button" data-tab="clientes" class="lleno">Clientes</button>
       <button type="button" data-tab="pruebas">Pruebas</button>
+      <button type="button" data-tab="planes">Planes</button>
+      <button type="button" data-tab="ventas">Ventas</button>
+      <button type="button" data-tab="soporte">Soporte</button>
       <button type="button" data-tab="offline">Código sin internet</button>
       <button type="button" data-tab="historial">Historial</button>
     </div>
@@ -68,6 +71,9 @@
       <div id="lista"></div>
     </div>
     <div id="pruebas" class="tarjeta oculto"></div>
+    <div id="planes" class="tarjeta oculto"></div>
+    <div id="ventas" class="tarjeta oculto"></div>
+    <div id="soporte" class="tarjeta oculto"></div>
     <div id="offline" class="tarjeta oculto">
       <p class="suave">Genera un código COMIDA1 para pegarlo en el equipo cuando no hay internet. No ocupa un cupo de la clave de producto.</p>
       <form id="form-offline">
@@ -199,12 +205,30 @@ document.getElementById('salir').onclick = salir;
 document.getElementById('buscar').addEventListener('input', pintar);
 document.querySelectorAll('[data-tab]').forEach((b) => b.onclick = async () => {
   document.querySelectorAll('[data-tab]').forEach((x) => x.classList.toggle('lleno', x === b));
-  for (const id of ['clientes', 'pruebas', 'offline', 'historial']) document.getElementById(id).classList.toggle('oculto', id !== b.dataset.tab);
+  for (const id of ['clientes', 'pruebas', 'planes', 'ventas', 'soporte', 'offline', 'historial']) document.getElementById(id).classList.toggle('oculto', id !== b.dataset.tab);
   if (b.dataset.tab === 'pruebas') {
     const r = await api('pruebas');
     document.getElementById('pruebas').innerHTML = '<h2>Pruebas</h2>' + ((r.pruebas || []).map((p) =>
       `<div class="fila"><span class="codigo">${esc(p.equipo)}</span> <span>${esc(p.nombre_pc || '')}</span> <span class="suave">desde ${esc(fecha(p.inicio))}</span>
         <button type="button" data-reiniciar="${esc(p.equipo)}">Dar otra prueba</button></div>`).join('') || '<p class="suave">No hay pruebas.</p>');
+  }
+  if (b.dataset.tab === 'planes') {
+    const r = await api('planes');
+    const pesos = (n) => '$' + Number(n || 0).toLocaleString('es-CL');
+    document.getElementById('planes').innerHTML = '<h2>Planes</h2><p class="suave">El precio guardado es neto. La página de compra cobra ese neto más IVA 19%. <a href="comida-comprar.html" target="_blank" rel="noopener">Abrir la página de compra</a></p><table><tr><th>Plan</th><th>Neto</th><th>Cliente paga</th><th>Duración</th><th>Equipos</th></tr>' +
+      (r.planes || []).map((p) => `<tr><td>${esc(p.nombre)}</td><td>${pesos(p.precio)}</td><td><b>${pesos(p.total)}</b></td><td>${p.meses ? p.meses + ' meses' : 'Perpetua'}</td><td>${p.equipos}</td></tr>`).join('') + '</table>';
+  }
+  if (b.dataset.tab === 'ventas') {
+    const r = await api('ventas');
+    document.getElementById('ventas').innerHTML = '<h2>Ventas</h2><table><tr><th>Cuándo</th><th>Cliente</th><th>Plan</th><th>Cobrado</th><th>Estado</th><th>Correo</th></tr>' +
+      (r.ventas || []).map((v) => `<tr><td>${esc(v.creado || '')}</td><td>${esc(v.nombre)}<div class="suave">${esc(v.email)}</div></td><td>${esc(v.plan_nombre)}</td><td>$${Number(v.precio || 0).toLocaleString('es-CL')}</td><td>${esc(v.estado)}</td><td>${esc(v.correo || '')}</td></tr>`).join('') + '</table>';
+  }
+  if (b.dataset.tab === 'soporte') {
+    const r = await api('soporte');
+    document.getElementById('soporte').innerHTML = '<h2>Soporte</h2>' + ((r.casos || []).map((t) =>
+      `<article class="tarjeta" data-caso="${t.id}"><div class="fila"><strong>#${t.id} ${esc(t.cliente || '')}</strong> <span class="pill">${esc(t.estado)}</span> ${t.sin_leer_soporte ? '<span class="pill mal">nuevo</span>' : ''}</div>
+        <p>${esc(t.asunto)}</p><p class="suave">${esc(t.email)}</p><div class="msgs"></div>
+        <form class="fila"><input name="texto" placeholder="Respuesta" style="flex:1" required><button class="lleno">Enviar</button></form></article>`).join('') || '<p class="suave">No hay casos.</p>');
   }
   if (b.dataset.tab === 'historial') {
     const r = await api('eventos');
@@ -252,6 +276,22 @@ document.getElementById('lista').onclick = async (ev) => {
     await cargar();
   }
 };
+document.getElementById('soporte').onclick = async (ev) => {
+  const form = ev.target.closest('form');
+  if (!form || ev.target.tagName !== 'BUTTON') return;
+  ev.preventDefault();
+  const art = form.closest('[data-caso]');
+  await api('soporte/' + art.dataset.caso + '/responder', { method: 'POST', body: { texto: form.texto.value, estado: 'en_curso' } });
+  form.texto.value = '';
+  art.querySelector('.pill').textContent = 'en_curso';
+};
+document.getElementById('soporte').addEventListener('click', async (ev) => {
+  const art = ev.target.closest('[data-caso]');
+  if (!art || ev.target.closest('form') || art.dataset.abierto) return;
+  art.dataset.abierto = '1';
+  const r = await api('soporte/' + art.dataset.caso);
+  art.querySelector('.msgs').innerHTML = (r.mensajes || []).map((m) => `<p><b>${m.autor === 'soporte' ? 'Tú' : 'Cliente'}:</b> ${esc(m.texto)}</p>`).join('');
+});
 document.getElementById('pruebas').onclick = async (ev) => {
   const b = ev.target.closest('[data-reiniciar]');
   if (!b || !confirm('¿Dejar que este equipo pida otra prueba?')) return;

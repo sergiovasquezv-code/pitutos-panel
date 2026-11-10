@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Comprar Comida</title>
+<style>
+  :root { color-scheme: light; --tinta:#2a2118; --papel:#f6f1e8; --tierra:#8c4a2f; --linea:#e4d8c8; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 16px/1.45 "Segoe UI", sans-serif; color: var(--tinta); background: var(--papel); }
+  main { width: min(880px, calc(100% - 28px)); margin: 0 auto; padding: 28px 0 48px; }
+  h1 { margin: 0 0 6px; }
+  .suave { color: #6d6256; }
+  .planes { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin: 18px 0; }
+  .plan { text-align: left; border: 2px solid var(--linea); background: #fffdf8; border-radius: 16px; padding: 14px; cursor: pointer; }
+  .plan.elegido { border-color: var(--tierra); }
+  .precio { font-size: 1.6rem; font-weight: 700; }
+  form { display: grid; gap: 10px; background: #fffdf8; border: 1px solid var(--linea); border-radius: 16px; padding: 16px; }
+  label { display: grid; gap: 4px; }
+  input { font: inherit; padding: 10px; border: 1px solid var(--linea); border-radius: 10px; }
+  button.pagar { font: inherit; background: var(--tierra); color: #fff; border: 0; border-radius: 999px; padding: 12px 16px; cursor: pointer; }
+  .aviso { background: #fff4e8; border-radius: 12px; padding: 10px 12px; }
+  .aviso.mal { background: #f3d6d2; }
+  .clave { font-family: Consolas, monospace; font-size: 1.3rem; letter-spacing: 1px; }
+</style>
+</head>
+<body>
+<main>
+  <h1 id="titulo">Comprar Comida</h1>
+  <p class="suave" id="bajada">Caja, mesas y cocina en tu local. El total ya incluye IVA 19%. Pagas con Mercado Pago y la clave llega a tu correo.</p>
+  <div id="contenido">Cargando planes…</div>
+</main>
+<script>
+const API = '/api/comida/';
+const q = new URLSearchParams(location.search);
+const EQUIPO = q.get('equipo') || '';
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+const clp = (n) => '$' + Number(n || 0).toLocaleString('es-CL');
+async function llamar(ruta, body) {
+  const r = await fetch(API + ruta, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {});
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || 'No se pudo completar');
+  return d;
+}
+function periodo(m) { return m === 0 ? 'Pago único, sin vencimiento' : m === 1 ? 'por 1 mes' : m === 12 ? 'por 1 año' : `por ${m} meses`; }
+
+async function pintarCompra() {
+  const c = document.getElementById('contenido');
+  let datos;
+  try { datos = await llamar('planes'); }
+  catch (e) { c.innerHTML = `<div class="aviso mal">${esc(e.message)}</div>`; return; }
+  if (!datos.venta_activa || !datos.planes.length) {
+    c.innerHTML = '<div class="aviso">La compra en línea no está disponible en este momento. Escríbenos a contacto@mispitutosinformaticos.cl</div>';
+    return;
+  }
+  const planes = datos.planes;
+  let elegido = (planes.find((p) => p.destacado) || planes[0]).id;
+  c.innerHTML = `
+    ${EQUIPO ? '<div class="aviso">Estás comprando desde Comida: al pagar, este computador se activa solo. Igual te enviamos la clave por correo.</div>' : ''}
+    <div class="planes">${planes.map((p) => `<button type="button" class="plan" data-id="${p.id}">
+      <h2>${esc(p.nombre)}</h2>
+      <div class="precio">${clp(p.total)}</div>
+      <div class="suave">${clp(p.neto)} + IVA 19%</div>
+      <div>${periodo(p.meses)}</div>
+      <div>${p.equipos} equipos</div>
+    </button>`).join('')}</div>
+    <form id="f">
+      <label>Nombre de tu negocio<input name="nombre" required placeholder="Ej: La Fuente"></label>
+      <label>Correo, ahí llega la clave<input name="email" type="email" required placeholder="tucorreo@gmail.com"></label>
+      <label>Celular<input name="telefono" inputmode="numeric" required placeholder="912345678" maxlength="14"></label>
+      ${EQUIPO ? '' : '<label>Si renuevas, tu clave actual<input name="clave" placeholder="COMIDA-XXXX-XXXX-XXXX" autocomplete="off"></label>'}
+      <div id="error" class="aviso mal" hidden></div>
+      <button class="pagar" id="pagar" type="submit">Pagar con Mercado Pago</button>
+      <p class="suave">Pagas en Mercado Pago. No guardamos los datos de tu tarjeta.</p>
+    </form>`;
+  const pintar = () => {
+    document.querySelectorAll('.plan').forEach((b) => b.classList.toggle('elegido', +b.dataset.id === elegido));
+    const p = planes.find((x) => x.id === elegido);
+    document.getElementById('pagar').textContent = `Pagar ${clp(p.total)} con Mercado Pago`;
+  };
+  document.querySelectorAll('.plan').forEach((b) => b.onclick = () => { elegido = +b.dataset.id; pintar(); });
+  pintar();
+  document.getElementById('f').onsubmit = async (ev) => {
+    ev.preventDefault();
+    const f = ev.target;
+    const err = document.getElementById('error');
+    const btn = document.getElementById('pagar');
+    err.hidden = true;
+    btn.disabled = true;
+    try {
+      const r = await llamar('comprar', {
+        plan_id: elegido, nombre: f.nombre.value, email: f.email.value, telefono: f.telefono.value,
+        equipo: EQUIPO || undefined, clave: f.clave ? f.clave.value : undefined,
+      });
+      try { sessionStorage.setItem('comida_compra', r.ref); } catch (x) { /* nada */ }
+      location.href = r.pago_url;
+    } catch (e) {
+      err.textContent = e.message;
+      err.hidden = false;
+      btn.disabled = false;
+    }
+  };
+}
+
+async function pintarVuelta(ref) {
+  const c = document.getElementById('contenido');
+  document.getElementById('titulo').textContent = 'Estamos confirmando el pago';
+  c.innerHTML = '<p>Mercado Pago está confirmando el pago. No cierres esta página.</p>';
+  for (let i = 0; i < 8; i++) {
+    const d = await llamar('compra-estado', { ref }).catch(() => null);
+    if (d && d.estado === 'aprobada') {
+      document.getElementById('titulo').textContent = 'Listo, tu Comida está pagado';
+      c.innerHTML = `<div class="aviso"><p>La clave quedó en <b>${esc(d.email)}</b>.</p>
+        ${d.clave ? `<p class="clave">${esc(d.clave)}</p>` : ''}
+        <p>${d.desde_comida ? 'Si pagaste desde el programa, se activa solo en ese computador.' : 'Ábrelo, escribe la clave donde dice “Clave de producto” y presiona Activar con clave.'}</p>
+        <p class="suave">Pagado ${clp(d.precio)}, IVA incluido. ${d.vence ? 'Vence el ' + esc(d.vence.split('-').reverse().join('-')) + '.' : 'Sin vencimiento.'}</p></div>`;
+      return;
+    }
+    if (d && d.estado === 'rechazada') {
+      document.getElementById('titulo').textContent = 'El pago no se completó';
+      c.innerHTML = `<div class="aviso mal">Mercado Pago no aprobó el pago. Puedes intentarlo de nuevo.</div><p><a href="comida-comprar.html${EQUIPO ? '?equipo=' + encodeURIComponent(EQUIPO) : ''}">Volver a los planes</a></p>`;
+      return;
+    }
+    await new Promise((r) => setTimeout(r, 2000));
+  }
+  c.innerHTML = '<div class="aviso">El pago sigue en revisión. Si ya se debitó, la clave llega igual al correo. También puedes recargar esta página.</div>';
+}
+
+const ref = q.get('ref') || '';
+if (ref) pintarVuelta(ref);
+else pintarCompra();
+</script>
+</body>
+</html>

@@ -1,6 +1,7 @@
 // /api/comida-admin/*  Administración de Comida. No lee ni escribe tablas de MiPOS.
-import { anotar, asegurarTablas, ahora, base, claveNueva, entero, error, exigirAdmin, firmarLicencia,
-  hoy, json, leerCuerpo, normalizarClave, normalizarEquipo, sumarMeses, texto } from '../../../comida-lib/licencias.js';
+import { anotar, asegurarTablas, asegurarTablasSoporte, asegurarTablasVenta, ahora, base, claveNueva, correo, correoRespuesta,
+  entero, error, exigirAdmin, firmarLicencia, hoy, json, leerCuerpo, normalizarClave, normalizarEquipo, precioConIva,
+  sumarMeses, texto } from '../../../comida-lib/licencias.js';
 
 function archivo(nombre, datos) {
   return new Response(JSON.stringify(datos, null, 2), {
@@ -16,7 +17,8 @@ export async function onRequest({ request, env, params }) {
   const denegado = exigirAdmin(request, env);
   if (denegado) return denegado;
   const db = base(env);
-  await asegurarTablas(db);
+  await asegurarTablasVenta(db);
+  await asegurarTablasSoporte(db);
   const ruta = Array.isArray(params.ruta) ? params.ruta.join('/') : String(params.ruta || '');
   const m = request.method;
   try {
@@ -33,6 +35,13 @@ export async function onRequest({ request, env, params }) {
     if (otra && m === 'POST') return json(await reiniciarPrueba(db, decodeURIComponent(otra[1])));
     if (m === 'GET' && ruta === 'eventos') return json({ eventos: await listarEventos(db) });
     if (m === 'POST' && ruta === 'codigo') return json(await codigoOffline(env, db, await leerCuerpo(request)));
+    if (m === 'GET' && ruta === 'planes') return json({ planes: await listarPlanes(db) });
+    if (m === 'GET' && ruta === 'ventas') return json({ ventas: await listarVentas(db) });
+    if (m === 'GET' && ruta === 'soporte') return json({ casos: await listarSoporte(db) });
+    const caso = ruta.match(/^soporte\/(\d+)$/);
+    if (caso && m === 'GET') return json(await verSoporte(db, Number(caso[1])));
+    const responder = ruta.match(/^soporte\/(\d+)\/responder$/);
+    if (responder && m === 'POST') return json(await responderSoporte(env, db, Number(responder[1]), await leerCuerpo(request)));
     return error(404, 'No existe');
   } catch (e) {
     return error(400, e.message || 'No se pudo completar');
@@ -58,6 +67,10 @@ async function baseCompleta(db) {
     activaciones: (await db.prepare('SELECT * FROM comida_activaciones ORDER BY id').all()).results,
     pruebas: (await db.prepare('SELECT * FROM comida_pruebas ORDER BY inicio').all()).results,
     eventos: (await db.prepare('SELECT * FROM comida_eventos ORDER BY id').all()).results,
+    planes: (await db.prepare('SELECT * FROM comida_planes ORDER BY orden').all()).results,
+    compras: (await db.prepare('SELECT * FROM comida_compras ORDER BY id').all()).results,
+    tickets: (await db.prepare('SELECT * FROM comida_tickets ORDER BY id').all()).results,
+    mensajes: (await db.prepare('SELECT * FROM comida_ticket_msgs ORDER BY id').all()).results,
   };
 }
 
@@ -131,6 +144,41 @@ async function reiniciarPrueba(db, equipo) {
 
 async function listarEventos(db) {
   return (await db.prepare('SELECT * FROM comida_eventos ORDER BY id DESC LIMIT 200').all()).results;
+}
+
+async function listarPlanes(db) {
+  const planes = (await db.prepare('SELECT * FROM comida_planes ORDER BY orden, precio').all()).results;
+  return planes.map((p) => ({ ...p, total: precioConIva(p.precio) }));
+}
+
+async function listarVentas(db) {
+  return (await db.prepare('SELECT * FROM comida_compras ORDER BY id DESC LIMIT 200').all()).results;
+}
+
+async function listarSoporte(db) {
+  return (await db.prepare('SELECT * FROM comida_tickets ORDER BY actualizado DESC LIMIT 200').all()).results;
+}
+
+async function verSoporte(db, id) {
+  const caso = await db.prepare('SELECT * FROM comida_tickets WHERE id=?').bind(id).first();
+  if (!caso) throw new Error('No existe ese caso');
+  await db.prepare('UPDATE comida_tickets SET sin_leer_soporte=0 WHERE id=?').bind(id).run();
+  const mensajes = (await db.prepare('SELECT * FROM comida_ticket_msgs WHERE ticket_id=? ORDER BY id').bind(id).all()).results;
+  return { caso, mensajes };
+}
+
+async function responderSoporte(env, db, id, d) {
+  const caso = await db.prepare('SELECT * FROM comida_tickets WHERE id=?').bind(id).first();
+  if (!caso) throw new Error('No existe ese caso');
+  const msg = texto(d.texto, 4000);
+  if (!msg) throw new Error('Escribe la respuesta');
+  const estado = d.estado === 'resuelto' ? 'resuelto' : 'en_curso';
+  await db.prepare("INSERT INTO comida_ticket_msgs(ticket_id, autor, texto, creado) VALUES(?, 'soporte', ?, ?)").bind(id, msg, ahora()).run();
+  await db.prepare('UPDATE comida_tickets SET estado=?, actualizado=?, sin_leer_cliente=sin_leer_cliente+1, sin_leer_soporte=0 WHERE id=?')
+    .bind(estado, ahora(), id).run();
+  const envio = await correo(env, caso.email, `Respuesta a tu caso de Comida #${id}`, correoRespuesta(caso, msg));
+  await anotar(db, 'soporte_respuesta', { detalle: `Caso #${id} · ${envio}` });
+  return { ok: true, correo: envio };
 }
 
 async function codigoOffline(env, db, d) {
