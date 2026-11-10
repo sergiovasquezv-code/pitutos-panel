@@ -298,7 +298,7 @@ export async function cumplirCompra(db, env, compra, pago) {
   const final = await db.prepare('SELECT * FROM mipos_compras WHERE id=?').bind(compra.id).first();
   const estadoCorreo = await correo(env, compra.email, compra.renovacion ? 'Tu licencia de MiPOS fue renovada' : 'Tu licencia de MiPOS', correoCliente(final, clave));
   await correo(env, env.EMAIL_NOTIFICACIONES, `Venta MiPOS: ${compra.nombre} · ${clp(compra.precio)}`,
-    `<p><b>${escH(compra.nombre)}</b> (${escH(compra.email)}${compra.telefono ? ' · ' + escH(compra.telefono) : ''}) pagó <b>${clp(compra.precio)}</b> por ${escH(compra.plan_nombre)}.</p>
+    `<p><b>${escH(compra.nombre)}</b> (${escH(compra.email)}${compra.telefono ? ' · ' + escH(compra.telefono) : ''}) pagó <b>${clp(compra.precio)}</b> con IVA incluido por ${escH(compra.plan_nombre)}.</p>
     <p>Clave ${escH(clave.clave)} · ${clave.cajas} caja(s) · ${vigencia}${compra.renovacion ? ' (renovación)' : ''} · pago MP ${escH(pago.id)}.</p>
      <p>Recuerda emitir la boleta o factura de esta venta.</p>`);
   await db.prepare('UPDATE mipos_compras SET correo=? WHERE id=?').bind(estadoCorreo, compra.id).run();
@@ -312,7 +312,7 @@ function correoCliente(compra, clave) {
   <div style="font-family:Consolas,monospace;font-size:22px;letter-spacing:2px;text-align:center;padding:14px;border:2px dashed #ffd23f;border-radius:12px;background:#fffbea">${escH(clave.clave)}</div>
   <table style="margin:14px 0;font-size:14px"><tr><td style="color:#5f6580;padding-right:12px">Plan</td><td>${escH(compra.plan_nombre)}</td></tr>
     <tr><td style="color:#5f6580">Cajas</td><td>${clave.cajas}</td></tr><tr><td style="color:#5f6580">Vigencia</td><td><b>${clave.vence ? fechaCL(clave.vence) : 'Perpetua · sin vencimiento'}</b></td></tr>
-    <tr><td style="color:#5f6580">Pagado</td><td>${clp(compra.precio)} · pago Mercado Pago N° ${escH(compra.mp_pago)}</td></tr></table>
+    <tr><td style="color:#5f6580">Pagado</td><td>${clp(compra.precio)} con IVA incluido · pago Mercado Pago N° ${escH(compra.mp_pago)}</td></tr></table>
   ${compra.equipo ? '<p>Compraste desde MiPOS, así que <b>se activa solo</b> en ese computador (en unos segundos).</p>' : ''}
   <p><b>Para activarla en otro momento o en un PC nuevo:</b> abre MiPOS, escribe la clave donde dice “Clave de producto” y presiona <b>Activar</b>.</p>
   <p>${clave.vence ? 'Unos días antes del vencimiento MiPOS te avisará para renovar.' : 'Esta licencia no tiene fecha de vencimiento.'} Guarda este correo.</p>

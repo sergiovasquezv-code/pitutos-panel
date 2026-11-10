@@ -813,11 +813,13 @@ function formVenta(c) {
 
 function vistaPlanes() {
   const l = E.datos.planes;
-  $('#contenido').innerHTML = `<div class="barra"><div class="det" style="flex:1">Estos planes aparecen en tu página de compra y en el botón “Comprar” de MiPOS. El precio cobrado sale siempre de aquí.</div>
+  const totalIva = n => Math.round(Math.round(Number(n) || 0) * 119 / 100);
+  const pesos = n => `$${Number(n).toLocaleString('es-CL')}`;
+  $('#contenido').innerHTML = `<div class="barra"><div class="det" style="flex:1">El precio que guardas es neto. La página de compra y Mercado Pago cobran ese neto más IVA 19%.</div>
       <button class="btn primario" id="pl-nuevo">+ Nuevo plan</button></div>
-    ${l.length ? `<div class="tabla-wrap"><table><thead><tr><th>Plan</th><th>Precio</th><th>Duración</th><th>Cajas</th><th>Estado</th><th></th></tr></thead><tbody>
+    ${l.length ? `<div class="tabla-wrap"><table><thead><tr><th>Plan</th><th>Neto</th><th>Cliente paga</th><th>Duración</th><th>Cajas</th><th>Estado</th><th></th></tr></thead><tbody>
     ${l.map(p => `<tr><td><b>${esc(p.nombre)}</b>${p.destacado ? ' <span class="badge amarillo">destacado</span>' : ''}${p.descripcion ? `<div class="det">${esc(p.descripcion)}</div>` : ''}</td>
-      <td>$${Number(p.precio).toLocaleString('es-CL')}</td><td>${p.meses === 0 ? 'Perpetua · pago único' : `${p.meses} mes${p.meses === 1 ? '' : 'es'}`}</td><td>${p.cajas}</td>
+      <td>${pesos(p.precio)}</td><td><b>${pesos(totalIva(p.precio))}</b><div class="det">IVA 19% incluido</div></td><td>${p.meses === 0 ? 'Perpetua · pago único' : `${p.meses} mes${p.meses === 1 ? '' : 'es'}`}</td><td>${p.cajas}</td>
       <td>${p.activo ? '<span class="badge verde">a la venta</span>' : '<span class="badge">pausado</span>'}</td>
       <td class="acciones"><button class="btn chico" data-editar-plan="${p.id}">Editar</button><button class="btn chico peligro" data-borrar-plan="${p.id}">Eliminar</button></td></tr>`).join('')}</tbody></table></div>`
     : `<div class="vacio">Aún no hay planes. Crea por ejemplo “Mensual” (1 mes), “Semestral” (6 meses) y “Anual” (12 meses).
@@ -844,7 +846,7 @@ function formPlan(p) {
   const m = modal(`<form id="f-plan"><h2>${p ? 'Editar plan' : 'Nuevo plan'}</h2>
     <div class="grid2" style="margin-top:12px">
       <label class="full">Nombre (lo ve el cliente)<input name="nombre" value="${esc(p?.nombre || '')}" required autofocus placeholder="Ej: Anual"></label>
-      <label>Precio (pesos)<input name="precio" type="number" min="100" step="1" value="${p?.precio || ''}" required></label>
+      <label>Precio neto, sin IVA<input name="precio" type="number" min="100" step="1" value="${p?.precio || ''}" required></label>
       <label id="pl-meses-label">Duración (meses)<input name="meses" type="number" min="1" max="120" value="${p?.meses || 12}" required></label>
       <label class="check full"><input type="checkbox" id="pl-perpetuo" ${p?.meses === 0 ? 'checked' : ''}> Licencia perpetua · pago único, sin vencimiento</label>
       <label>Cajas incluidas<input name="cajas" type="number" min="1" max="50" value="${p?.cajas || 1}" required></label>
@@ -853,6 +855,7 @@ function formPlan(p) {
       <label class="check"><input type="checkbox" name="destacado" ${p?.destacado ? 'checked' : ''}> Destacarlo (“Más conveniente”)</label>
       <label class="check"><input type="checkbox" name="activo" ${!p || p.activo ? 'checked' : ''}> A la venta</label>
     </div>
+    <div class="det" id="pl-iva" style="margin:10px 0"></div>
     <div class="det" id="pl-ayuda" style="margin:10px 0">Al renovar, el cliente queda con las cajas de este plan y los meses se suman desde su fecha de vencimiento.</div>
     <div class="acciones" style="justify-content:flex-end"><button type="button" class="btn" data-cerrar>Cancelar</button><button class="btn primario">Guardar</button></div></form>`);
   const f = $('#f-plan', m.el);
@@ -863,8 +866,17 @@ function formPlan(p) {
       ? 'El cliente paga una vez. La licencia queda activa sin fecha de vencimiento.'
       : 'Al renovar, el cliente queda con las cajas de este plan y los meses se suman desde su fecha de vencimiento.';
   };
+  const mostrarIva = () => {
+    const neto = Math.round(Number(f.precio.value) || 0);
+    const total = Math.round(neto * 119 / 100);
+    $('#pl-iva', m.el).textContent = neto >= 100
+      ? `El cliente paga ${total.toLocaleString('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 })}. El IVA de 19% ya va dentro de ese total.`
+      : 'Escribe el neto. Al cobrar se suma IVA 19%.';
+  };
+  f.precio.addEventListener('input', mostrarIva);
   perpetuo.addEventListener('change', actualizarDuracion);
   actualizarDuracion();
+  mostrarIva();
   f.addEventListener('submit', async e => {
     e.preventDefault();
     const body = { nombre: f.nombre.value, precio: +f.precio.value, meses: perpetuo.checked ? 0 : +f.meses.value, cajas: +f.cajas.value, orden: +f.orden.value,
