@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Licencias Comida</title>
+<style>
+  :root { color-scheme: light; --tinta:#2a2118; --papel:#f6f1e8; --panel:#fffdf8; --linea:#e4d8c8; --tierra:#8c4a2f; --ok:#2f6b4f; --mal:#8d2f2f; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 16px/1.45 "Segoe UI", sans-serif; color: var(--tinta); background: var(--papel); }
+  header, main { width: min(1080px, calc(100% - 32px)); margin: 0 auto; }
+  header { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; padding: 22px 0 8px; }
+  h1 { font-size: 1.6rem; margin: 0; }
+  h2 { font-size: 1.15rem; margin: 0 0 10px; }
+  a { color: var(--tierra); }
+  button, input, textarea, select { font: inherit; color: inherit; }
+  button, .btn { border: 1px solid var(--linea); background: #fff; border-radius: 999px; padding: 8px 14px; cursor: pointer; text-decoration: none; }
+  button.lleno, .lleno { background: var(--tierra); color: #fff; border-color: var(--tierra); }
+  button.mal { color: var(--mal); }
+  .fila { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .tarjeta { background: var(--panel); border: 1px solid var(--linea); border-radius: 16px; padding: 16px; margin: 12px 0; }
+  label { display: grid; gap: 4px; margin: 8px 0; }
+  input, textarea, select { border: 1px solid var(--linea); border-radius: 10px; padding: 8px 10px; background: #fff; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--linea); vertical-align: top; }
+  .suave { color: #6d6256; }
+  .pill { display: inline-block; border-radius: 999px; padding: 2px 8px; background: #efe4d4; }
+  .pill.mal { background: #f3d6d2; color: var(--mal); }
+  .aviso { background: #fff4e8; border-radius: 12px; padding: 10px 12px; }
+  .codigo { font-family: Consolas, monospace; word-break: break-all; }
+  dialog { border: 0; border-radius: 16px; padding: 18px; width: min(520px, calc(100% - 24px)); }
+  dialog::backdrop { background: rgba(42, 33, 24, .35); }
+  .oculto { display: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Licencias Comida</h1>
+  <a href="mipos-licencias.html">Licencias MiPOS</a>
+  <span style="flex:1"></span>
+  <span id="sesion" class="fila oculto">
+    <button type="button" id="nueva">Nueva licencia</button>
+    <button type="button" id="descargar">Descargar la base</button>
+    <button type="button" id="salir">Salir</button>
+  </span>
+</header>
+<main>
+  <section id="entrada" class="tarjeta">
+    <h2>Entrar</h2>
+    <p class="suave">Esta clave es la de administración de Comida. No es una licencia ni la clave privada.</p>
+    <form id="login" class="fila">
+      <input id="clave-admin" type="password" autocomplete="current-password" placeholder="Clave de administrador" required>
+      <button class="lleno" type="submit">Entrar</button>
+    </form>
+    <p id="error-login" class="aviso oculto"></p>
+  </section>
+  <section id="panel" class="oculto">
+    <div class="fila">
+      <button type="button" data-tab="clientes" class="lleno">Clientes</button>
+      <button type="button" data-tab="pruebas">Pruebas</button>
+      <button type="button" data-tab="offline">Código sin internet</button>
+      <button type="button" data-tab="historial">Historial</button>
+    </div>
+    <div id="clientes" class="tarjeta">
+      <div class="fila">
+        <input id="buscar" placeholder="Buscar cliente, clave o equipo" style="flex:1">
+      </div>
+      <div id="lista"></div>
+    </div>
+    <div id="pruebas" class="tarjeta oculto"></div>
+    <div id="offline" class="tarjeta oculto">
+      <p class="suave">Genera un código COMIDA1 para pegarlo en el equipo cuando no hay internet. No ocupa un cupo de la clave de producto.</p>
+      <form id="form-offline">
+        <label>Cliente<input name="cliente" required maxlength="80"></label>
+        <label>Código del equipo<input name="equipo" required placeholder="XXXX-XXXX-XXXX-XXXX" class="codigo"></label>
+        <label>Vencimiento
+          <select name="plazo">
+            <option value="">Sin vencimiento</option>
+            <option value="mes">Un mes</option>
+            <option value="anio">Un año</option>
+            <option value="fecha">Elegir fecha</option>
+          </select>
+        </label>
+        <label>Fecha<input name="vence" type="date"></label>
+        <button class="lleno" type="submit">Generar código</button>
+      </form>
+      <p id="codigo-offline" class="codigo"></p>
+    </div>
+    <div id="historial" class="tarjeta oculto"></div>
+  </section>
+</main>
+<dialog id="dlg">
+  <form id="form-clave" method="dialog">
+    <h2 id="dlg-titulo">Nueva licencia</h2>
+    <input type="hidden" name="id">
+    <label>Cliente<input name="cliente" required maxlength="80"></label>
+    <label>Contacto<input name="contacto" maxlength="80" placeholder="Correo o teléfono"></label>
+    <label>Equipos a la vez<input name="max_equipos" type="number" min="1" max="20" value="1"></label>
+    <label>Plazo
+      <select name="plazo">
+        <option value="">Sin vencimiento</option>
+        <option value="mes">Un mes desde hoy</option>
+        <option value="anio">Un año desde hoy</option>
+        <option value="fecha">Mantener o elegir fecha</option>
+      </select>
+    </label>
+    <label>Vence<input name="vence" type="date"></label>
+    <label>Notas<textarea name="notas" maxlength="200" rows="2"></textarea></label>
+    <label>Estado
+      <select name="estado">
+        <option value="activa">Activa</option>
+        <option value="suspendida">Suspendida</option>
+      </select>
+    </label>
+    <div class="fila">
+      <button type="submit" class="lleno">Guardar</button>
+      <button type="button" id="dlg-cerrar">Cancelar</button>
+    </div>
+  </form>
+</dialog>
+<script>
+const API = '/api/comida-admin/';
+const E = { token: sessionStorage.getItem('comida-admin') || '', datos: null };
+
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+function fecha(iso) {
+  if (!iso) return 'Sin vencimiento';
+  const [a, m, d] = String(iso).slice(0, 10).split('-');
+  return d ? `${d}-${m}-${a}` : iso;
+}
+async function api(ruta, opts = {}) {
+  const r = await fetch(API + ruta, {
+    method: opts.method || 'GET',
+    headers: { Authorization: 'Bearer ' + E.token, ...(opts.body ? { 'Content-Type': 'application/json' } : {}) },
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
+  });
+  const data = await r.json().catch(() => ({}));
+  if (r.status === 401) { salir(); throw new Error(data.error || 'Clave incorrecta'); }
+  if (!r.ok) throw new Error(data.error || 'No se pudo completar');
+  return data;
+}
+function entrar() {
+  document.getElementById('entrada').classList.add('oculto');
+  document.getElementById('panel').classList.remove('oculto');
+  document.getElementById('sesion').classList.remove('oculto');
+}
+function salir() {
+  E.token = '';
+  sessionStorage.removeItem('comida-admin');
+  document.getElementById('entrada').classList.remove('oculto');
+  document.getElementById('panel').classList.add('oculto');
+  document.getElementById('sesion').classList.add('oculto');
+}
+function pintar() {
+  const q = document.getElementById('buscar').value.trim().toLowerCase();
+  const lista = document.getElementById('lista');
+  const claves = (E.datos?.claves || []).filter((c) => {
+    const texto = [c.cliente, c.clave, c.contacto, c.notas, ...(c.equipos || []).map((e) => e.equipo + ' ' + e.nombre_pc)].join(' ').toLowerCase();
+    return !q || texto.includes(q);
+  });
+  lista.innerHTML = claves.map((c) => {
+    const equipos = (c.equipos || []).map((e) => `<div class="fila"><span class="codigo">${esc(e.equipo)}</span> <span class="suave">${esc(e.nombre_pc || '')}</span>
+      <button type="button" data-liberar="${c.id}" data-act="${e.id}">Liberar</button></div>`).join('') || '<span class="suave">Ningún equipo todavía</span>';
+    return `<article class="tarjeta">
+      <div class="fila"><strong>${esc(c.cliente)}</strong> <span class="pill ${c.estado === 'activa' ? '' : 'mal'}">${esc(c.estado)}</span>
+        <span class="suave">${(c.equipos || []).length}/${c.max_equipos} equipos · ${esc(fecha(c.vence))}</span></div>
+      <div class="codigo">${esc(c.clave)}</div>
+      <p class="suave">${esc(c.contacto || '')} ${esc(c.notas || '')}</p>
+      ${equipos}
+      <div class="fila">
+        <button type="button" data-editar="${c.id}">Editar</button>
+        <button type="button" class="mal" data-borrar="${c.id}">Revocar</button>
+      </div>
+    </article>`;
+  }).join('') || '<p class="suave">No hay licencias con esa búsqueda.</p>';
+}
+async function cargar() {
+  E.datos = await api('resumen');
+  pintar();
+}
+document.getElementById('login').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  E.token = document.getElementById('clave-admin').value;
+  const aviso = document.getElementById('error-login');
+  try {
+    await cargar();
+    sessionStorage.setItem('comida-admin', E.token);
+    aviso.classList.add('oculto');
+    entrar();
+  } catch (e) {
+    aviso.textContent = e.message;
+    aviso.classList.remove('oculto');
+    E.token = '';
+  }
+});
+document.getElementById('salir').onclick = salir;
+document.getElementById('buscar').addEventListener('input', pintar);
+document.querySelectorAll('[data-tab]').forEach((b) => b.onclick = async () => {
+  document.querySelectorAll('[data-tab]').forEach((x) => x.classList.toggle('lleno', x === b));
+  for (const id of ['clientes', 'pruebas', 'offline', 'historial']) document.getElementById(id).classList.toggle('oculto', id !== b.dataset.tab);
+  if (b.dataset.tab === 'pruebas') {
+    const r = await api('pruebas');
+    document.getElementById('pruebas').innerHTML = '<h2>Pruebas</h2>' + ((r.pruebas || []).map((p) =>
+      `<div class="fila"><span class="codigo">${esc(p.equipo)}</span> <span>${esc(p.nombre_pc || '')}</span> <span class="suave">desde ${esc(fecha(p.inicio))}</span>
+        <button type="button" data-reiniciar="${esc(p.equipo)}">Dar otra prueba</button></div>`).join('') || '<p class="suave">No hay pruebas.</p>');
+  }
+  if (b.dataset.tab === 'historial') {
+    const r = await api('eventos');
+    document.getElementById('historial').innerHTML = '<h2>Historial</h2><table><tr><th>Cuándo</th><th>Qué</th><th>Detalle</th></tr>' +
+      (r.eventos || []).map((e) => `<tr><td>${esc(e.fecha)}</td><td>${esc(e.tipo)}</td><td>${esc(e.clave)} ${esc(e.equipo)} ${esc(e.detalle)}</td></tr>`).join('') + '</table>';
+  }
+});
+function abrirForm(c) {
+  const f = document.getElementById('form-clave');
+  f.id.value = c ? c.id : '';
+  f.cliente.value = c ? c.cliente : '';
+  f.contacto.value = c ? c.contacto : '';
+  f.max_equipos.value = c ? c.max_equipos : 1;
+  f.plazo.value = '';
+  f.vence.value = c && c.vence ? c.vence : '';
+  f.notas.value = c ? c.notas : '';
+  f.estado.value = c ? c.estado : 'activa';
+  document.getElementById('dlg-titulo').textContent = c ? 'Editar licencia' : 'Nueva licencia';
+  document.getElementById('dlg').showModal();
+}
+document.getElementById('nueva').onclick = () => abrirForm(null);
+document.getElementById('dlg-cerrar').onclick = () => document.getElementById('dlg').close();
+document.getElementById('form-clave').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  const f = ev.target;
+  const cuerpo = {
+    cliente: f.cliente.value, contacto: f.contacto.value, max_equipos: Number(f.max_equipos.value),
+    plazo: f.plazo.value, vence: f.vence.value, notas: f.notas.value, estado: f.estado.value,
+  };
+  if (f.id.value) await api('claves/' + f.id.value, { method: 'POST', body: cuerpo });
+  else await api('claves', { method: 'POST', body: cuerpo });
+  document.getElementById('dlg').close();
+  await cargar();
+});
+document.getElementById('lista').onclick = async (ev) => {
+  const b = ev.target.closest('button');
+  if (!b) return;
+  if (b.dataset.editar) abrirForm((E.datos.claves || []).find((c) => String(c.id) === b.dataset.editar));
+  if (b.dataset.borrar && confirm('¿Revocar esta licencia? El equipo deja de poder renovarla.')) {
+    await api('claves/' + b.dataset.borrar, { method: 'DELETE' });
+    await cargar();
+  }
+  if (b.dataset.liberar && confirm('¿Liberar este equipo para usarlo en otro computador?')) {
+    await api(`claves/${b.dataset.liberar}/equipos/${b.dataset.act}`, { method: 'DELETE' });
+    await cargar();
+  }
+};
+document.getElementById('pruebas').onclick = async (ev) => {
+  const b = ev.target.closest('[data-reiniciar]');
+  if (!b || !confirm('¿Dejar que este equipo pida otra prueba?')) return;
+  await api('pruebas/' + encodeURIComponent(b.dataset.reiniciar) + '/reiniciar', { method: 'POST', body: {} });
+  b.closest('.fila').remove();
+};
+document.getElementById('form-offline').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  const f = ev.target;
+  const r = await api('codigo', { method: 'POST', body: { cliente: f.cliente.value, equipo: f.equipo.value, plazo: f.plazo.value, vence: f.vence.value } });
+  document.getElementById('codigo-offline').textContent = r.codigo;
+});
+document.getElementById('descargar').onclick = async () => {
+  const r = await fetch(API + 'base', { headers: { Authorization: 'Bearer ' + E.token } });
+  if (!r.ok) { alert('No se pudo descargar la base'); return; }
+  const blob = await r.blob();
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'comida-licencias.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+};
+if (E.token) api('resumen').then((d) => { E.datos = d; entrar(); pintar(); }).catch(salir);
+</script>
+</body>
+</html>

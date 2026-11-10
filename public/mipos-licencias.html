@@ -259,6 +259,7 @@ function pintar() {
   const ventasMes = d.compras.filter(c => c.estado === 'aprobada' && String(c.pagado || '').slice(0, 7) === mes).reduce((a, c) => a + c.precio, 0);
   $('#app').innerHTML = `<div class="envoltura">
     <header><div class="marca">${LOGO}<div><h1>Licencias MiPOS</h1><small>Claves de producto, pruebas y equipos</small></div></div>
+      <a class="btn" href="comida-licencias.html">Licencias Comida</a>
       <button class="btn primario" id="b-nueva">+ Nueva clave</button><button class="btn" id="b-salir">Salir</button></header>
     ${d.config.firma !== 'ok' ? `<div class="aviso peligro">El servidor no puede firmar licencias: ${esc(d.config.firma)}</div>` : ''}
     ${d.config.mercado_pago === 'falta' && d.planes.length ? '<div class="aviso">Para vender en línea falta el secreto <b>MP_ACCESS_TOKEN</b> (tu Access Token de Mercado Pago) en Cloudflare.</div>' : ''}

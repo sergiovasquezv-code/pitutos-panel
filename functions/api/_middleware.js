@@ -10,7 +10,9 @@ const PUBLIC_PREFIX = "/api/public/";
 // Licencias de MiVet: /api/mivet/* lo llama el programa del cliente (sin login del panel)
 // y /api/mipos-admin/* tiene su propia clave (MIPOS_ADMIN_CLAVE).
 // y /api/mivet-admin/* tiene su propia clave (MIVET_ADMIN_CLAVE).
-const MIPOS_PREFIXES = ["/api/mipos/", "/api/mivet/", "/api/mipos-admin/", "/api/mivet-admin/"];
+// Licencias de Comida: /api/comida/* lo llama el programa (sin login del panel)
+// y /api/comida-admin/* tiene su propia clave (COMIDA_ADMIN_CLAVE).
+const MIPOS_PREFIXES = ["/api/mipos/", "/api/mivet/", "/api/comida/", "/api/mipos-admin/", "/api/mivet-admin/", "/api/comida-admin/"];
 
 export async function onRequest(context) {
   const url = new URL(context.request.url);
