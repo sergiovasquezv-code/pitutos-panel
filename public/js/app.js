@@ -2598,7 +2598,12 @@ async function renderItemsTrabajo(trabajo, containerId = "items-trabajo-containe
         <td class="num">${cant}</td>
         <td class="num">${clp(unitario)}</td>
         <td class="num">${clp(i.valor)}</td>
-        <td><button type="button" class="btn btn-outline btn-sm" data-del-item="${i.id}">Eliminar</button></td>
+        <td>
+          <div class="actions-row">
+            <button type="button" class="btn btn-outline btn-sm" data-edit-item="${i.id}">Editar</button>
+            <button type="button" class="btn btn-outline btn-sm" data-del-item="${i.id}">Eliminar</button>
+          </div>
+        </td>
       </tr>`;
     })
     .join("");
@@ -2639,7 +2644,7 @@ async function renderItemsTrabajo(trabajo, containerId = "items-trabajo-containe
             <input type="number" id="item-precio" min="0" step="1" value="0"></div>
           <div class="field" style="align-self:flex-end;"><button type="submit" class="btn btn-outline btn-sm">Agregar línea</button></div>
         </form>
-        <span class="hint">El total del trabajo es la suma de estas líneas. Los abonos se restan de ese total. Si el trabajo ya tenía un monto escrito a mano y todavía no tenía líneas, la primera línea conserva ese monto como «Según lo acordado».</span>
+        <span class="hint">El total del trabajo es la suma de estas líneas. Para cambiar un precio, pulsa Editar en esa línea. Los abonos se restan de ese total. Si el trabajo ya tenía un monto escrito a mano y todavía no tenía líneas, la primera línea conserva ese monto como «Según lo acordado».</span>
       </div>
     </div>
   `;
@@ -2666,6 +2671,8 @@ async function renderItemsTrabajo(trabajo, containerId = "items-trabajo-containe
     }
   });
 
+  const porId = new Map(items.map((item) => [String(item.id), item]));
+
   container.querySelectorAll("[data-del-item]").forEach((btn) => {
     btn.addEventListener("click", async () => {
       if (!confirm("¿Eliminar este ítem del desglose?")) return;
@@ -2678,6 +2685,70 @@ async function renderItemsTrabajo(trabajo, containerId = "items-trabajo-containe
       }
     });
   });
+
+  container.querySelectorAll("[data-edit-item]").forEach((btn) => {
+    btn.addEventListener("click", () => abrirEdicionLinea(btn.closest("tr"), porId.get(btn.dataset.editItem)));
+  });
+
+  function abrirEdicionLinea(fila, item) {
+    if (!fila || !item) return;
+    const cant = Number(item.cantidad) || 1;
+    const unitario = cant > 0 ? Math.round(item.valor / cant) : item.valor;
+    const tipos = [
+      ["producto", "Producto"],
+      ["repuesto", "Repuesto"],
+      ["servicio", "Servicio"],
+      ["mano_obra", "Mano de obra"],
+      ["otro", "Otro"],
+    ];
+    const opciones = tipos
+      .map(([valor, nombre]) => `<option value="${valor}" ${item.tipo === valor ? "selected" : ""}>${nombre}</option>`)
+      .join("");
+    fila.innerHTML = `
+      <td><select data-edit-tipo>${opciones}</select></td>
+      <td><input type="text" data-edit-desc value="${escapeHtml(item.descripcion)}"></td>
+      <td><input type="number" data-edit-cant min="1" step="1" value="${cant}"></td>
+      <td><input type="number" data-edit-precio min="0" step="1" value="${unitario}"></td>
+      <td class="num" data-edit-total>${clp(cant * unitario)}</td>
+      <td>
+        <div class="actions-row">
+          <button type="button" class="btn btn-accent btn-sm" data-save-item>Guardar</button>
+          <button type="button" class="btn btn-outline btn-sm" data-cancel-item>Cancelar</button>
+        </div>
+      </td>`;
+    const totalEl = fila.querySelector("[data-edit-total]");
+    const refrescarTotal = () => {
+      const cantidad = Math.max(1, Math.round(Number(fila.querySelector("[data-edit-cant]").value) || 1));
+      const precio = Math.max(0, Math.round(Number(fila.querySelector("[data-edit-precio]").value) || 0));
+      totalEl.textContent = clp(cantidad * precio);
+    };
+    fila.querySelector("[data-edit-cant]").addEventListener("input", refrescarTotal);
+    fila.querySelector("[data-edit-precio]").addEventListener("input", refrescarTotal);
+    fila.querySelector("[data-cancel-item]").addEventListener("click", () => recargar());
+    fila.querySelector("[data-save-item]").addEventListener("click", async () => {
+      const descripcion = fila.querySelector("[data-edit-desc]").value.trim();
+      if (!descripcion) {
+        flash("Describe el producto, repuesto o servicio.", "error");
+        return;
+      }
+      const boton = fila.querySelector("[data-save-item]");
+      boton.disabled = true;
+      try {
+        await apiPut(`/api/trabajos/${trabajo.id}/items/${item.id}`, {
+          tipo: fila.querySelector("[data-edit-tipo]").value,
+          descripcion,
+          cantidad: fila.querySelector("[data-edit-cant]").value,
+          precio_unitario: fila.querySelector("[data-edit-precio]").value,
+        });
+        flash("Línea actualizada.");
+        recargar();
+      } catch (err) {
+        boton.disabled = false;
+        if (await handleAuthError(err)) return;
+        flash(err.message, "error");
+      }
+    });
+  }
 
   const selInventario = container.querySelector("#item-inventario");
   if (selInventario) {

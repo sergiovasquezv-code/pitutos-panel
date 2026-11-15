@@ -5,7 +5,7 @@ import { createD1 } from "./d1-shim.mjs";
 import { onRequestGet as listarTrabajos, onRequestPost as crearTrabajo } from "../functions/api/trabajos/index.js";
 import { onRequestGet as verTrabajo, onRequestPut } from "../functions/api/trabajos/[id].js";
 import { onRequestGet as listarItems, onRequestPost as crearItem } from "../functions/api/trabajos/[id]/items/index.js";
-import { onRequestDelete as borrarItem } from "../functions/api/trabajos/[id]/items/[itemId].js";
+import { onRequestDelete as borrarItem, onRequestPut as editarItem } from "../functions/api/trabajos/[id]/items/[itemId].js";
 import { onRequestGet as verSeguimiento } from "../functions/api/public/trabajo/[token].js";
 import { pasoDe as pasoServidor } from "../functions/_lib/casos.js";
 import { pasoDe as pasoPantalla, mensajeCaso } from "../public/js/caso.js";
@@ -152,6 +152,71 @@ test("la cantidad por el precio arma el total y borrar una línea lo recalcula",
     params: { id },
   });
   assert.equal((await leer(db, id)).monto, 5000);
+});
+
+test("editar una línea cambia el precio y recalcula el total", async () => {
+  const db = await base();
+  const creado = await (
+    await crearTrabajo({
+      request: post("https://panel.test/api/trabajos", {
+        cliente_id: 1,
+        descripcion: "Venta de teclados",
+      }),
+      env: { DB: db },
+    })
+  ).json();
+  const id = String(creado.id);
+  await crearItem({
+    request: post(`https://panel.test/api/trabajos/${id}/items`, {
+      tipo: "producto",
+      descripcion: "Teclado",
+      cantidad: 2,
+      precio_unitario: 15000,
+    }),
+    env: { DB: db },
+    params: { id },
+  });
+  const items = (await (await listarItems({ env: { DB: db }, params: { id } })).json()).items;
+
+  const editado = await editarItem({
+    request: put(`https://panel.test/api/trabajos/${id}/items/${items[0].id}`, {
+      tipo: "producto",
+      descripcion: "Teclado mecánico",
+      cantidad: 2,
+      precio_unitario: 18000,
+    }),
+    env: { DB: db },
+    params: { id, itemId: String(items[0].id) },
+  });
+  const cuerpo = await editado.json();
+  assert.equal(editado.status, 200);
+  assert.equal(cuerpo.monto, 36000);
+  const luego = (await (await listarItems({ env: { DB: db }, params: { id } })).json()).items;
+  assert.equal(luego[0].descripcion, "Teclado mecánico");
+  assert.equal(luego[0].cantidad, 2);
+  assert.equal(luego[0].valor, 36000);
+  assert.equal((await leer(db, id)).monto, 36000);
+
+  const vacio = await editarItem({
+    request: put(`https://panel.test/api/trabajos/${id}/items/${items[0].id}`, {
+      descripcion: "   ",
+      precio_unitario: 1000,
+    }),
+    env: { DB: db },
+    params: { id, itemId: String(items[0].id) },
+  });
+  assert.equal(vacio.status, 400);
+  assert.equal((await leer(db, id)).monto, 36000);
+
+  const ajeno = await editarItem({
+    request: put(`https://panel.test/api/trabajos/999/items/${items[0].id}`, {
+      descripcion: "Teclado",
+      precio_unitario: 1,
+    }),
+    env: { DB: db },
+    params: { id: "999", itemId: String(items[0].id) },
+  });
+  assert.equal(ajeno.status, 404);
 });
 
 test("la primera línea conserva el monto que ya estaba escrito a mano", async () => {
