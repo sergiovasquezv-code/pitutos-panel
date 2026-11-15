@@ -42,6 +42,12 @@ button:disabled { opacity: .6; cursor: default; }
 .aviso { color: var(--aviso); min-height: 1.2em; }
 .medios, .dias { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .medios li, .dias li { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--borde); padding-bottom: 8px; }
+.medios li.cajero { display: grid; gap: 4px; }
+.cab-cajero { display: flex; justify-content: space-between; gap: 8px 12px; align-items: baseline; flex-wrap: wrap; }
+.cab-cajero .quien { min-width: 0; overflow-wrap: anywhere; }
+.cab-cajero strong { margin-left: auto; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.mezcla { display: grid; gap: 2px; padding-left: 12px; }
+.mezcla div { display: flex; justify-content: space-between; gap: 12px; color: var(--suave); font-size: .9rem; }
 .scroll { max-height: 60vh; overflow: auto; }
 .busca-fija { background: var(--panel); padding: 4px 0 10px; }
 #buscar { border: 2px solid var(--acento); background: var(--bg); color: var(--texto); font-size: 1rem; max-width: 100%; }
@@ -170,6 +176,10 @@ button.dia.activo { background: var(--acento); color: #fff; border-color: transp
           <ul class="medios" id="medios"></ul>
         </article>
         <article class="tarjeta">
+          <h2>Por cajero</h2>
+          <ul class="medios" id="cajeros"></ul>
+        </article>
+        <article class="tarjeta">
           <h2>Ventas del día</h2>
           <p class="nota" id="ventas-nota"></p>
           <div class="scroll">
@@ -195,6 +205,8 @@ button.dia.activo { background: var(--acento); color: #fff; border-color: transp
             <p class="nota" id="hist-dia"></p>
             <h2>Medios de pago</h2>
             <ul class="medios" id="hist-medios"></ul>
+            <h2>Por cajero</h2>
+            <ul class="medios" id="hist-cajeros"></ul>
             <h2>Ventas del día</h2>
             <p class="nota" id="hist-ventas-nota"></p>
             <div class="scroll">
@@ -522,6 +534,60 @@ function pintarVentas(datos, cuerpo, nota) {
   }
 }
 
+function pintarCajeros(datos, ul) {
+  limpiar(ul);
+  const filas = Array.isArray(datos.por_cajero) ? datos.por_cajero : null;
+  const lista = Array.isArray(datos.lista) ? datos.lista : [];
+  if (!filas || (!filas.length && !datos.tiene_detalle && !lista.length)) {
+    filaMonto(ul, "Este día no trae las ventas por cajero.", "");
+    return;
+  }
+  if (!filas.length) {
+    filaMonto(ul, "Ese día no hay ventas.", "");
+    return;
+  }
+  for (const f of filas) {
+    const li = document.createElement("li");
+    li.className = "cajero";
+    const cab = document.createElement("div");
+    cab.className = "cab-cajero";
+    const quien = document.createElement("span");
+    quien.className = "quien";
+    quien.textContent = f.cajero || "Sin cajero";
+    const veces = document.createElement("span");
+    veces.className = "linea";
+    const n = Number(f.ventas) || 0;
+    veces.textContent = n === 1 ? " · 1 venta" : ` · ${n} ventas`;
+    quien.append(veces);
+    const monto = document.createElement("strong");
+    monto.textContent = clp(f.total);
+    cab.append(quien, monto);
+    li.append(cab);
+    const medios = Array.isArray(f.medios) ? f.medios.filter(m => m && Number(m.monto) > 0) : [];
+    if (medios.length) {
+      const mezcla = document.createElement("div");
+      mezcla.className = "mezcla";
+      for (const m of medios) {
+        const row = document.createElement("div");
+        const a = document.createElement("span");
+        const b = document.createElement("span");
+        a.textContent = MEDIOS[m.metodo] || m.metodo;
+        b.textContent = clp(m.monto);
+        row.append(a, b);
+        mezcla.append(row);
+      }
+      li.append(mezcla);
+    }
+    if (f.sin_desglose) {
+      const nota = document.createElement("p");
+      nota.className = "linea";
+      nota.textContent = "Hay ventas sin el monto de cada medio.";
+      li.append(nota);
+    }
+    ul.append(li);
+  }
+}
+
 function pintarAyuda(datos) {
   const ayuda = datos.ayuda || {};
   const ritmo = $("ritmo");
@@ -571,6 +637,7 @@ function pintarResumenDia(datos, ids) {
   limpiar(medios);
   if (!datos.medios || !datos.medios.length) filaMonto(medios, "Ese día no hay ventas.", "");
   else for (const m of datos.medios) filaMonto(medios, MEDIOS[m.metodo] || m.metodo, clp(m.monto));
+  if (ids.cajeros) pintarCajeros(datos, $(ids.cajeros));
   pintarVentas(datos, $(ids.ventas), $(ids.nota));
 }
 
@@ -597,12 +664,12 @@ function pintar(datos) {
   const esDiaActual = !pedidoDia || !diaHoy || datos.dia === diaHoy;
   if (esDiaActual) {
     if (datos.dia) diaHoy = datos.dia;
-    pintarResumenDia(datos, { total: "total", dia: "dia", medios: "medios", ventas: "ventas-dia", nota: "ventas-nota" });
+    pintarResumenDia(datos, { total: "total", dia: "dia", medios: "medios", cajeros: "cajeros", ventas: "ventas-dia", nota: "ventas-nota" });
   }
   const detalle = $("historial-detalle");
   if (respuestaDePedido && detalle) {
     detalle.classList.remove("oculto");
-    pintarResumenDia(datos, { total: "hist-total", dia: "hist-dia", medios: "hist-medios", ventas: "hist-ventas", nota: "hist-ventas-nota" });
+    pintarResumenDia(datos, { total: "hist-total", dia: "hist-dia", medios: "hist-medios", cajeros: "hist-cajeros", ventas: "hist-ventas", nota: "hist-ventas-nota" });
   } else if (detalle) {
     detalle.classList.add("oculto");
   }

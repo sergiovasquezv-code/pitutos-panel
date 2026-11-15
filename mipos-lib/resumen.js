@@ -191,6 +191,66 @@ function sumarDiasClave(dias, desde, hasta) {
   return { filas: [...mapa.values()], conDetalle };
 }
 
+const ORDEN_MEDIOS = ['efectivo', 'debito', 'credito', 'transferencia', 'fiado'];
+
+function metodosDeVenta(v) {
+  const vistos = [];
+  for (const m of Array.isArray(v.metodos) ? v.metodos : []) {
+    const id = texto(m, 24).toLowerCase();
+    if (!/^[a-z0-9_]{1,24}$/.test(id) || vistos.includes(id)) continue;
+    vistos.push(id);
+  }
+  return vistos;
+}
+
+function netoVenta(v) {
+  const bruto = Number(v.total);
+  const devuelto = Number(v.devuelto);
+  const base = Number.isInteger(bruto) ? bruto : 0;
+  const baja = Number.isInteger(devuelto) && devuelto > 0 ? devuelto : 0;
+  return Math.max(0, base - baja);
+}
+
+// Agrupa las ventas ya guardadas del día. La anulada no cuenta ni suma.
+// El monto de un medio solo entra si esa venta trae un único medio: no se reparte a ojo.
+export function porCajero(lista) {
+  const mapa = new Map();
+  for (const v of Array.isArray(lista) ? lista : []) {
+    if (!v || typeof v !== 'object' || Array.isArray(v) || v.estado === 'anulada') continue;
+    const nombre = texto(v.cajero, 40) || 'Sin cajero';
+    let fila = mapa.get(nombre);
+    if (!fila) {
+      fila = { cajero: nombre, ventas: 0, total: 0, medios: new Map(), sin_desglose: false };
+      mapa.set(nombre, fila);
+    }
+    const neto = netoVenta(v);
+    fila.ventas += 1;
+    fila.total += neto;
+    const metodos = metodosDeVenta(v);
+    if (metodos.length === 1) {
+      fila.medios.set(metodos[0], (fila.medios.get(metodos[0]) || 0) + neto);
+    } else if (neto > 0) {
+      fila.sin_desglose = true;
+    }
+  }
+  return [...mapa.values()].map(f => ({
+    cajero: f.cajero,
+    ventas: f.ventas,
+    total: f.total,
+    medios: [...f.medios.entries()]
+      .filter(([, monto]) => monto > 0)
+      .sort((a, b) => {
+        const ia = ORDEN_MEDIOS.indexOf(a[0]);
+        const ib = ORDEN_MEDIOS.indexOf(b[0]);
+        const oa = ia === -1 ? ORDEN_MEDIOS.length : ia;
+        const ob = ib === -1 ? ORDEN_MEDIOS.length : ib;
+        return oa - ob || a[0].localeCompare(b[0]);
+      })
+      .map(([metodo, monto]) => ({ metodo, monto })),
+    sin_desglose: f.sin_desglose,
+  })).sort((a, b) => b.total - a.total || a.cajero.localeCompare(b.cajero, 'es'));
+}
+
 function ayudaDe(dias, dia, stock) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dia || '')) {
     return { promedio7: null, dias7: 0, mas_plata: [], mas_unidades: [], sin_venta_7: [], sin_venta_30: [] };
@@ -296,7 +356,7 @@ export function vistaLocal(clave, fila, dias, diaPedido = '') {
       medios: [], lista: [], productos: [], tiene_detalle: false,
       stock: [], stock_total: 0, stock_incompleto: false,
       ayuda: ayudaDe(diasDetalle, '', []),
-      historial, sin_datos: true,
+      historial, por_cajero: [], sin_datos: true,
     };
   }
   const stock = parseLista(fila.stock).filter(p => p && typeof p === 'object' && !Array.isArray(p)).map(p => ({
@@ -332,6 +392,7 @@ export function vistaLocal(clave, fila, dias, diaPedido = '') {
     stock_incompleto: fila.stock_incompleto === true || fila.stock_incompleto === 1,
     ayuda: ayudaDe(diasDetalle, elegido ? elegido.dia : String(fila.dia || ''), stock),
     historial,
+    por_cajero: porCajero(diaVista.lista),
     sin_datos: false,
   };
 }

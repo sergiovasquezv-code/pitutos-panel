@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { SQL, corteHistorial, limpiarResumen, vistaLocal } from '../mipos-lib/resumen.js';
+import { SQL, corteHistorial, limpiarResumen, porCajero, vistaLocal } from '../mipos-lib/resumen.js';
 
 const hoy = '2026-11-04';
 
@@ -165,4 +165,61 @@ test('la venta anulada queda en el detalle y no suma al total', () => {
   assert.equal(vista.total, 9000);
   assert.equal(vista.ayuda.mas_plata[0].nombre, 'Leche');
   assert.equal(JSON.stringify(vista).includes('+569'), false);
+  assert.deepEqual(vista.por_cajero, [{
+    cajero: 'Ana',
+    ventas: 1,
+    total: 9000,
+    medios: [{ metodo: 'efectivo', monto: 9000 }],
+    sin_desglose: false,
+  }]);
+});
+
+test('por cajero suma el día elegido, deja afuera la anulada y no reparte un pago mixto', () => {
+  const listaHoy = [
+    { folio: 1, hora: '09:00', cajero: 'Ana', estado: 'completada', total: 8000, devuelto: 0, metodos: ['efectivo'], items: [] },
+    { folio: 2, hora: '09:10', cajero: 'Ana', estado: 'completada', total: 4000, devuelto: 1000, metodos: ['debito'], items: [] },
+    { folio: 3, hora: '09:20', cajero: 'Ana', estado: 'anulada', total: 5000, devuelto: 0, metodos: ['efectivo'], items: [] },
+    { folio: 4, hora: '10:00', cajero: 'Luis', estado: 'completada', total: 6000, devuelto: 0, metodos: ['efectivo', 'credito'], items: [] },
+    { folio: 5, hora: '11:00', cajero: 'Luis', estado: 'completada', total: 2000, devuelto: 0, metodos: ['transferencia'], items: [] },
+    { folio: 6, hora: '12:00', cajero: 'Marta', estado: 'completada', total: 1500, devuelto: 0, metodos: [], items: [] },
+    { folio: 7, hora: '13:00', cajero: 'Nora', estado: 'completada', total: 3000, devuelto: 3000, metodos: ['fiado'], items: [] },
+  ];
+  const listaAyer = [
+    { folio: 8, hora: '18:00', cajero: 'Rosa', estado: 'completada', total: 500, devuelto: 0, metodos: ['credito'], items: [] },
+  ];
+  const fila = {
+    negocio: 'Local', recibido: '2026-11-04T18:00:00.000Z', dia: hoy, total: 17500, ventas: 6,
+    medios: [], stock: [], stock_total: 0,
+  };
+  const dias = [
+    { dia: hoy, total: 17500, detalle: { ventas: 6, anuladas: 1, devuelto: 4000, medios: [], lista: listaHoy, productos: [] } },
+    { dia: '2026-11-03', total: 500, detalle: { ventas: 1, anuladas: 0, devuelto: 0, medios: [], lista: listaAyer, productos: [] } },
+  ];
+  const hoyVista = vistaLocal({ cliente: 'Local' }, fila, dias);
+  assert.deepEqual(hoyVista.por_cajero, [
+    {
+      cajero: 'Ana', ventas: 2, total: 11000,
+      medios: [{ metodo: 'efectivo', monto: 8000 }, { metodo: 'debito', monto: 3000 }],
+      sin_desglose: false,
+    },
+    {
+      cajero: 'Luis', ventas: 2, total: 8000,
+      medios: [{ metodo: 'transferencia', monto: 2000 }],
+      sin_desglose: true,
+    },
+    { cajero: 'Marta', ventas: 1, total: 1500, medios: [], sin_desglose: true },
+    { cajero: 'Nora', ventas: 1, total: 0, medios: [], sin_desglose: false },
+  ]);
+  const ayer = vistaLocal({ cliente: 'Local' }, fila, dias, '2026-11-03');
+  assert.deepEqual(ayer.por_cajero, [{
+    cajero: 'Rosa', ventas: 1, total: 500,
+    medios: [{ metodo: 'credito', monto: 500 }],
+    sin_desglose: false,
+  }]);
+  assert.deepEqual(porCajero(null), []);
+  const pagina = readFileSync(new URL('../public/mipos-local.html', import.meta.url), 'utf8');
+  assert.match(pagina, /Por cajero/);
+  assert.match(pagina, /id="cajeros"/);
+  assert.match(pagina, /id="hist-cajeros"/);
+  assert.equal(/whatsapp/i.test(pagina), false);
 });
