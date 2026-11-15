@@ -1096,11 +1096,15 @@ async function cargarTrabajoInline(trabajoId, clienteId, containerId = "trabajo-
     <div class="panel" style="margin-top:22px;border-color:var(--accent-dark);">
       <div class="panel-header"><h2>Trabajo${trabajo.tipo ? `: ${escapeHtml(trabajo.tipo)}` : ""}</h2>${badgeTrabajo(trabajo.estado)}</div>
       <div class="panel-body padded">
-        ${
-          trabajo.monto > 0
-            ? `<p style="margin:0;">Total <strong>${clp(trabajo.monto)}</strong> · abonado ${clp(trabajo.abonado || 0)} · saldo <strong>${clp(trabajo.saldo || 0)}</strong></p>`
-            : ""
-        }
+        <form id="form-cobro-${trabajo.id}" style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin:0;">
+          <div class="field" style="margin:0;min-width:180px;max-width:240px;">
+            <label for="cobro-${trabajo.id}">Cobro (CLP)</label>
+            <input type="number" id="cobro-${trabajo.id}" min="0" step="1" value="${Number(trabajo.monto) || 0}">
+          </div>
+          <button type="submit" class="btn btn-accent btn-sm">Guardar cobro</button>
+        </form>
+        <p class="hint" style="margin:8px 0 0;">Abonado ${clp(trabajo.abonado || 0)} · saldo <strong>${clp(trabajo.saldo || 0)}</strong>. Escribe el monto nuevo y guarda. Si hay varias líneas, el cobro es la suma y se cambia en cada una con Editar.</p>
+        <div id="items-trabajo-${trabajo.id}" style="margin-top:14px;"></div>
         ${trabajo.fecha_entrega ? `<p style="margin:10px 0 0;">Entrega: <strong>${escapeHtml(fechaEntregaTexto(trabajo.fecha_entrega))}</strong></p>` : ""}
         <div id="flujo-${trabajo.id}"></div>
       </div>
@@ -1126,6 +1130,41 @@ async function cargarTrabajoInline(trabajoId, clienteId, containerId = "trabajo-
   `;
 
   const recargarTrabajo = () => cargarTrabajoInline(trabajoId, clienteId, containerId);
+  const formCobro = wrapper.querySelector(`#form-cobro-${trabajo.id}`);
+  if (formCobro) {
+    formCobro.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const input = wrapper.querySelector(`#cobro-${trabajo.id}`);
+      const monto = Math.max(0, Math.round(Number(input.value) || 0));
+      const boton = formCobro.querySelector("button[type=submit]");
+      boton.disabled = true;
+      try {
+        const data = await apiGet(`/api/trabajos/${trabajo.id}/items`);
+        const items = data.items || [];
+        if (items.length === 0) {
+          await apiPut(`/api/trabajos/${trabajo.id}`, { solo_monto: monto });
+        } else if (items.length === 1) {
+          const item = items[0];
+          await apiPut(`/api/trabajos/${trabajo.id}/items/${item.id}`, {
+            tipo: item.tipo,
+            descripcion: item.descripcion,
+            cantidad: item.cantidad || 1,
+            valor: monto,
+          });
+        } else {
+          boton.disabled = false;
+          flash("Este trabajo tiene varias líneas. Baja a Líneas del trabajo y pulsa Editar en la que quieres cambiar.", "error");
+          return;
+        }
+        flash("Cobro actualizado.");
+        recargarTrabajo();
+      } catch (err) {
+        boton.disabled = false;
+        if (await handleAuthError(err)) return;
+        flash(err.message, "error");
+      }
+    });
+  }
   renderSeguimiento(trabajo, `seguimiento-${trabajo.id}`);
   renderAbonosPanel(`abonos-trabajo-${trabajo.id}`, {
     categoria: "trabajo",
@@ -1255,8 +1294,7 @@ async function renderFlujoCaso(trabajo, ctx) {
     <div class="field"><label>Notas internas</label>
       <textarea data-flujo-notas rows="2" placeholder="Solo para ti, no salen en el informe">${escapeHtml(trabajo.notas || "")}</textarea>
     </div>
-    <button type="button" class="btn btn-accent btn-sm" data-guardar-nota>Guardar lo realizado</button>
-    ${abierto.detalle ? `<div id="items-trabajo-${trabajo.id}" style="margin-top:14px;"></div>` : ""}`;
+    <button type="button" class="btn btn-accent btn-sm" data-guardar-nota>Guardar lo realizado</button>`;
 
   const elegidas = [...marcadasDe(tipoOps), ...marcadasDe(hechoOps), ...marcadasDe(cierreOps)];
   const frases = [];
@@ -1322,7 +1360,7 @@ async function renderFlujoCaso(trabajo, ctx) {
     </div>`;
 
   const recargar = () => cargarTrabajoInline(ctx.trabajoId, ctx.clienteId, ctx.containerId);
-  if (abierto.detalle) {
+  if (document.getElementById(`items-trabajo-${trabajo.id}`)) {
     renderItemsTrabajo(trabajo, `items-trabajo-${trabajo.id}`, recargar);
   }
 

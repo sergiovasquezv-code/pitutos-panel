@@ -219,6 +219,22 @@ test("editar una línea cambia el precio y recalcula el total", async () => {
   assert.equal(ajeno.status, 404);
 });
 
+test("un cobro escrito a mano se puede bajar cuando todavía no hay líneas", async () => {
+  const db = await base();
+  await db
+    .prepare(
+      "INSERT INTO trabajos (cliente_id, tipo, descripcion, estado, monto, fecha_creacion) VALUES (1, 'Programación', 'Sistema', 'Esperando cliente', 200000, '2026-09-17')"
+    )
+    .run();
+  const res = await onRequestPut({
+    request: put("https://panel.test/api/trabajos/1", { solo_monto: 150000 }),
+    env: { DB: db },
+    params: { id: "1" },
+  });
+  assert.equal(res.status, 200);
+  assert.equal((await leer(db, 1)).monto, 150000);
+});
+
 test("la primera línea conserva el monto que ya estaba escrito a mano", async () => {
   const db = await base();
   await db
