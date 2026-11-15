@@ -35,7 +35,9 @@ test('la corrección de stock es una suma o una resta', () => {
 test('la página sigue dejando entrar solo con la clave', () => {
   const pagina = readFileSync(new URL('../public/mipos-local.html', import.meta.url), 'utf8');
   assert.match(pagina, /id="clave"/);
+  assert.match(pagina, /id="ayuda-entrada"/);
   assert.match(pagina, /Si no los escribes, la clave sigue sirviendo/);
+  assert.match(pagina, /\$\("ayuda-entrada"\)\.classList\.toggle\("oculto", listo\)/);
   assert.equal(/whatsapp/i.test(pagina), false);
   assert.equal(/telefono/i.test(pagina), false);
 });

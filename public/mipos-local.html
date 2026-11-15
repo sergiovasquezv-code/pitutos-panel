@@ -94,7 +94,7 @@ button.dia.activo { background: var(--acento); color: #fff; border-color: transp
 <main>
   <p class="marca">MiPOS</p>
   <h1>Mi local</h1>
-  <p class="sub">Entra con la clave de producto. Si quieres, puedes guardar un correo y una contraseña para la próxima vez. Si no los escribes, la clave sigue sirviendo.</p>
+  <p class="sub" id="ayuda-entrada">Entra con la clave de producto. Si quieres, puedes guardar un correo y una contraseña para la próxima vez. Si no los escribes, la clave sigue sirviendo.</p>
 
   <form id="entrada" class="tarjeta">
     <label>Clave de producto
@@ -457,6 +457,7 @@ function pintarPendientes(lista) {
 
 function mostrarAcceso(acceso) {
   const listo = !!(acceso && acceso.correo);
+  $("ayuda-entrada").classList.toggle("oculto", listo);
   $("acceso-nuevo").classList.toggle("oculto", listo && $("acceso-nuevo").dataset.abierto !== "1");
   $("acceso-listo").classList.toggle("oculto", !listo);
   if (listo) {
@@ -818,6 +819,7 @@ function salir() {
   correccion = null;
   elegirPestana("panel-hoy");
   $("acceso-nuevo").dataset.abierto = "";
+  $("ayuda-entrada").classList.remove("oculto");
   sessionStorage.removeItem("mipos.clave.local");
   sessionStorage.removeItem("mipos.acceso.local");
   $("local").classList.add("oculto");
