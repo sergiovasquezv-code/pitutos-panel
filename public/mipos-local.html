@@ -43,6 +43,7 @@ button:disabled { opacity: .6; cursor: default; }
 .medios, .dias { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .medios li, .dias li { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--borde); padding-bottom: 8px; }
 .medios li.cajero { display: grid; gap: 4px; }
+.medios li.turno { display: grid; gap: 2px; }
 .cab-cajero { display: flex; justify-content: space-between; gap: 8px 12px; align-items: baseline; flex-wrap: wrap; }
 .cab-cajero .quien { min-width: 0; overflow-wrap: anywhere; }
 .cab-cajero strong { margin-left: auto; font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -179,6 +180,10 @@ button.dia.activo { background: var(--acento); color: #fff; border-color: transp
           <h2>Por cajero</h2>
           <ul class="medios" id="cajeros"></ul>
         </article>
+        <article class="tarjeta oculto" id="turnos-caja">
+          <h2>Turnos</h2>
+          <ul class="medios" id="turnos"></ul>
+        </article>
         <article class="tarjeta">
           <h2>Ventas del día</h2>
           <p class="nota" id="ventas-nota"></p>
@@ -207,6 +212,10 @@ button.dia.activo { background: var(--acento); color: #fff; border-color: transp
             <ul class="medios" id="hist-medios"></ul>
             <h2>Por cajero</h2>
             <ul class="medios" id="hist-cajeros"></ul>
+            <div id="hist-turnos-caja" class="oculto">
+              <h2>Turnos</h2>
+              <ul class="medios" id="hist-turnos"></ul>
+            </div>
             <h2>Ventas del día</h2>
             <p class="nota" id="hist-ventas-nota"></p>
             <div class="scroll">
@@ -534,6 +543,62 @@ function pintarVentas(datos, cuerpo, nota) {
   }
 }
 
+function fechaHoraTurno(iso) {
+  const m = /^(\d{4}-\d{2}-\d{2})[T ](\d{2}):(\d{2})/.exec(iso || "");
+  if (!m) return "";
+  const fecha = fechaDe(m[1]);
+  return fecha ? `${fecha}, ${m[2]}:${m[3]}` : `${m[2]}:${m[3]}`;
+}
+
+function pintarTurnos(datos, ul, caja) {
+  const lista = Array.isArray(datos.turnos) ? datos.turnos.filter(t => t && t.apertura) : [];
+  if (caja) caja.classList.toggle("oculto", lista.length === 0);
+  if (!ul) return;
+  limpiar(ul);
+  for (const t of lista) {
+    const li = document.createElement("li");
+    li.className = "turno";
+    const apertura = document.createElement("div");
+    apertura.textContent = "Apertura: " + (fechaHoraTurno(t.apertura) || t.apertura);
+    li.append(apertura);
+    const quien = [];
+    if (t.abrio) quien.push("Abrió " + t.abrio);
+    if (t.caja) quien.push(t.caja);
+    if (quien.length) {
+      const det = document.createElement("div");
+      det.className = "linea";
+      det.textContent = quien.join(" · ");
+      li.append(det);
+    }
+    if (t.cierre) {
+      const cierre = document.createElement("div");
+      cierre.textContent = "Cierre: " + (fechaHoraTurno(t.cierre) || t.cierre);
+      li.append(cierre);
+    }
+    const nVentas = Number.isInteger(t.ventas) ? t.ventas : null;
+    const hayTotal = Number.isInteger(t.total);
+    if (nVentas != null || hayTotal) {
+      const veces = nVentas == null ? "" : (nVentas === 1 ? "1 venta" : `${nVentas} ventas`);
+      const monto = hayTotal ? clp(t.total) : "";
+      const det = document.createElement("div");
+      det.className = "linea";
+      det.textContent = [veces, monto].filter(Boolean).join(" · ");
+      li.append(det);
+    }
+    const hayEsp = Number.isInteger(t.efectivo_esperado);
+    const hayCont = Number.isInteger(t.efectivo_contado);
+    if (hayEsp || hayCont) {
+      const det = document.createElement("div");
+      det.className = "linea";
+      if (hayEsp && hayCont) det.textContent = `Efectivo esperado ${clp(t.efectivo_esperado)} · contado ${clp(t.efectivo_contado)}`;
+      else if (hayEsp) det.textContent = `Efectivo esperado ${clp(t.efectivo_esperado)}`;
+      else det.textContent = `Efectivo contado ${clp(t.efectivo_contado)}`;
+      li.append(det);
+    }
+    ul.append(li);
+  }
+}
+
 function pintarCajeros(datos, ul) {
   limpiar(ul);
   const filas = Array.isArray(datos.por_cajero) ? datos.por_cajero : null;
@@ -638,6 +703,7 @@ function pintarResumenDia(datos, ids) {
   if (!datos.medios || !datos.medios.length) filaMonto(medios, "Ese día no hay ventas.", "");
   else for (const m of datos.medios) filaMonto(medios, MEDIOS[m.metodo] || m.metodo, clp(m.monto));
   if (ids.cajeros) pintarCajeros(datos, $(ids.cajeros));
+  if (ids.turnos) pintarTurnos(datos, $(ids.turnos), ids.turnosCaja ? $(ids.turnosCaja) : null);
   pintarVentas(datos, $(ids.ventas), $(ids.nota));
 }
 
@@ -664,12 +730,12 @@ function pintar(datos) {
   const esDiaActual = !pedidoDia || !diaHoy || datos.dia === diaHoy;
   if (esDiaActual) {
     if (datos.dia) diaHoy = datos.dia;
-    pintarResumenDia(datos, { total: "total", dia: "dia", medios: "medios", cajeros: "cajeros", ventas: "ventas-dia", nota: "ventas-nota" });
+    pintarResumenDia(datos, { total: "total", dia: "dia", medios: "medios", cajeros: "cajeros", turnos: "turnos", turnosCaja: "turnos-caja", ventas: "ventas-dia", nota: "ventas-nota" });
   }
   const detalle = $("historial-detalle");
   if (respuestaDePedido && detalle) {
     detalle.classList.remove("oculto");
-    pintarResumenDia(datos, { total: "hist-total", dia: "hist-dia", medios: "hist-medios", cajeros: "hist-cajeros", ventas: "hist-ventas", nota: "hist-ventas-nota" });
+    pintarResumenDia(datos, { total: "hist-total", dia: "hist-dia", medios: "hist-medios", cajeros: "hist-cajeros", turnos: "hist-turnos", turnosCaja: "hist-turnos-caja", ventas: "hist-ventas", nota: "hist-ventas-nota" });
   } else if (detalle) {
     detalle.classList.add("oculto");
   }

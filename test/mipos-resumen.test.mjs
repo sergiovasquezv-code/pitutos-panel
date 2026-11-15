@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { SQL, corteHistorial, limpiarResumen, porCajero, vistaLocal } from '../mipos-lib/resumen.js';
+import { SQL, corteHistorial, detalleGuardado, limpiarResumen, porCajero, vistaLocal } from '../mipos-lib/resumen.js';
 
 const hoy = '2026-11-04';
 
@@ -222,4 +222,96 @@ test('por cajero suma el día elegido, deja afuera la anulada y no reparte un pa
   assert.match(pagina, /id="cajeros"/);
   assert.match(pagina, /id="hist-cajeros"/);
   assert.equal(/whatsapp/i.test(pagina), false);
+});
+
+test('los turnos se guardan por día y un resumen sin turnos queda igual', () => {
+  const sin = limpiarResumen({
+    dia: hoy, total: 3500, ventas: 1, medios: [{ metodo: 'efectivo', monto: 3500 }], stock: [],
+  }, hoy);
+  assert.equal(sin.error, undefined);
+  assert.equal('turnos' in sin.resumen, false);
+  assert.deepEqual(Object.keys(detalleGuardado(sin.resumen)).sort(), ['anuladas', 'devuelto', 'lista', 'medios', 'productos', 'ventas']);
+
+  const raro = limpiarResumen({
+    dia: hoy, total: 3500, medios: [], stock: [], turnos: { apertura: '2026-11-04T09:00:00' },
+  }, hoy);
+  assert.equal(raro.error, undefined);
+  assert.equal(raro.resumen.total, 3500);
+  assert.equal('turnos' in raro.resumen, false);
+
+  const limpio = limpiarResumen({
+    dia: hoy,
+    total: 3000,
+    ventas: 1,
+    medios: [],
+    stock: [],
+    turnos: [
+      { apertura: '2026-11-04T09:00:00', abrio: 'Ana', caja: 'Caja 1', ventas: 9, total: 999, efectivo_contado: 1, telefono: '+56900001111' },
+      { apertura: '2026-11-04 14:00', abrio: 'Marta', caja: 'Caja 2', cierre: '2026-11-04T18:10:00', ventas: 1, total: 3000, efectivo_esperado: 4500, efectivo_contado: 4400, notas: '+56900002222' },
+      { apertura: '2026-11-04T19:00:00', abrio: 'Luis', cierre: '2026-11-04T19:40:00', ventas: 0, total: 0, efectivo_esperado: 2000, efectivo_contado: null },
+      { abrio: 'Sin hora' },
+    ],
+  }, hoy);
+  assert.equal(limpio.error, undefined);
+  assert.deepEqual(limpio.resumen.turnos, [
+    { apertura: '2026-11-04T09:00:00', abrio: 'Ana', caja: 'Caja 1' },
+    { apertura: '2026-11-04T14:00:00', abrio: 'Marta', caja: 'Caja 2', cierre: '2026-11-04T18:10:00', ventas: 1, total: 3000, efectivo_esperado: 4500, efectivo_contado: 4400 },
+    { apertura: '2026-11-04T19:00:00', abrio: 'Luis', cierre: '2026-11-04T19:40:00', ventas: 0, total: 0, efectivo_esperado: 2000 },
+  ]);
+  assert.equal(JSON.stringify(limpio.resumen).includes('+569'), false);
+  assert.equal(JSON.stringify(limpio.resumen).includes('notas'), false);
+  assert.deepEqual(detalleGuardado(limpio.resumen).turnos, limpio.resumen.turnos);
+  assert.equal(detalleGuardado({ ventas: 1, medios: [], lista: [], productos: [] }).turnos, undefined);
+
+  const lista = [
+    { folio: 1, hora: '15:00', cajero: 'Marta', estado: 'completada', total: 3000, devuelto: 0, metodos: ['efectivo'], items: [] },
+  ];
+  const fila = {
+    negocio: 'Local', recibido: '2026-11-04T21:00:00.000Z', dia: hoy, total: 3000, ventas: 1,
+    medios: [], stock: [], stock_total: 0,
+  };
+  const dias = [
+    { dia: hoy, total: 3000, detalle: { ventas: 1, anuladas: 0, devuelto: 0, medios: [], lista, productos: [], turnos: limpio.resumen.turnos } },
+    { dia: '2026-11-03', total: 800, detalle: { ventas: 1, anuladas: 0, devuelto: 0, medios: [], lista: [{ folio: 2, hora: '10:00', cajero: 'Rosa', estado: 'completada', total: 800, devuelto: 0, metodos: ['debito'], items: [] }], productos: [], turnos: [{ apertura: '2026-11-03T10:00:00', abrio: 'Rosa', cierre: '2026-11-03T13:00:00', ventas: 1, total: 800, efectivo_esperado: 1000, efectivo_contado: 1000 }] } },
+  ];
+  const hoyVista = vistaLocal({ cliente: 'Local' }, fila, dias);
+  assert.equal(hoyVista.turnos.length, 3);
+  assert.equal(hoyVista.turnos[0].apertura, '2026-11-04T09:00:00');
+  assert.equal('cierre' in hoyVista.turnos[0], false);
+  assert.equal(hoyVista.turnos[2].cierre, '2026-11-04T19:40:00');
+  assert.equal('efectivo_contado' in hoyVista.turnos[2], false);
+  assert.deepEqual(hoyVista.por_cajero, [{
+    cajero: 'Marta', ventas: 1, total: 3000, medios: [{ metodo: 'efectivo', monto: 3000 }], sin_desglose: false,
+  }]);
+  const ayer = vistaLocal({ cliente: 'Local' }, fila, dias, '2026-11-03');
+  assert.deepEqual(ayer.turnos, [{
+    apertura: '2026-11-03T10:00:00', abrio: 'Rosa', cierre: '2026-11-03T13:00:00',
+    ventas: 1, total: 800, efectivo_esperado: 1000, efectivo_contado: 1000,
+  }]);
+  assert.equal(ayer.total, 800);
+  assert.deepEqual(ayer.por_cajero, [{
+    cajero: 'Rosa', ventas: 1, total: 800, medios: [{ metodo: 'debito', monto: 800 }], sin_desglose: false,
+  }]);
+  const viejo = vistaLocal({ cliente: 'Local' }, fila, [
+    { dia: hoy, total: 3000, detalle: { ventas: 1, anuladas: 0, devuelto: 0, medios: [], lista, productos: [] } },
+  ]);
+  assert.equal('turnos' in viejo, false);
+  assert.equal(viejo.por_cajero[0].cajero, 'Marta');
+  assert.equal(viejo.por_cajero[0].total, 3000);
+
+  const pagina = readFileSync(new URL('../public/mipos-local.html', import.meta.url), 'utf8');
+  assert.match(pagina, /id="turnos-caja"/);
+  assert.match(pagina, /id="hist-turnos-caja"/);
+  assert.match(pagina, /id="turnos"/);
+  assert.match(pagina, /id="hist-turnos"/);
+  assert.match(pagina, /Apertura:/);
+  assert.match(pagina, /Abrió /);
+  assert.match(pagina, /Cierre:/);
+  assert.match(pagina, /Por cajero/);
+  assert.match(pagina, /id="cajeros"/);
+  assert.match(pagina, /id="hist-cajeros"/);
+  assert.match(pagina, /pintarTurnos/);
+  assert.equal(pagina.includes('class="tarjeta oculto" id="turnos-caja"'), true);
+  assert.equal(/whatsapp/i.test(pagina), false);
+  assert.equal(/telefono/i.test(pagina), false);
 });

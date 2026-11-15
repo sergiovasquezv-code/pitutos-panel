@@ -1,5 +1,6 @@
 // Resumen del local: el día como lo ve la caja, el historial de 90 días y el stock.
 // Cada venta lleva folio, hora, cajero, cliente, líneas y, si está anulada, el motivo.
+// Si el computador manda turnos, se guardan con el día. Si no vienen, el día queda igual.
 // No guarda teléfonos, direcciones, costos ni la clave de producto.
 import { ahora, hoy, sumarDias, texto } from './licencias.js';
 
@@ -158,6 +159,68 @@ function limpiarProductos(lista) {
     productos.push({ codigo: texto(p.codigo, 40), nombre, cantidad, monto });
   }
   return { productos };
+}
+
+const MAX_TURNOS = 60;
+
+function instanteTurno(valor) {
+  const t = texto(valor, 19);
+  const m = /^(\d{4}-\d{2}-\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?$/.exec(t);
+  if (!m) return '';
+  const hh = Number(m[2]);
+  const mm = Number(m[3]);
+  const ss = m[4] == null ? 0 : Number(m[4]);
+  if (hh > 23 || mm > 59 || ss > 59) return '';
+  return `${m[1]}T${m[2]}:${m[3]}:${m[4] == null ? '00' : m[4]}`;
+}
+
+// Un turno sin apertura no se guarda. El efectivo contado solo entra si el cierre lo trae.
+export function limpiarTurnos(lista) {
+  if (!Array.isArray(lista)) return {};
+  const turnos = [];
+  for (const t of lista.slice(0, MAX_TURNOS)) {
+    if (!t || typeof t !== 'object' || Array.isArray(t)) continue;
+    const apertura = instanteTurno(t.apertura);
+    if (!apertura) continue;
+    const turno = { apertura, abrio: texto(t.abrio, 40) };
+    const caja = texto(t.caja, 40);
+    if (caja) turno.caja = caja;
+    const cierre = instanteTurno(t.cierre);
+    if (cierre) {
+      turno.cierre = cierre;
+      if (t.ventas != null) {
+        const ventas = entero(t.ventas, 10_000_000);
+        if (ventas != null) turno.ventas = ventas;
+      }
+      if (t.total != null) {
+        const total = entero(t.total, 1_000_000_000_000);
+        if (total != null) turno.total = total;
+      }
+      if (t.efectivo_esperado != null) {
+        const esperado = entero(t.efectivo_esperado, 1_000_000_000_000);
+        if (esperado != null) turno.efectivo_esperado = esperado;
+      }
+      if (t.efectivo_contado != null) {
+        const contado = entero(t.efectivo_contado, 1_000_000_000_000);
+        if (contado != null) turno.efectivo_contado = contado;
+      }
+    }
+    turnos.push(turno);
+  }
+  return turnos.length ? { turnos } : {};
+}
+
+export function detalleGuardado(resumen) {
+  const detalle = {
+    ventas: resumen.ventas,
+    anuladas: resumen.anuladas || 0,
+    devuelto: resumen.devuelto || 0,
+    medios: resumen.medios,
+    lista: resumen.lista || [],
+    productos: resumen.productos || [],
+  };
+  if (Array.isArray(resumen.turnos) && resumen.turnos.length) detalle.turnos = resumen.turnos;
+  return detalle;
 }
 
 function detalleDe(valor) {
@@ -319,6 +382,7 @@ export function limpiarResumen(d, fechaHoy) {
       stock: stock.stock,
       stock_total: stockTotal,
       stock_incompleto: d.stock_incompleto === true || d.stock_incompleto === 1,
+      ...limpiarTurnos(d.turnos),
     },
   };
 }
@@ -334,6 +398,7 @@ function vistaDia(det) {
     lista,
     productos,
     tiene_detalle: Array.isArray(det.lista),
+    ...limpiarTurnos(det.turnos),
   };
 }
 
@@ -394,6 +459,7 @@ export function vistaLocal(clave, fila, dias, diaPedido = '') {
     historial,
     por_cajero: porCajero(diaVista.lista),
     sin_datos: false,
+    ...(diaVista.turnos ? { turnos: diaVista.turnos } : {}),
   };
 }
 
@@ -445,14 +511,7 @@ export async function guardarResumen(db, claveId, resumen) {
         resumen.stock_total, resumen.stock_incompleto ? 1 : 0),
     db.prepare(`INSERT INTO mipos_resumen_dias(clave_id, dia, total, detalle) VALUES(?,?,?,?)
       ON CONFLICT(clave_id, dia) DO UPDATE SET total=excluded.total, detalle=excluded.detalle`)
-      .bind(claveId, resumen.dia, resumen.total, JSON.stringify({
-        ventas: resumen.ventas,
-        anuladas: resumen.anuladas || 0,
-        devuelto: resumen.devuelto || 0,
-        medios: resumen.medios,
-        lista: resumen.lista || [],
-        productos: resumen.productos || [],
-      })),
+      .bind(claveId, resumen.dia, resumen.total, JSON.stringify(detalleGuardado(resumen))),
     db.prepare('DELETE FROM mipos_resumen_dias WHERE dia < ?').bind(corte),
   ]);
 }
